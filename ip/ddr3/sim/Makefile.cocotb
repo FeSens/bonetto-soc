@@ -1,0 +1,21 @@
+# cocotb Makefile for ddr3_ctrl. Driven by 'make -C ip/ddr3 cocotb' which
+# delegates here.
+
+SIM           ?= icarus
+TOPLEVEL_LANG ?= verilog
+TOPLEVEL      ?= ddr3_ctrl
+MODULE        ?= test_ddr3_ctrl
+
+# Run cocotb from this directory so MODULE imports test_ddr3_ctrl.py here.
+COCOTB_RESULTS_FILE ?= results.xml
+COCOTB_TEST_FILES   ?= test_ddr3_ctrl.py
+
+VERILOG_INCLUDE_DIRS = ../rtl
+VERILOG_SOURCES = \
+    ../rtl/ddr3_ctrl.v \
+    ../rtl/ddr3_init.v \
+    ../rtl/ddr3_runtime.v
+
+COMPILE_ARGS += -g2012 -Den2048Mb -Dsg125 -Dx8
+
+include $(shell cocotb-config --makefiles)/Makefile.sim

@@ -27,13 +27,19 @@ $(BUILD)/proof.passed: $(BUILD)/ddr3_ctrl.smt2
 	@touch $@
 
 # ----- Sim -----
-# Two flavours:
-#   sim-init   = Verilator standalone, cycle-counter view of the init FSM
-#                (fastest, no Micron model — proves the state machine).
-#   sim-micron = Icarus with the Micron MT41K behavioural model wired in.
-#                The model declares "Initialization Sequence is complete"
-#                when our controller drives the JEDEC sequence correctly.
+# Three flavours:
+#   sim-init    = Verilator standalone, cycle-counter view of the init FSM
+#                 (fastest, no Micron model — proves the state machine).
+#   sim-micron  = Icarus with the Micron MT41K behavioural model wired in.
+#                 The model declares "Initialization Sequence is complete"
+#                 when our controller drives the JEDEC sequence correctly.
+#   cocotb      = Icarus + cocotb test suite. Drives WB transactions after
+#                 init_done and asserts the runtime FSM issues correct
+#                 ACT/RD/WR/PRE sequences on the DDR3 command bus.
 sim: sim-init sim-micron
+
+cocotb:
+	@$(MAKE) -C sim -f Makefile.cocotb
 
 sim-init: sim/build/Vddr3_ctrl
 	@./sim/build/Vddr3_ctrl
