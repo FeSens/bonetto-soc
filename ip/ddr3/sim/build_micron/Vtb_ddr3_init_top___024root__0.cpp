@@ -136,11 +136,11 @@ VlCoroutine Vtb_ddr3_init_top___024root___eval_initial__TOP__Vtiming__1(Vtb_ddr3
     Vtb_ddr3_init_top__Syms* const __restrict vlSymsp VL_ATTR_UNUSED = vlSelf->vlSymsp;
     auto& vlSelfRef = std::ref(*vlSelf).get();
     // Body
-    co_await vlSelfRef.__VdlySched.delay(0x0000000059682f00ULL, 
+    co_await vlSelfRef.__VdlySched.delay(0x000000000ee6b280ULL, 
                                          nullptr, "ip/ddr3/sim/tb_ddr3_init_top.sv", 
-                                         149);
-    VL_WRITEF_NX("[tb] timeout reached (1.5 ms sim time)\n",0);
-    VL_FINISH_MT("ip/ddr3/sim/tb_ddr3_init_top.sv", 150, "");
+                                         154);
+    VL_WRITEF_NX("[tb] timeout reached at 250 us sim time\n",0);
+    VL_FINISH_MT("ip/ddr3/sim/tb_ddr3_init_top.sv", 155, "");
     co_return;
 }
 
@@ -157,13 +157,13 @@ VlCoroutine Vtb_ddr3_init_top___024root___eval_initial__TOP__Vtiming__2(Vtb_ddr3
                                                          nullptr, 
                                                          "@(posedge tb_ddr3_init_top.init_done)", 
                                                          "ip/ddr3/sim/tb_ddr3_init_top.sv", 
-                                                         154);
+                                                         168);
     VL_WRITEF_NX("[tb] *** init_done asserted at time %0t ps ***\n",2, 'T',-9
                  , '#',64,VL_TIME_UNITED_Q(1000));
     co_await vlSelfRef.__VdlySched.delay(0x00000000000186a0ULL, 
                                          nullptr, "ip/ddr3/sim/tb_ddr3_init_top.sv", 
-                                         157);
-    VL_FINISH_MT("ip/ddr3/sim/tb_ddr3_init_top.sv", 157, "");
+                                         171);
+    VL_FINISH_MT("ip/ddr3/sim/tb_ddr3_init_top.sv", 171, "");
     co_return;
 }
 
@@ -180,13 +180,13 @@ VlCoroutine Vtb_ddr3_init_top___024root___eval_initial__TOP__Vtiming__3(Vtb_ddr3
                                                          nullptr, 
                                                          "@(posedge tb_ddr3_init_top.init_error)", 
                                                          "ip/ddr3/sim/tb_ddr3_init_top.sv", 
-                                                         161);
+                                                         175);
     VL_WRITEF_NX("[tb] *** init_error asserted, code=%0d ***\n",1
                  , '#',4,vlSelfRef.tb_ddr3_init_top__DOT__init_error_code);
     co_await vlSelfRef.__VdlySched.delay(0x00000000000186a0ULL, 
                                          nullptr, "ip/ddr3/sim/tb_ddr3_init_top.sv", 
-                                         163);
-    VL_FINISH_MT("ip/ddr3/sim/tb_ddr3_init_top.sv", 163, "");
+                                         177);
+    VL_FINISH_MT("ip/ddr3/sim/tb_ddr3_init_top.sv", 177, "");
     co_return;
 }
 

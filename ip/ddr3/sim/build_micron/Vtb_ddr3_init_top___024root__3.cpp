@@ -24,16 +24,18 @@ void Vtb_ddr3_init_top___024root___act_sequent__TOP__0(Vtb_ddr3_init_top___024ro
     Vtb_ddr3_init_top__Syms* const __restrict vlSymsp VL_ATTR_UNUSED = vlSelf->vlSymsp;
     auto& vlSelfRef = std::ref(*vlSelf).get();
     // Body
+    vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__prev_state 
+        = vlSelfRef.tb_ddr3_init_top__DOT__prev_state;
     vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__u_init__DOT__state 
         = vlSelfRef.tb_ddr3_init_top__DOT__u_dut__DOT__u_init__DOT__state;
     vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__u_init__DOT__wait_ctr 
         = vlSelfRef.tb_ddr3_init_top__DOT__u_dut__DOT__u_init__DOT__wait_ctr;
+    vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_odt 
+        = vlSelfRef.tb_ddr3_init_top__DOT__u_dut__DOT__init_odt;
     vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_dat 
         = vlSelfRef.tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_dat;
     vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_ack 
         = vlSelfRef.tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_ack;
-    vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_odt 
-        = vlSelfRef.tb_ddr3_init_top__DOT__u_dut__DOT__init_odt;
     vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_reset_n 
         = vlSelfRef.tb_ddr3_init_top__DOT__u_dut__DOT__init_reset_n;
     vlSelfRef.__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_cke 

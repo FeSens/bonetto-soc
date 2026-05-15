@@ -1270,6 +1270,7 @@ VL_ATTR_COLD void Vtb_ddr3_init_top___024root___eval_static__TOP(Vtb_ddr3_init_t
     // Body
     vlSelfRef.tb_ddr3_init_top__DOT__clk_phy = 0U;
     vlSelfRef.tb_ddr3_init_top__DOT__rst = 1U;
+    vlSelfRef.tb_ddr3_init_top__DOT__prev_state = 0x1fU;
     vlSelfRef.tb_ddr3_init_top__DOT__u_micron__DOT__TZQCS = 0x00000040U;
     vlSelfRef.tb_ddr3_init_top__DOT__u_micron__DOT__TZQINIT = 0x00000200U;
     vlSelfRef.tb_ddr3_init_top__DOT__u_micron__DOT__TZQOPER = 0x00000100U;
@@ -3649,8 +3650,7 @@ VL_ATTR_COLD void Vtb_ddr3_init_top___024root___ctor_var_reset(Vtb_ddr3_init_top
     vlSelf->__Vintraval_h5c4a18f2__0 = 0;
     vlSelf->__Vintralsb_hf69464cd__0 = 0;
     vlSelf->__Vintraval_ha8b12c7d__0 = 0;
-    vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_dat = 0;
-    vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_ack = 0;
+    vlSelf->__Vdly__tb_ddr3_init_top__DOT__prev_state = 0;
     vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__u_init__DOT__state = 0;
     vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__u_init__DOT__wait_ctr = 0;
     vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_reset_n = 0;
@@ -3662,6 +3662,8 @@ VL_ATTR_COLD void Vtb_ddr3_init_top___024root___ctor_var_reset(Vtb_ddr3_init_top
     vlSelf->__Vdly__tb_ddr3_init_top__DOT__init_error = 0;
     vlSelf->__Vdly__tb_ddr3_init_top__DOT__init_error_code = 0;
     vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_odt = 0;
+    vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_dat = 0;
+    vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_ack = 0;
     vlSelf->__Vdly__tb_ddr3_init_top__DOT__u_micron__DOT__diff_ck = 0;
     vlSelf->__VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__rst_n_in__v0 = 0;
     vlSelf->__VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__rst_n_in__v0 = 0;

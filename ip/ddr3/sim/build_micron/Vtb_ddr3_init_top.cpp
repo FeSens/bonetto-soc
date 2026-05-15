@@ -133,6 +133,6 @@ VL_ATTR_COLD void Vtb_ddr3_init_top::traceBaseModel(VerilatedTraceBaseC* tfp, in
             " use --trace-fst with VerilatedFst object, and --trace-vcd with VerilatedVcd object");
     }
     stfp->spTrace()->addModel(this);
-    stfp->spTrace()->addInitCb(&trace_init, &(vlSymsp->TOP), name(), false, 963);
+    stfp->spTrace()->addInitCb(&trace_init, &(vlSymsp->TOP), name(), false, 964);
     Vtb_ddr3_init_top___024root__trace_register(&(vlSymsp->TOP), stfp->spTrace());
 }

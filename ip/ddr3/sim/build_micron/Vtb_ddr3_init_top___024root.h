@@ -24,6 +24,7 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ tb_ddr3_init_top__DOT__init_done;
             CData/*0:0*/ tb_ddr3_init_top__DOT__init_error;
             CData/*3:0*/ tb_ddr3_init_top__DOT__init_error_code;
+            CData/*4:0*/ tb_ddr3_init_top__DOT__prev_state;
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_ack;
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_dut__DOT__o_ddr3_reset_n;
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_dut__DOT__o_ddr3_cke;
@@ -81,9 +82,9 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__zq_set;
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__er_trfc_max;
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__odt_state;
-            CData/*0:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__odt_state_dly;
         };
         struct {
+            CData/*0:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__odt_state_dly;
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__dyn_odt_state;
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__dyn_odt_state_dly;
             CData/*0:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__prev_odt;
@@ -147,9 +148,9 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*2:0*/ __Vintralsb_h3f6a9d9d__0;
             CData/*0:0*/ __Vintraval_h10ee5d2c__0;
             CData/*2:0*/ __Vintraidx_he99cb274__0;
-            CData/*0:0*/ __Vintraval_h25fa3a89__0;
         };
         struct {
+            CData/*0:0*/ __Vintraval_h25fa3a89__0;
             CData/*0:0*/ __Vintraval_h7656007d__0;
             CData/*0:0*/ __Vintraval_h7656007d__1;
             CData/*0:0*/ __Vintraval_hf79e2544__0;
@@ -213,9 +214,9 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vintraval_hbdf9bcba__0;
             CData/*2:0*/ __Vintralsb_hd9fbb031__0;
             CData/*0:0*/ __Vintraval_h071a5b72__0;
-            CData/*2:0*/ __Vintralsb_h07be1aba__0;
         };
         struct {
+            CData/*2:0*/ __Vintralsb_h07be1aba__0;
             CData/*0:0*/ __Vintraval_hf0631220__0;
             CData/*2:0*/ __Vintralsb_h0795b415__0;
             CData/*0:0*/ __Vintraval_hc4b9aee3__0;
@@ -279,9 +280,9 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vintraval_hbbf08367__0;
             CData/*2:0*/ __Vintralsb_hb7598b75__0;
             CData/*0:0*/ __Vintraval_h66e87d51__0;
-            CData/*2:0*/ __Vintralsb_h2d5dda89__0;
         };
         struct {
+            CData/*2:0*/ __Vintralsb_h2d5dda89__0;
             CData/*0:0*/ __Vintraval_hbbc4eef8__0;
             CData/*2:0*/ __Vintralsb_h2db76de6__0;
             CData/*0:0*/ __Vintraval_h0480713d__0;
@@ -345,9 +346,9 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vintraval_hb38c122a__0;
             CData/*2:0*/ __Vintralsb_h6b322586__0;
             CData/*0:0*/ __Vintraval_h134b9f35__0;
-            CData/*2:0*/ __Vintralsb_h0c7c3798__0;
         };
         struct {
+            CData/*2:0*/ __Vintralsb_h0c7c3798__0;
             CData/*0:0*/ __Vintraval_h52694d95__0;
             CData/*2:0*/ __Vintralsb_h0a4f90e7__0;
             CData/*0:0*/ __Vintraval_hd7c7003f__0;
@@ -411,13 +412,13 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vintraval_h40529125__0;
             CData/*2:0*/ __Vintralsb_h78ff0c1e__0;
             CData/*0:0*/ __Vintraval_h065dd8af__0;
-            CData/*2:0*/ __Vintralsb_hf8b0ab92__0;
         };
         struct {
+            CData/*2:0*/ __Vintralsb_hf8b0ab92__0;
             CData/*0:0*/ __Vintraval_h5c4a18f2__0;
             CData/*2:0*/ __Vintralsb_hf69464cd__0;
             CData/*0:0*/ __Vintraval_ha8b12c7d__0;
-            CData/*0:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_ack;
+            CData/*4:0*/ __Vdly__tb_ddr3_init_top__DOT__prev_state;
             CData/*4:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__u_init__DOT__state;
             CData/*0:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_reset_n;
             CData/*0:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_cke;
@@ -427,6 +428,7 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vdly__tb_ddr3_init_top__DOT__init_error;
             CData/*3:0*/ __Vdly__tb_ddr3_init_top__DOT__init_error_code;
             CData/*0:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__init_odt;
+            CData/*0:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_ack;
             CData/*0:0*/ __Vdly__tb_ddr3_init_top__DOT__u_micron__DOT__diff_ck;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__rst_n_in__v0;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__rst_n_in__v0;
@@ -476,10 +478,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v12;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v13;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v14;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v15;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v16;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v15;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v16;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v17;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v18;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v19;
@@ -542,10 +544,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_odt__v0;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_odt__v0;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__active_bank__v0;
-            CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__active_bank__v0;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__active_bank__v0;
         };
         struct {
+            CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__active_bank__v0;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__active_bank__v0;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__auto_precharge_bank__v0;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__auto_precharge_bank__v0;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__auto_precharge_bank__v0;
@@ -608,10 +610,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_group_write_end__v3;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_write_end__v3;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_bank_write_end__v4;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_group_write_end__v4;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_write_end__v4;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_group_write_end__v4;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_write_end__v4;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_bank_write_end__v5;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_group_write_end__v5;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_write_end__v5;
@@ -674,10 +676,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v101;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v102;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v103;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v104;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v105;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v104;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v105;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v106;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v107;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v108;
@@ -740,10 +742,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v19;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v19;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v20;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v20;
-            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v21;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v20;
+            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v21;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v21;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v22;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v22;
@@ -806,10 +808,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v19;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v19;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v20;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v20;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v21;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v20;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v21;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v21;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v22;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v22;
@@ -872,10 +874,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v51;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v51;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v52;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v52;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v53;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v52;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v53;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v53;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v54;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v54;
@@ -938,10 +940,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v83;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v83;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v84;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v84;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v85;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v84;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v85;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v85;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v86;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v86;
@@ -1004,10 +1006,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v115;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v115;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v116;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v116;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v117;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v116;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v117;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v117;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v118;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v118;
@@ -1070,10 +1072,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v0;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v0;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v0;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v0;
-            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v0;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v0;
+            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v0;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v0;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v0;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v3;
@@ -1136,10 +1138,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v144;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v144;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v145;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v145;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v146;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v145;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v146;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v146;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v147;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v147;
@@ -1202,10 +1204,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v35;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v5;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v5;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v5;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v5;
         };
         struct {
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v5;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v5;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v5;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v5;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v3;
@@ -1268,10 +1270,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v11;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v12;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v12;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v12;
-            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v12;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v12;
+            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v12;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v12;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v12;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v168;
@@ -1334,10 +1336,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v182;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v182;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v183;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v183;
-            CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v133;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v183;
+            CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v133;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v133;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v38;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v38;
@@ -1400,10 +1402,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v7;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v7;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v17;
-            CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v17;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v17;
         };
         struct {
+            CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v17;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v17;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v17;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v17;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v17;
@@ -1466,10 +1468,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v202;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v203;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v203;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v204;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v204;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v204;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v204;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v205;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v205;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v206;
@@ -1532,10 +1534,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v12;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v12;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v10;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v10;
-            CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v10;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v10;
+            CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v10;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v10;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v10;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v10;
@@ -1598,10 +1600,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v26;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v26;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v224;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v224;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v225;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v224;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v225;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v225;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v226;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v226;
@@ -1664,10 +1666,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v140;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v45;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v45;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v15;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v15;
         };
         struct {
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v15;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v15;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v15;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v15;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v15;
@@ -1730,10 +1732,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v31;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v31;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v31;
-            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v32;
-            CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v32;
         };
         struct {
+            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v32;
+            CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v32;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v32;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v32;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v32;
@@ -1796,10 +1798,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v261;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v261;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v262;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v262;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v263;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v262;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v263;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v263;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v143;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v143;
@@ -1862,10 +1864,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v17;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v17;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v17;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v17;
-            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v37;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v17;
+            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v37;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v37;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v37;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v37;
@@ -1928,10 +1930,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v281;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v282;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v282;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v283;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v283;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v283;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v283;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v284;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v284;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v285;
@@ -1994,10 +1996,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v22;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v22;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v22;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v22;
-            CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v20;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v22;
+            CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v20;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v20;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v20;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v20;
@@ -2060,10 +2062,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v46;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v46;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v46;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v46;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v304;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v46;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v304;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v304;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v305;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v305;
@@ -2126,10 +2128,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v319;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v150;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v150;
-            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v55;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v55;
         };
         struct {
+            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v55;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v55;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v25;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v25;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v25;
@@ -2192,10 +2194,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v51;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v51;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v51;
-            CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v51;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v51;
         };
         struct {
+            CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v51;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_dly__v51;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v52;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v52;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v52;
@@ -2258,10 +2260,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v340;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v340;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v341;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v341;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v342;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v341;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v342;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v342;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v343;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v343;
@@ -2324,10 +2326,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v27;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v27;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v27;
-            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v27;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v27;
         };
         struct {
+            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v27;
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v27;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v27;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v57;
             CData/*2:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__dq_out_en_dly__v57;
@@ -2390,10 +2392,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v360;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v361;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v361;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v362;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v362;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v362;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v362;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v363;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v363;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v364;
@@ -2456,10 +2458,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v32;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v32;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v32;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v32;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v32;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v32;
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v32;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v32;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v30;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v30;
@@ -2522,10 +2524,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v387;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v387;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v388;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v388;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v389;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v388;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v389;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v389;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v390;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v390;
@@ -2588,10 +2590,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v402;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v402;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v403;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v403;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v404;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v403;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v404;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v404;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v405;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v405;
@@ -2654,10 +2656,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v417;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v417;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v418;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v418;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v419;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v418;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v419;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v419;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v420;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v420;
@@ -2720,10 +2722,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v432;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v432;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v433;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v433;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v434;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v433;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v434;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v434;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v435;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v435;
@@ -2786,10 +2788,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v39;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v39;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v448;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v448;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v449;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v448;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v449;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v449;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v450;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v450;
@@ -2852,10 +2854,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v41;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v41;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v41;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v41;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v464;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v41;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v464;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v464;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v465;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v465;
@@ -2918,10 +2920,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v43;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v43;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v43;
-            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v43;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v43;
         };
         struct {
+            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v43;
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v43;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v43;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v480;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v480;
@@ -2984,10 +2986,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v47;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v45;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v45;
-            CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v45;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v45;
         };
         struct {
+            CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v45;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v45;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v45;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v45;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v45;
@@ -3050,10 +3052,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v49;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v49;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v49;
-            CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v47;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v47;
         };
         struct {
+            CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v47;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v47;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v47;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v47;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v47;
@@ -3116,10 +3118,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v51;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v51;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v51;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v51;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v51;
         };
         struct {
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v51;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v51;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v49;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v49;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v49;
@@ -3182,10 +3184,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v83;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v53;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v53;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v53;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v53;
         };
         struct {
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v53;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v53;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v53;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v53;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v51;
@@ -3248,10 +3250,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v180;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v85;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v85;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v55;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v55;
         };
         struct {
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v55;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v55;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v55;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v55;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_low__v55;
@@ -3314,10 +3316,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v575;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v182;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v182;
-            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v87;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v87;
         };
         struct {
+            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v87;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v87;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v57;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v57;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_postamble__v57;
@@ -3380,10 +3382,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v590;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v591;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v591;
-            CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v184;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v184;
         };
         struct {
+            CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v184;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v184;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v89;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v89;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_preamble__v59;
@@ -3446,10 +3448,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v605;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v606;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v606;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v607;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v607;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v607;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v607;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v186;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v186;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v91;
@@ -3512,10 +3514,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v620;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v621;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v621;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v622;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v622;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v622;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v622;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v623;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v623;
             CData/*5:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v188;
@@ -3578,10 +3580,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v635;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v636;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v636;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v637;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v637;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v637;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v637;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v638;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v638;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v639;
@@ -3644,10 +3646,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v654;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v655;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v655;
-            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v97;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v97;
         };
         struct {
+            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v97;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v97;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v65;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v65;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v3;
@@ -3710,10 +3712,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v673;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v673;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v674;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v674;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v675;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v674;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v675;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v675;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v676;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v676;
@@ -3776,10 +3778,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v102;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v102;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v70;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v70;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v8;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v70;
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v8;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v8;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v70;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v70;
@@ -3842,10 +3844,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v714;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v715;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v715;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v716;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v716;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v716;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v716;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v717;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v717;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v718;
@@ -3908,10 +3910,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v75;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v13;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v13;
-            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v75;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v75;
         };
         struct {
+            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v75;
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v75;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v75;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v736;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v736;
@@ -3974,10 +3976,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v756;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v756;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v757;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v757;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v758;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v757;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v758;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v758;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v759;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v759;
@@ -4040,10 +4042,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v80;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v80;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v80;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v776;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v776;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v776;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v776;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v777;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v777;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v778;
@@ -4106,10 +4108,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v797;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v798;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v798;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v799;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v799;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v799;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v799;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v115;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v115;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v83;
@@ -4172,10 +4174,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v816;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v816;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v817;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v817;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v818;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v817;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v818;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v818;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v819;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v819;
@@ -4238,12 +4240,12 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v839;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v839;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v120;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v120;
-            CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v88;
         };
     };
     struct {
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v120;
+            CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v88;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v88;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v26;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v26;
@@ -4306,10 +4308,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v857;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v858;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v858;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v859;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v859;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v859;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v859;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v860;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v860;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v861;
@@ -4372,10 +4374,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v125;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v93;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v93;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v31;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v31;
         };
         struct {
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v31;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v31;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v93;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v93;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v93;
@@ -4438,10 +4440,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v899;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v899;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v900;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v900;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v901;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v900;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v901;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v901;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v902;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v902;
@@ -4504,10 +4506,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v36;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v36;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v98;
-            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v98;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v98;
         };
         struct {
+            CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v98;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v98;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v920;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v920;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v921;
@@ -4570,10 +4572,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v940;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v941;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v941;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v942;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v942;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v942;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v942;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v943;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v943;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v133;
@@ -4636,10 +4638,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v103;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v103;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v960;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v960;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v961;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v960;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v961;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v961;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v962;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v962;
@@ -4702,10 +4704,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v982;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v982;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v983;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v983;
-            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v138;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v983;
+            CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v138;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v138;
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v106;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v106;
@@ -4768,10 +4770,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1000;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1001;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1001;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1002;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1002;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1002;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1002;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1003;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1003;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1004;
@@ -4834,10 +4836,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1023;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v143;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v143;
-            CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v111;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v111;
         };
         struct {
+            CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v111;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v111;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v49;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v49;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v111;
@@ -4900,10 +4902,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1042;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1042;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1043;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1043;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1044;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1043;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1044;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1044;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1045;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1045;
@@ -4966,10 +4968,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*4:0*/ __VdlyDim0__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v116;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v116;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v54;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v54;
-            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v116;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v54;
+            CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v116;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v116;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v116;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1064;
@@ -5032,10 +5034,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1083;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1084;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1084;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1085;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1085;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1085;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1085;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1086;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1086;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1087;
@@ -5098,10 +5100,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_write_dqs_high__v59;
             CData/*0:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v121;
             CData/*5:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v121;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v121;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1104;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v121;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1104;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1104;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1105;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1105;
@@ -5164,10 +5166,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1125;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1125;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1126;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1126;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1127;
         };
         struct {
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1126;
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1127;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1127;
             CData/*4:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v156;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dm_tdipw__v156;
@@ -5230,10 +5232,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__prev_dqs_in__v126;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1144;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1144;
-            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1145;
-            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1145;
         };
         struct {
+            CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1145;
+            CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1145;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1146;
             CData/*0:0*/ __VdlySet__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1146;
             CData/*6:0*/ __VdlyLsb__tb_ddr3_init_top__DOT__u_micron__DOT__check_dq_tdipw__v1147;
@@ -5296,10 +5298,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__cke_in__0;
             CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__odt_in__0;
             CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__cs_n_in__0;
-            CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__ras_n_in__0;
-            CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__cas_n_in__0;
         };
         struct {
+            CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__ras_n_in__0;
+            CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__cas_n_in__0;
             CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__we_n_in__0;
             CData/*0:0*/ __Vtrigprevexpr_h1bed9077__0;
             CData/*0:0*/ __Vtrigprevexpr_h1bed8a19__0;
@@ -5362,10 +5364,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vtrigprevexpr_h42491c36__0;
             CData/*0:0*/ __Vtrigprevexpr_h42491df8__0;
             CData/*0:0*/ __Vtrigprevexpr_h424921b7__0;
-            CData/*0:0*/ __Vtrigprevexpr_h4249216a__0;
-            CData/*0:0*/ __Vtrigprevexpr_h42492129__0;
         };
         struct {
+            CData/*0:0*/ __Vtrigprevexpr_h4249216a__0;
+            CData/*0:0*/ __Vtrigprevexpr_h42492129__0;
             CData/*0:0*/ __Vtrigprevexpr_h424932dd__0;
             CData/*0:0*/ __Vtrigprevexpr_h4249329e__0;
             CData/*0:0*/ __Vtrigprevexpr_h42491e5b__0;
@@ -5428,10 +5430,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vtrigprevexpr_h42489086__0;
             CData/*0:0*/ __Vtrigprevexpr_h42488bc8__0;
             CData/*0:0*/ __Vtrigprevexpr_h42488f07__0;
-            CData/*0:0*/ __Vtrigprevexpr_h42488c3a__0;
-            CData/*0:0*/ __Vtrigprevexpr_h42488f79__0;
         };
         struct {
+            CData/*0:0*/ __Vtrigprevexpr_h42488c3a__0;
+            CData/*0:0*/ __Vtrigprevexpr_h42488f79__0;
             CData/*0:0*/ __Vtrigprevexpr_h42488f2d__0;
             CData/*0:0*/ __Vtrigprevexpr_h4249626e__0;
             CData/*0:0*/ __Vtrigprevexpr_h42488fab__0;
@@ -5494,10 +5496,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vtrigprevexpr_h08fd69ca__0;
             CData/*0:0*/ __Vtrigprevexpr_h08fd6f16__0;
             CData/*0:0*/ __Vtrigprevexpr_h08fd6b58__0;
-            CData/*0:0*/ __Vtrigprevexpr_h08fd6a89__0;
-            CData/*0:0*/ __Vtrigprevexpr_h08fd70cd__0;
         };
         struct {
+            CData/*0:0*/ __Vtrigprevexpr_h08fd6a89__0;
+            CData/*0:0*/ __Vtrigprevexpr_h08fd70cd__0;
             CData/*0:0*/ __Vtrigprevexpr_h08fd6a17__0;
             CData/*0:0*/ __Vtrigprevexpr_h08fd6a4b__0;
             CData/*0:0*/ __Vtrigprevexpr_h08fd6d8e__0;
@@ -5560,10 +5562,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             CData/*0:0*/ __Vtrigprevexpr_h81d9cd46__0;
             CData/*2:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_dut__DOT__o_ddr3_ba__0;
             CData/*7:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__dq__0;
-            CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__dqs__0;
-            CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__dqs_n__0;
         };
         struct {
+            CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__dqs__0;
+            CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__dqs_n__0;
             CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_dut__DOT__o_ddr3_odt__0;
             CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__u_micron__DOT__diff_ck__0;
             CData/*0:0*/ __Vtrigprevexpr___TOP__tb_ddr3_init_top__DOT__init_done__0;
@@ -5626,10 +5628,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_power_down;
             IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_slow_exit_pd;
             IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_self_refresh;
-            IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_freq_change;
-            IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_odt;
         };
         struct {
+            IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_freq_change;
+            IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_odt;
             IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_odth8;
             IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_dll_reset;
             IData/*31:0*/ tb_ddr3_init_top__DOT__u_micron__DOT__ck_cke_cmd;
@@ -5676,8 +5678,8 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             IData/*31:0*/ __Vintraval_hafe4f182__0;
             IData/*16:0*/ __Vintraval_h7e0143a8__0;
             VlWide<4>/*127:0*/ __Vintraval_hc888c3fb__0;
-            IData/*31:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_dat;
             IData/*23:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__u_init__DOT__wait_ctr;
+            IData/*31:0*/ __Vdly__tb_ddr3_init_top__DOT__u_dut__DOT__o_wb_dat;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dm_in__v0;
             IData/*16:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__addr_in__v0;
             VlWide<4>/*127:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__dq_in__v0;
@@ -5692,10 +5694,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_write__v0;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_odth8__v0;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_bank_write__v0;
-            IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_group_write__v0;
-            IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_read__v0;
         };
         struct {
+            IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_group_write__v0;
+            IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_read__v0;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_bank_read__v0;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_group_read__v0;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__ck_zqoper__v0;
@@ -5758,10 +5760,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v174;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v175;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v176;
-            IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v177;
-            IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v178;
         };
         struct {
+            IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v177;
+            IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v178;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v179;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v180;
             IData/*31:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__wdqs_pos_cntr__v181;
@@ -5824,10 +5826,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_precharge__v0;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_cke_cmd__v0;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_load_mode__v0;
-            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_refresh__v0;
-            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_precharge__v1;
         };
         struct {
+            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_refresh__v0;
+            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_precharge__v1;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_activate__v0;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_group_activate__v0;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_bank_activate__v0;
@@ -5890,10 +5892,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v12;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v12;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v13;
-            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v13;
-            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v14;
         };
         struct {
+            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v13;
+            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v14;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v14;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v15;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v15;
@@ -5956,10 +5958,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v44;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v44;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v45;
-            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v45;
-            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v46;
         };
         struct {
+            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v45;
+            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v46;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v46;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v47;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos__v47;
@@ -6022,10 +6024,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v88;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v89;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v90;
-            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v91;
-            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v92;
         };
         struct {
+            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v91;
+            QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v92;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v93;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v94;
             QData/*63:0*/ __VdlyVal__tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs__v95;
@@ -6088,10 +6090,10 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_ddr3_init_top___024root final {
             VlUnpacked<QData/*63:0*/, 64> tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs_pos;
             VlUnpacked<QData/*63:0*/, 64> tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqss_pos;
             VlUnpacked<QData/*63:0*/, 64> tb_ddr3_init_top__DOT__u_micron__DOT__tm_dqs_neg;
-            VlUnpacked<QData/*63:0*/, 128> tb_ddr3_init_top__DOT__u_micron__DOT__tm_dq;
-            VlUnpacked<QData/*63:0*/, 24> tb_ddr3_init_top__DOT__u_micron__DOT__tm_cmd_addr;
         };
         struct {
+            VlUnpacked<QData/*63:0*/, 128> tb_ddr3_init_top__DOT__u_micron__DOT__tm_dq;
+            VlUnpacked<QData/*63:0*/, 24> tb_ddr3_init_top__DOT__u_micron__DOT__tm_cmd_addr;
             VlUnpacked<QData/*55:0*/, 24> tb_ddr3_init_top__DOT__u_micron__DOT__cmd_addr_string;
             VlUnpacked<QData/*39:0*/, 2> tb_ddr3_init_top__DOT__u_micron__DOT__dqs_string;
             VlUnpacked<IData/*31:0*/, 8> tb_ddr3_init_top__DOT__u_micron__DOT__memfd;

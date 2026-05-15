@@ -96,16 +96,54 @@ module ddr3_ctrl #(
         .o_state          (o_init_state)
     );
 
-    // ---------------- Runtime FSM (placeholder for iter-3) ----------------
-    // Once init_done is high, the runtime FSM owns the command bus. For
-    // iter-2 it just issues NOP forever. Iter-3 replaces this with the
-    // real read/write/refresh state machine.
-    wire [3:0]            rt_cmd       = `DDR3_CMD_NOP;
-    wire [BANK_BITS-1:0]  rt_ba        = {BANK_BITS{1'b0}};
-    wire [ROW_BITS-1:0]   rt_addr      = {ROW_BITS{1'b0}};
+    // ---------------- Runtime FSM ----------------
+    // Once init_done is high, the runtime FSM owns the command bus.
+    // ACT -> RD/WR -> PRE per transaction with refresh interleaving.
+    wire [3:0]            rt_cmd;
+    wire [BANK_BITS-1:0]  rt_ba;
+    wire [ROW_BITS-1:0]   rt_addr;
+    wire                  rt_cmd_valid;
     wire                  rt_reset_n   = 1'b1;
     wire                  rt_cke       = 1'b1;
     wire                  rt_odt       = 1'b0;
+
+    wire                  rt_wb_stall;
+    wire                  rt_wb_ack;
+    wire [WB_DATA_W-1:0]  rt_wb_dat;
+    wire                  rt_wb_err;
+
+    ddr3_runtime #(
+        .WB_DATA_W (WB_DATA_W),
+        .WB_ADDR_W (WB_ADDR_W),
+        .ROW_BITS  (ROW_BITS),
+        .BANK_BITS (BANK_BITS),
+        .COL_BITS  (COL_BITS),
+        .DQ_BITS   (DQ_BITS)
+    ) u_runtime (
+        .i_clk_phy   (i_clk_phy),
+        .i_rst       (i_rst),
+        .i_init_done (o_init_done),
+
+        .i_wb_cyc    (i_wb_cyc),
+        .i_wb_stb    (i_wb_stb),
+        .i_wb_we     (i_wb_we),
+        .i_wb_adr    (i_wb_adr),
+        .i_wb_dat    (i_wb_dat),
+        .i_wb_sel    (i_wb_sel),
+        .o_wb_stall  (rt_wb_stall),
+        .o_wb_ack    (rt_wb_ack),
+        .o_wb_dat    (rt_wb_dat),
+        .o_wb_err    (rt_wb_err),
+
+        .o_cmd_valid (rt_cmd_valid),
+        .o_cmd       (rt_cmd),
+        .o_cmd_ba    (rt_ba),
+        .o_cmd_addr  (rt_addr),
+
+        .i_dq        ({DQ_BITS{1'b0}}),     // PHY iter-3
+        .o_dq        (),
+        .o_dq_oe     ()
+    );
 
     // ---------------- Command bus mux ----------------
     // init owns the bus until init_done; runtime FSM after.
@@ -123,22 +161,18 @@ module ddr3_ctrl #(
     assign o_ddr3_ba      = sel_ba;
     assign o_ddr3_addr    = sel_addr;
 
-    // ---------------- Wishbone slave logic ----------------
-    // Stall every WB transaction until init completes. After init,
-    // ack with zero (read) or just ack (write) — real DRAM read/write
-    // is iter-3.
-    assign o_wb_stall = ~o_init_done;
-
-    wire accept = i_wb_cyc && i_wb_stb && !o_wb_stall;
+    // ---------------- Wishbone slave routing ----------------
+    // Pre-init: front-end stalls everything.
+    // Post-init: ddr3_runtime owns the WB responses.
+    assign o_wb_stall = (~o_init_done) | rt_wb_stall;
 
     always @(posedge i_clk) begin
         if (i_rst) begin
             o_wb_ack <= 1'b0;
             o_wb_dat <= {WB_DATA_W{1'b0}};
         end else begin
-            o_wb_ack <= accept && i_wb_cyc;
-            if (accept && !i_wb_we) o_wb_dat <= {WB_DATA_W{1'b0}};
-            if (!i_wb_cyc) o_wb_ack <= 1'b0;
+            o_wb_ack <= rt_wb_ack;
+            o_wb_dat <= rt_wb_dat;
         end
     end
 

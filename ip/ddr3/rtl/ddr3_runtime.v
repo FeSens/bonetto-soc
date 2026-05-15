@@ -77,20 +77,24 @@ module ddr3_runtime #(
     wire [COL_BITS-1:0]         wb_col  = { i_wb_adr[(COL_BITS-3)-1:0], 3'b000 };
 
     // ---- Refresh scheduler ----
-    reg [15:0] ref_ctr;                    // counts up to tREFI
+    // ref_pending is SET by the scheduler when tREFI elapses and
+    // CLEARED by the main FSM when REF completes. Both updates live in
+    // the same always block to avoid multiple-driver issues.
+    reg [15:0] ref_ctr;
     reg        ref_pending;
+    reg        ref_clear;                  // pulses from FSM at end of REF
     always @(posedge i_clk_phy) begin
-        if (i_rst) begin
+        if (i_rst || !i_init_done) begin
             ref_ctr     <= 16'd0;
             ref_pending <= 1'b0;
-        end else if (!i_init_done) begin
-            ref_ctr     <= 16'd0;
-            ref_pending <= 1'b0;
-        end else if (ref_ctr == `DDR3_TREFI - 1) begin
-            ref_ctr     <= 16'd0;
-            ref_pending <= 1'b1;
         end else begin
-            ref_ctr <= ref_ctr + 1'b1;
+            if (ref_ctr == `DDR3_TREFI - 1) begin
+                ref_ctr     <= 16'd0;
+                ref_pending <= 1'b1;
+            end else begin
+                ref_ctr <= ref_ctr + 1'b1;
+            end
+            if (ref_clear) ref_pending <= 1'b0;
         end
     end
 
@@ -141,10 +145,12 @@ module ddr3_runtime #(
             o_wb_dat    <= {WB_DATA_W{1'b0}};
             beat_ctr    <= 8'd0;
             wait_ctr    <= 8'd0;
+            ref_clear   <= 1'b0;
         end else begin
             o_cmd_valid <= 1'b0;
             o_cmd       <= `DDR3_CMD_NOP;
             o_wb_ack    <= 1'b0;
+            ref_clear   <= 1'b0;
 
             case (state)
                 S_IDLE: begin
@@ -290,9 +296,9 @@ module ddr3_runtime #(
 
                 S_REF_WAIT: begin
                     if (wait_ctr == `DDR3_TRFC - 2) begin
-                        wait_ctr     <= 8'd0;
-                        ref_pending  <= 1'b0;
-                        state        <= S_IDLE;
+                        wait_ctr  <= 8'd0;
+                        ref_clear <= 1'b1;          // pulse to refresh scheduler
+                        state     <= S_IDLE;
                     end else begin
                         wait_ctr <= wait_ctr + 1'b1;
                     end
