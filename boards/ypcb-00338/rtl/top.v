@@ -186,6 +186,19 @@ module top (
     wire [12:0] phy_mpr_addr;
     wire        ctrl_mpr_busy;
 
+    // ---- Cal sequencer wiring (init_done → wlvl → rdlvl → cal_done) ----
+    wire        ctrl_init_done;
+    wire        cal_wlvl_start, cal_wlvl_done, cal_wlvl_error;
+    wire        cal_rdlvl_start, cal_rdlvl_done, cal_rdlvl_error;
+    wire        cal_done;
+    wire        cal_error;
+    /* verilator lint_off UNUSED */
+    wire [1:0]  cal_error_code;
+    wire [3:0]  cal_seq_state;
+    wire [3:0]  cal_wlvl_state;
+    wire [3:0]  cal_rdlvl_state;
+    /* verilator lint_on UNUSED */
+
     // ---- Synchronize por_rst into the 200 MHz domain (after MMCM lock) ----
     reg [2:0] rst_sync_sys = 3'b111;
     always @(posedge clk_sys or posedge por_rst_50) begin
@@ -229,11 +242,28 @@ module top (
         .i_mpr_req      (phy_mpr_req),
         .i_mpr_addr     (phy_mpr_addr),
         .o_mpr_busy     (ctrl_mpr_busy),
-        // Status (left as no-connect at top level; future SoC reads via JTAG)
-        .o_init_done        (),
+        // Status — init_done feeds the cal sequencer.
+        .o_init_done        (ctrl_init_done),
         .o_init_error       (),
         .o_init_error_code  (),
         .o_init_state       ()
+    );
+
+    // ---- Cal sequencer — wlvl then rdlvl after init_done ----
+    ddr3_cal_seq u_cal_seq (
+        .i_clk            (clk_sys),
+        .i_rst            (rst_sys),
+        .i_init_done      (ctrl_init_done),
+        .o_wlvl_start     (cal_wlvl_start),
+        .i_wlvl_done      (cal_wlvl_done),
+        .i_wlvl_error     (cal_wlvl_error),
+        .o_rdlvl_start    (cal_rdlvl_start),
+        .i_rdlvl_done     (cal_rdlvl_done),
+        .i_rdlvl_error    (cal_rdlvl_error),
+        .o_cal_done       (cal_done),
+        .o_cal_error      (cal_error),
+        .o_cal_error_code (cal_error_code),
+        .o_state          (cal_seq_state)
     );
 
     // ---- ddr3_phy on its own MMCM-derived clocks ----
@@ -269,17 +299,15 @@ module top (
         .o_rd_valid     (),
         .o_rd_data      (),
 
-        // Calibration controls — not started in iter-3d.
-        // Iter-3e adds a small "cal sequencer" FSM that pulses these
-        // after init_done.
-        .i_cal_start_wlvl  (1'b0),
-        .o_cal_done_wlvl   (),
-        .o_cal_error_wlvl  (),
-        .o_cal_state_wlvl  (),
-        .i_cal_start_rdlvl (1'b0),
-        .o_cal_done_rdlvl  (),
-        .o_cal_error_rdlvl (),
-        .o_cal_state_rdlvl (),
+        // Calibration controls — driven by ddr3_cal_seq (iter-3e).
+        .i_cal_start_wlvl  (cal_wlvl_start),
+        .o_cal_done_wlvl   (cal_wlvl_done),
+        .o_cal_error_wlvl  (cal_wlvl_error),
+        .o_cal_state_wlvl  (cal_wlvl_state),
+        .i_cal_start_rdlvl (cal_rdlvl_start),
+        .o_cal_done_rdlvl  (cal_rdlvl_done),
+        .o_cal_error_rdlvl (cal_rdlvl_error),
+        .o_cal_state_rdlvl (cal_rdlvl_state),
         .o_mpr_read_req    (phy_mpr_req),
         .o_mpr_read_addr   (phy_mpr_addr),
 
@@ -303,6 +331,7 @@ module top (
 
     // ---- Unused signals — keep nextpnr happy ----
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, clk_phy_x4, clk_dq, idelay_ready, ctrl_mpr_busy, 1'b0};
+    wire _u = &{1'b0, clk_phy_x4, clk_dq, idelay_ready, ctrl_mpr_busy,
+                cal_done, cal_error, 1'b0};
     /* verilator lint_on UNUSED */
 endmodule

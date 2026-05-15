@@ -28,7 +28,8 @@ RTL := \
     ../../ip/ddr3/rtl/ddr3_phy_lane_array.v \
     ../../ip/ddr3/rtl/ddr3_phy_dq.v \
     ../../ip/ddr3/rtl/ddr3_phy_wlvl.v \
-    ../../ip/ddr3/rtl/ddr3_phy_rdlvl.v
+    ../../ip/ddr3/rtl/ddr3_phy_rdlvl.v \
+    ../../ip/ddr3/rtl/ddr3_cal_seq.v
 
 BUILD  := build
 CHIPDB := $(BUILD)/chipdb

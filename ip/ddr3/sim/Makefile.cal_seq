@@ -1,0 +1,16 @@
+# cocotb Makefile for ddr3_cal_seq.
+
+SIM           ?= icarus
+TOPLEVEL_LANG ?= verilog
+TOPLEVEL      ?= ddr3_cal_seq
+MODULE        ?= test_ddr3_cal_seq
+
+COCOTB_RESULTS_FILE ?= results_cal_seq.xml
+SIM_BUILD           ?= sim_build_cal_seq
+
+VERILOG_INCLUDE_DIRS = ../rtl
+VERILOG_SOURCES = ../rtl/ddr3_cal_seq.v
+
+COMPILE_ARGS += -g2012 -DBONETTO_SOC_SIM
+
+include $(shell cocotb-config --makefiles)/Makefile.sim
