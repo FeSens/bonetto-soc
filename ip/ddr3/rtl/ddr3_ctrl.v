@@ -1,25 +1,40 @@
-// ddr3_ctrl — parameterised DDR3 controller.
+// ddr3_ctrl — DDR3 memory controller (iter-2 skeleton).
 //
-// ITERATION 1 STUB. Satisfies the Wishbone B4 pipelined slave contract
-// so the board top-level can drop it in next to wb_memory and route the
-// real DDR3 pins out of the FPGA — but the controller is internally a
-// no-op (acks every transaction with zero, never touches the pins).
+// Production-quality target: ultimately handles all of read/write,
+// refresh scheduling, bank state tracking, calibration, ECC, multi-rank.
+// Iter-2 skeleton covers:
+//   * Wishbone B4 pipelined slave port (locked in iter-1 — same set as
+//     `wb_memory` so the board top swaps one for the other with no other
+//     RTL changes).
+//   * ddr3_init.v drives the DDR3 command bus through power-up.
+//   * Until init completes (`init_done = 1`), WB transactions stall via
+//     `o_wb_stall`. After init, WB writes/reads are stubbed (acks with
+//     zero data) — the runtime read/write FSM lands in iter-3.
+//   * DDR3 chip-facing pins exposed so the board top can route them.
 //
-// The real PHY + state machine arrive in iteration 2. The Wishbone port
-// set is locked here per INVARIANTS #4 so future swap-in is one-file.
+// Per INVARIANTS #4, the WB port set NEVER changes. New parameters can
+// be added; signal names cannot be renamed.
 
 `default_nettype none
 
+`include "ddr3_params.vh"
+`include "ddr3_cmd.vh"
+
 module ddr3_ctrl #(
     parameter integer WB_DATA_W   = 32,
-    parameter integer WB_ADDR_W   = 28,
+    parameter integer WB_ADDR_W   = 28,                  // word-aligned within the DDR3 window
     parameter         DDR3_PART   = "MT41K256M8DA-125",
-    parameter integer SPEED_GRADE = 1600
+    parameter integer SPEED_GRADE = 1600,
+    parameter integer ROW_BITS    = `DDR3_ROW_BITS,
+    parameter integer BANK_BITS   = `DDR3_BANK_BITS,
+    parameter integer COL_BITS    = `DDR3_COL_BITS,
+    parameter integer DQ_BITS     = 8                    // per-chip DQ width
 ) (
-    input  wire                     i_clk,
+    input  wire                     i_clk,               // SoC clock (50 MHz on YPCB-00338)
+    input  wire                     i_clk_phy,           // DDR3 clock — TODO: MMCM in iter-3
     input  wire                     i_rst,
 
-    // Wishbone B4 pipelined slave
+    // -------- Wishbone B4 pipelined slave (locked port set) --------
     input  wire                     i_wb_cyc,
     input  wire                     i_wb_stb,
     input  wire                     i_wb_we,
@@ -28,26 +43,108 @@ module ddr3_ctrl #(
     input  wire [WB_DATA_W/8-1:0]   i_wb_sel,
     output wire                     o_wb_stall,
     output reg                      o_wb_ack,
-    output wire [WB_DATA_W-1:0]     o_wb_dat,
-    output wire                     o_wb_err
+    output reg  [WB_DATA_W-1:0]     o_wb_dat,
+    output wire                     o_wb_err,
 
-    // DDR3-side pins arrive in iter 2 — for now the YPCB-00338 top file
-    // ties them to weak pulls so nothing on the PCB floats.
+    // -------- DDR3 chip-facing pins --------
+    output wire                     o_ddr3_reset_n,
+    output wire                     o_ddr3_cke,
+    output wire                     o_ddr3_odt,
+    output wire                     o_ddr3_cs_n,
+    output wire                     o_ddr3_ras_n,
+    output wire                     o_ddr3_cas_n,
+    output wire                     o_ddr3_we_n,
+    output wire [BANK_BITS-1:0]     o_ddr3_ba,
+    output wire [ROW_BITS-1:0]      o_ddr3_addr,
+    // DQ/DQS/DM tristate handled by IOB cells in the PHY layer (iter-3).
+    // For iter-2 they are unused.
+
+    // -------- Status (for host / debug) --------
+    output wire                     o_init_done,
+    output wire                     o_init_error,
+    output wire [3:0]               o_init_error_code,
+    output wire [4:0]               o_init_state
 );
-    assign o_wb_stall = 1'b0;
-    assign o_wb_err   = 1'b0;
-    assign o_wb_dat   = {WB_DATA_W{1'b0}};
+
+    // -------- Wishbone error tied off, no faults raised in iter-2 --------
+    assign o_wb_err = 1'b0;
+
+    // ---------------- Init FSM ----------------
+    wire [3:0]            init_cmd;       // {cs_n, ras_n, cas_n, we_n}
+    wire [BANK_BITS-1:0]  init_ba;
+    wire [ROW_BITS-1:0]   init_addr;
+    wire                  init_reset_n;
+    wire                  init_cke;
+    wire                  init_odt;
+
+    ddr3_init #(
+        .ROW_BITS (ROW_BITS),
+        .BANK_BITS(BANK_BITS),
+        .CMD_BITS (4)
+    ) u_init (
+        .i_clk_phy        (i_clk_phy),
+        .i_rst            (i_rst),
+        .o_ddr3_reset_n   (init_reset_n),
+        .o_ddr3_cke       (init_cke),
+        .o_ddr3_odt       (init_odt),
+        .o_ddr3_cmd       (init_cmd),
+        .o_ddr3_ba        (init_ba),
+        .o_ddr3_addr      (init_addr),
+        .o_init_done      (o_init_done),
+        .o_init_error     (o_init_error),
+        .o_init_error_code(o_init_error_code),
+        .o_state          (o_init_state)
+    );
+
+    // ---------------- Runtime FSM (placeholder for iter-3) ----------------
+    // Once init_done is high, the runtime FSM owns the command bus. For
+    // iter-2 it just issues NOP forever. Iter-3 replaces this with the
+    // real read/write/refresh state machine.
+    wire [3:0]            rt_cmd       = `DDR3_CMD_NOP;
+    wire [BANK_BITS-1:0]  rt_ba        = {BANK_BITS{1'b0}};
+    wire [ROW_BITS-1:0]   rt_addr      = {ROW_BITS{1'b0}};
+    wire                  rt_reset_n   = 1'b1;
+    wire                  rt_cke       = 1'b1;
+    wire                  rt_odt       = 1'b0;
+
+    // ---------------- Command bus mux ----------------
+    // init owns the bus until init_done; runtime FSM after.
+    wire [3:0] sel_cmd      = o_init_done ? rt_cmd      : init_cmd;
+    wire       sel_reset_n  = o_init_done ? rt_reset_n  : init_reset_n;
+    wire       sel_cke      = o_init_done ? rt_cke      : init_cke;
+    wire       sel_odt      = o_init_done ? rt_odt      : init_odt;
+    wire [BANK_BITS-1:0] sel_ba   = o_init_done ? rt_ba   : init_ba;
+    wire [ROW_BITS-1:0]  sel_addr = o_init_done ? rt_addr : init_addr;
+
+    assign {o_ddr3_cs_n, o_ddr3_ras_n, o_ddr3_cas_n, o_ddr3_we_n} = sel_cmd;
+    assign o_ddr3_reset_n = sel_reset_n;
+    assign o_ddr3_cke     = sel_cke;
+    assign o_ddr3_odt     = sel_odt;
+    assign o_ddr3_ba      = sel_ba;
+    assign o_ddr3_addr    = sel_addr;
+
+    // ---------------- Wishbone slave logic ----------------
+    // Stall every WB transaction until init completes. After init,
+    // ack with zero (read) or just ack (write) — real DRAM read/write
+    // is iter-3.
+    assign o_wb_stall = ~o_init_done;
 
     wire accept = i_wb_cyc && i_wb_stb && !o_wb_stall;
 
     always @(posedge i_clk) begin
-        if (i_rst)          o_wb_ack <= 1'b0;
-        else if (!i_wb_cyc) o_wb_ack <= 1'b0;
-        else                o_wb_ack <= accept;
+        if (i_rst) begin
+            o_wb_ack <= 1'b0;
+            o_wb_dat <= {WB_DATA_W{1'b0}};
+        end else begin
+            o_wb_ack <= accept && i_wb_cyc;
+            if (accept && !i_wb_we) o_wb_dat <= {WB_DATA_W{1'b0}};
+            if (!i_wb_cyc) o_wb_ack <= 1'b0;
+        end
     end
 
     /* verilator lint_off UNUSED */
     wire _unused = &{1'b0, i_wb_we, i_wb_adr, i_wb_dat, i_wb_sel,
-                     DDR3_PART[0], SPEED_GRADE[0], 1'b0};
+                     DDR3_PART[0], SPEED_GRADE[0], COL_BITS[0],
+                     DQ_BITS[0], 1'b0};
     /* verilator lint_on UNUSED */
 endmodule
