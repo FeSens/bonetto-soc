@@ -1,0 +1,9 @@
+<testsuites name="results">
+  <testsuite name="all" package="all">
+    <property name="random_seed" value="1778817840" />
+    <testcase name="addr_bit_0_routes_to_slave0" classname="test_wb_decode2" file="/Users/bonetto/bonetto/bonetto-soc/ip/wishbone/sim/test_wb_decode2.py" lineno="31" time="0.0006079673767089844" sim_time_ns="60.0" ratio_time="98689.50588235294" />
+    <testcase name="addr_bit_1_routes_to_slave1" classname="test_wb_decode2" file="/Users/bonetto/bonetto/bonetto-soc/ip/wishbone/sim/test_wb_decode2.py" lineno="48" time="0.0002849102020263672" sim_time_ns="70.0" ratio_time="245691.44769874477" />
+    <testcase name="slave0_ack_reaches_master" classname="test_wb_decode2" file="/Users/bonetto/bonetto/bonetto-soc/ip/wishbone/sim/test_wb_decode2.py" lineno="65" time="0.0002467632293701172" sim_time_ns="80.0" ratio_time="324197.4106280193" />
+    <testcase name="slave1_ack_reaches_master" classname="test_wb_decode2" file="/Users/bonetto/bonetto/bonetto-soc/ip/wishbone/sim/test_wb_decode2.py" lineno="83" time="0.00021696090698242188" sim_time_ns="80.0" ratio_time="368730.021978022" />
+  </testsuite>
+</testsuites>
