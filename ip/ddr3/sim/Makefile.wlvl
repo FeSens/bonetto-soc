@@ -1,0 +1,17 @@
+# cocotb Makefile for ddr3_phy_wlvl FSM.
+# Driven by 'make -C ip/ddr3 wlvl' (added below).
+
+SIM           ?= icarus
+TOPLEVEL_LANG ?= verilog
+TOPLEVEL      ?= ddr3_phy_wlvl
+MODULE        ?= test_ddr3_phy_wlvl
+
+COCOTB_RESULTS_FILE ?= results_wlvl.xml
+SIM_BUILD           ?= sim_build_wlvl
+
+VERILOG_INCLUDE_DIRS = ../rtl
+VERILOG_SOURCES = ../rtl/ddr3_phy_wlvl.v
+
+COMPILE_ARGS += -g2012 -DBONETTO_SOC_SIM
+
+include $(shell cocotb-config --makefiles)/Makefile.sim

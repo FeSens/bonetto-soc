@@ -1,0 +1,7 @@
+<testsuites name="results">
+  <testsuite name="all" package="all">
+    <property name="random_seed" value="1778819084" />
+    <testcase name="rdlvl_finds_centre_per_lane" classname="test_ddr3_phy_rdlvl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_phy_rdlvl.py" lineno="98" time="0.4105069637298584" sim_time_ns="132820.0" ratio_time="323551.1495181471" />
+    <testcase name="rdlvl_errors_when_no_pass_window" classname="test_ddr3_phy_rdlvl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_phy_rdlvl.py" lineno="129" time="0.043753862380981445" sim_time_ns="14820.0" ratio_time="338712.9545491698" />
+  </testsuite>
+</testsuites>
