@@ -14,7 +14,7 @@
 
 `default_nettype none
 
-`timescale 1ns / 1ps
+`timescale 1ps / 1ps
 
 module tb_ddr3_init_top (
     output wire done_or_err     // pulses high when sim should stop
@@ -32,10 +32,11 @@ module tb_ddr3_init_top (
     // doesn't depend on clk vs clk_phy ratio — iter-3 introduces an MMCM).
     wire clk_50 = clk_phy;
 
-    // Reset: hold high for 10 cycles, then drop.
+    // Reset: hold high for 16 cycles (20 ns), then drop. Numbers are
+    // in picoseconds now (timescale 1ps/1ps).
     reg rst = 1;
     initial begin
-        #20000 rst = 0;        // release after 20 ns
+        #20000 rst = 0;        // release after 20 ns = 16 tCK
     end
     // -------- ddr3_ctrl + Micron model wiring --------
     localparam integer ROW_BITS  = 15;
@@ -145,23 +146,26 @@ module tb_ddr3_init_top (
     assign done_or_err = init_done | init_error;
 
     initial begin
-        // Hard timeout. Verilator --timing on the behavioural Micron model
-        // is computationally expensive (each ps is a sim event). The full
-        // 700 µs init takes hours of wall-clock; for a quick gating run,
-        // we cap at 250 µs and check the *early* JEDEC arcs (reset hold,
-        // tXPR, first MR). Full sim → Icarus or higher timing-precision
-        // unit in iter-3.
-        #250000 $display("[tb] timeout reached at 250 us sim time");
+        // Hard timeout in ps. Full init takes ~700 µs (tRESET + tCKE_LOW
+        // + MR programming + ZQinit + tDLLK + tRP + tRFC). Cap at 800 µs
+        // to give a safety margin.
+        #800_000_000 $display("[tb] timeout reached at 800 us sim time");
         $finish;
     end
 
     // Per-state debug print so we see init progress in stdout.
     reg [4:0] prev_state = 5'h1F;
+    integer   tick = 0;
     always @(posedge clk_phy) begin
         if (init_state != prev_state) begin
-            $display("[tb] t=%0t  state=%0d", $time, init_state);
+            $display("[tb] t=%0t  state=%0d (tick=%0d)", $time, init_state, tick);
             prev_state <= init_state;
         end
+        tick <= tick + 1;
+        // Heartbeat every 50,000 cycles so we know sim is alive.
+        if (tick % 50000 == 0)
+            $display("[tb] heartbeat tick=%0d  t=%0t  state=%0d  rst=%b",
+                     tick, $time, init_state, rst);
     end
 
     initial begin

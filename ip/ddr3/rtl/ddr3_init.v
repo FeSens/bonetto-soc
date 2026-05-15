@@ -68,8 +68,8 @@ module ddr3_init #(
         S_DONE         = 5'd18,
         S_FAIL         = 5'd31;
 
-    assign o_state = state;
     reg [4:0] state;
+    assign o_state = state;
 
     // ---- Wait counter ----
     // Widest deadline is tRESET_TCK = 160k cycles → fits in 24 bits with margin.
