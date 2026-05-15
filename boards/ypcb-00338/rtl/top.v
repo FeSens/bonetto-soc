@@ -48,4 +48,30 @@ module top (
         .o_wb_dat   (wb_dat_r),
         .o_wb_err   (wb_err)
     );
+
+    // jtag_uart present so its BSCANE2 USER1 chain is reachable from the
+    // host. WB slave inputs tied off in iter-1 — `fpga_to_host` therefore
+    // stays at its 0xDEADBEEF init value, which is what the host-side
+    // tools/jtag_uart_read.py script should observe on the first read.
+    // Iter-2 wires memtest_lite -> wb_decode2 -> jtag_uart for live pass count.
+    /* verilator lint_off PINMISSING */
+    jtag_uart #(
+        .WB_DATA_W(32),
+        .WB_ADDR_W(2),
+        .USER_CHAIN(1)
+    ) uart (
+        .i_clk      (clk_50),
+        .i_rst      (1'b0),
+        .i_wb_cyc   (1'b0),
+        .i_wb_stb   (1'b0),
+        .i_wb_we    (1'b0),
+        .i_wb_adr   (2'b0),
+        .i_wb_dat   (32'b0),
+        .i_wb_sel   (4'b0),
+        .o_wb_stall (),
+        .o_wb_ack   (),
+        .o_wb_dat   (),
+        .o_wb_err   ()
+    );
+    /* verilator lint_on PINMISSING */
 endmodule

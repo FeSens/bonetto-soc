@@ -1,0 +1,62 @@
+From: Felipe Bonetto <felipesensbonetto@gmail.com>
+Subject: [PATCH] XilinxPlatformCableUSB: implement writeTMSTDI for XVC shifts
+
+The base `JtagInterface::writeTMSTDI` returns false without doing
+anything, and XPCU never overrode it. The XVC server (after the
+xvc-xpcu-dispatch patch) calls `writeTMSTDI` for every XVC `shift:`
+command, which therefore silently no-ops on the XPCU and the host
+reads back all-zero TDO regardless of what the chain holds.
+
+This patch adds the override, modelled on writeTDI but with TMS and
+TDI both coming from the caller's byte streams (one bit per array bit
+position, LSB-first) and TDO captured into the result buffer.
+
+--- a/src/xilinxPlatformCableUSB.hpp
++++ b/src/xilinxPlatformCableUSB.hpp
+@@ -53,6 +53,10 @@
+ 	 */
+ 	int writeTDI(const uint8_t *tx, uint8_t *rx, uint32_t len, bool end) override;
+
++	/* drive per-bit TMS+TDI and capture TDO — needed by the XVC
++	 * server's shift handler */
++	bool writeTMSTDI(const uint8_t *tms, const uint8_t *tdi, uint8_t *tdo, uint32_t len) override;
++
+ 	/*!
+ 	 * \brief toggle clock with static tms and tdi
+ 	 * \param tms state of tms signal
+--- a/src/xilinxPlatformCableUSB.cpp
++++ b/src/xilinxPlatformCableUSB.cpp
+@@ -196,6 +196,33 @@
+ 	return len;
+ }
+
++bool XilinxPlatformCableUSB::writeTMSTDI(const uint8_t *tms, const uint8_t *tdi,
++		uint8_t *tdo, uint32_t len)
++{
++	if (len == 0)
++		return true;
++
++	if (tdo && _nb_bit != 0) {
++		if (write(nullptr, 0) < 0)
++			return false;
++	}
++
++	uint32_t rx_offset = 0;
++	for (uint32_t i = 0; i < len; i++) {
++		_curr_tms = (tms[i >> 3] >> (i & 0x07)) & 0x01;
++		_curr_tdi = (tdi[i >> 3] >> (i & 0x07)) & 0x01;
++		if (storeBit(_curr_tdi, _curr_tms, 1, tdo ? 1 : 0)) {
++			uint32_t bits = _nb_tdo_bit;
++			if (write(tdo, rx_offset) < 0)
++				return false;
++			rx_offset += bits;
++		}
++	}
++	if (_nb_bit != 0 && write(tdo, rx_offset) < 0)
++		return false;
++	return true;
++}
++
+ int XilinxPlatformCableUSB::toggleClk([[maybe_unused]] uint8_t tms,
+ 	[[maybe_unused]] uint8_t tdi, uint32_t clk_len)
+ {

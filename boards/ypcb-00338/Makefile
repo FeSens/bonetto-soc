@@ -18,7 +18,8 @@ FREQ     := --freq 6000000
 RTL := \
     rtl/top.v \
     rtl/memtest_lite.v \
-    ../../ip/wb-memory/rtl/wb_memory.v
+    ../../ip/wb-memory/rtl/wb_memory.v \
+    ../../ip/jtag-uart/rtl/jtag_uart.v
 XDC := constraints/ypcb-00338.xdc
 
 # Shared-header include dirs are wired into read_verilog inside the

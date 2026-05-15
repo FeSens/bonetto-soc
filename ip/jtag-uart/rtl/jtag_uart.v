@@ -63,7 +63,11 @@ module jtag_uart #(
     assign bscan_update = 1'b0;
     assign bscan_sel    = 1'b0;
 `else
-    BSCANE2 #(
+    // (* keep *) prevents yosys from optimising the BSCANE2 away when
+    // the user-side outputs (WB slave) aren't observably connected.
+    // Likewise the host_to_fpga / fpga_to_host registers below need keep
+    // because nothing downstream reads them in iter-1.5.
+    (* keep = "true" *) BSCANE2 #(
         .JTAG_CHAIN(USER_CHAIN)
     ) u_bscan (
         .TDI    (bscan_tdi),
@@ -85,8 +89,13 @@ module jtag_uart #(
     reg [32:0] jtag_sr = 33'd0;
 
     // FPGA-side scratch registers, in i_clk domain.
-    reg [WB_DATA_W-1:0] host_to_fpga = 0;   // host writes; WB reads this
-    reg [WB_DATA_W-1:0] fpga_to_host = 0;   // WB writes; host reads this
+    // fpga_to_host inits to 0xDEADBEEF so the host's first read after
+    // power-on returns a known magic value, proving the JTAG-UART read
+    // path works end-to-end before any logic-side writer is wired up.
+    // (* keep *) marks them as observation points so yosys doesn't
+    // optimise them out when nothing downstream uses host_to_fpga.
+    (* keep = "true" *) reg [WB_DATA_W-1:0] host_to_fpga = 0;
+    (* keep = "true" *) reg [WB_DATA_W-1:0] fpga_to_host = 32'hDEADBEEF;
 
     // Shift in TDI on every JTAG DRCK while SHIFT && SEL.
     // (No CDC: this is the JTAG clock domain. The captured value is then

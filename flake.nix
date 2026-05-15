@@ -47,6 +47,8 @@
             };
             patches = (old.patches or []) ++ [
               "${xpcu-macos}/openfpgaloader-fx2-macos-overflow.patch"
+              ./patches/openfpgaloader-xvc-xpcu.patch
+              ./patches/openfpgaloader-xpcu-writetmstdi.patch
             ];
           });
 
@@ -60,22 +62,26 @@
               ox.fasm
               pkgs.yosys
 
-              # Programming (XPCU-patched)
+              # Programming (XPCU-patched) + host-side JTAG-UART readout.
+              # openocd 0.12.0 builds clean on aarch64-darwin in this
+              # nixpkgs pin and ships the xilinx-xpcu interface driver.
               openfpgaloader-xpcu
+              pkgs.openocd
 
-              # Python ecosystem (used by prjxray's fasm scripts and by
-              # cocotb-based simulation later).
+              # Python ecosystem (used by prjxray's fasm scripts, by the
+              # host-side openocd Tcl wrapper, and by cocotb sim later).
               pkgs.pypy310
+              pkgs.python312
               pkgs.python312Packages.pyyaml
               pkgs.python312Packages.textx
               pkgs.python312Packages.simplejson
               pkgs.python312Packages.intervaltree
             ];
 
-            # Verification tools (verilator, z3, cocotb, symbiyosys) live
-            # in a separate dev shell — see `devShells.verification` —
-            # so the iter-1 synth/program flow doesn't pull in derivations
-            # that fail to evaluate on aarch64-darwin in this nixpkgs pin.
+            # Heavier verification tools (verilator, z3, cocotb, symbiyosys)
+            # come from PATH (Felipe's oss-cad-suite) — the openXC7-pinned
+            # nixpkgs revision has gnat-bootstrap blocked on aarch64-darwin
+            # and pulls it into the closure of those packages.
 
             shellHook = ''
               export NEXTPNR_XILINX_DIR=${ox.nextpnr-xilinx}

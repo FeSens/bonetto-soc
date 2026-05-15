@@ -1,0 +1,53 @@
+From: Felipe Bonetto <felipesensbonetto@gmail.com>
+Subject: [PATCH] xvc_server: add MODE_XPCU cable dispatch
+
+openFPGALoader's --xvc server can drive a JTAG cable as a TCP-exposed
+XVC endpoint, but the cable-mode dispatch in src/xvc_server.cpp's
+ctor only enables MODE_FTDI_SERIAL and MODE_LIBGPIOD_BITBANG. The
+Xilinx Platform Cable USB II driver (MODE_XPCU) exists for the
+program flow but isn't wired into the XVC server, so
+  `openFPGALoader --xvc --cable xilinxPlatformCableUsb ...`
+fails with "Jtag: unknown cable type".
+
+This patch:
+  - includes xilinxPlatformCableUSB.hpp,
+  - drops the (void)firmware_path; discard since we now use it,
+  - adds a case MODE_XPCU instantiating XilinxPlatformCableUSB exactly
+    as src/jtag.cpp does for the program path.
+
+--- a/src/xvc_server.cpp
++++ b/src/xvc_server.cpp
+@@ -16,6 +16,9 @@
+ #include "ftdiJtagMPSSE.hpp"
+ #ifdef ENABLE_LIBGPIOD
+ #include "libgpiodJtagBitbang.hpp"
++#endif
++#ifdef ENABLE_XILINX_PLATFORM_CABLE_USB
++#include "xilinxPlatformCableUSB.hpp"
+ #endif
+ #include "cable.hpp"
+ #include "display.hpp"
+@@ -30,7 +33,6 @@
+ {
+ 	(void)pin_conf;
+ 	(void)ip_adr;
+-	(void)firmware_path;
+ 	switch (cable.type) {
+ 	case MODE_FTDI_SERIAL:
+ 		_jtag = new FtdiJtagMPSSE(cable, dev, serial, clkHZ,
+@@ -76,6 +78,15 @@
+ 		break;
+ #endif
+ #endif
++	case MODE_XPCU:
++#ifdef ENABLE_XILINX_PLATFORM_CABLE_USB
++		_jtag = new XilinxPlatformCableUSB(0x03fd, 0x0013, clkHZ,
++			firmware_path, _verbose);
++		break;
++#else
++		std::cerr << "XVC server: support for Xilinx Platform Cable USB (XPCU) was not enabled at compile time" << std::endl;
++		throw std::exception();
++#endif
+ 	default:
+ 		std::cerr << "Jtag: unknown cable type" << std::endl;
+ 		throw std::exception();
