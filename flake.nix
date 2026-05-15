@@ -49,6 +49,7 @@
               "${xpcu-macos}/openfpgaloader-fx2-macos-overflow.patch"
               ./patches/openfpgaloader-xvc-xpcu.patch
               ./patches/openfpgaloader-xpcu-writetmstdi.patch
+              ./patches/openfpgaloader-xpcu-no-alt-setting-darwin.patch
             ];
           });
 

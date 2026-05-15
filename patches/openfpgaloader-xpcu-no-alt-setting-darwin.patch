@@ -1,0 +1,35 @@
+From: Felipe Bonetto <felipesensbonetto@gmail.com>
+Subject: [PATCH] XilinxPlatformCableUSB: skip set_interface_alt_setting on macOS
+
+`libusb_set_interface_alt_setting(0, 1)` always fails with
+`LIBUSB_ERROR_OTHER` on macOS for the XPCU cable. The driver already
+logs a warning and continues, so JTAG operations on the same session
+work. But the failure leaves the kernel-side USB endpoint in an
+inconsistent state — after many program/restart cycles the control
+endpoint stops responding entirely and `displayCableVersion()` times
+out on the next session start. The cable is then unusable until a
+physical unplug.
+
+Skipping the call on Darwin avoids the bad state entirely. The cable
+functions correctly on alt setting 0 (verified end-to-end: bitstream
+programming, JTAG-UART scratch reads, IDCODE chain walk all worked
+from alt 0 in earlier sessions before the cumulative state corruption
+took the cable down).
+
+--- a/src/xilinxPlatformCableUSB.cpp
++++ b/src/xilinxPlatformCableUSB.cpp
+@@ -82,7 +82,15 @@
+ 		throw std::runtime_error("lowlevel init failed");
+ 	}
+
++#ifdef __APPLE__
++	/* macOS: libusb_set_interface_alt_setting(0, 1) always fails with
++	 * LIBUSB_ERROR_OTHER and leaves the control endpoint in an
++	 * inconsistent state after enough sessions. The cable works fine
++	 * on alt 0; skip the switch entirely. */
++	(void)0;
++#else
+ 	fx2->set_interface_alt_setting(0, 1);
++#endif
+
+ 	displayCableVersion();
