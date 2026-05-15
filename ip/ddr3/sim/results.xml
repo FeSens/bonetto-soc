@@ -1,10 +1,10 @@
 <testsuites name="results">
   <testsuite name="all" package="all">
-    <property name="random_seed" value="1778820170" />
-    <testcase name="init_completes" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="51" time="26.656371116638184" sim_time_ns="701678.75" ratio_time="26323.116035927003" />
-    <testcase name="wb_write_triggers_activate" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="75" time="24.298892974853516" sim_time_ns="701683.7499999999" ratio_time="28877.19003191461" />
-    <testcase name="wb_write_read_roundtrip" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="128" time="32.998841285705566" sim_time_ns="701821.2499999998" ratio_time="21268.05738188191" />
-    <testcase name="refresh_fires_after_trefi" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="187" time="20.093278169631958" sim_time_ns="709496.25" ratio_time="35310.12928852493" />
-    <testcase name="mpr_req_emits_rd_with_a12_high" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="224" time="26.419214963912964" sim_time_ns="701690.0" ratio_time="26559.835368252454" />
+    <property name="random_seed" value="1778821385" />
+    <testcase name="init_completes" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="51" time="19.26396918296814" sim_time_ns="701678.75" ratio_time="36424.41198568649" />
+    <testcase name="wb_write_triggers_activate" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="75" time="17.86980676651001" sim_time_ns="701683.7499999999" ratio_time="39266.443066135034" />
+    <testcase name="wb_write_read_roundtrip" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="128" time="17.054061889648438" sim_time_ns="701821.2499999998" ratio_time="41152.73267689939" />
+    <testcase name="refresh_fires_after_trefi" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="187" time="16.973644018173218" sim_time_ns="709496.25" ratio_time="41799.87804860063" />
+    <testcase name="mpr_req_emits_rd_with_a12_high" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="224" time="15.83418607711792" sim_time_ns="701690.0" ratio_time="44314.87646933849" />
   </testsuite>
 </testsuites>

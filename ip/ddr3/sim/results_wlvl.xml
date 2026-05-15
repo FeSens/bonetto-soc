@@ -1,7 +1,7 @@
 <testsuites name="results">
   <testsuite name="all" package="all">
-    <property name="random_seed" value="1778820302" />
-    <testcase name="wlvl_walks_taps_and_locks_per_lane" classname="test_ddr3_phy_wlvl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_phy_wlvl.py" lineno="56" time="0.36566972732543945" sim_time_ns="60100.0" ratio_time="164355.96252273867" />
-    <testcase name="wlvl_errors_when_dq0_never_transitions" classname="test_ddr3_phy_wlvl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_phy_wlvl.py" lineno="87" time="0.03783607482910156" sim_time_ns="11290.000000000007" ratio_time="298392.47466854885" />
+    <property name="random_seed" value="1778821474" />
+    <testcase name="wlvl_walks_taps_and_locks_per_lane" classname="test_ddr3_phy_wlvl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_phy_wlvl.py" lineno="56" time="0.26758694648742676" sim_time_ns="60100.0" ratio_time="224599.8946844141" />
+    <testcase name="wlvl_errors_when_dq0_never_transitions" classname="test_ddr3_phy_wlvl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_phy_wlvl.py" lineno="87" time="0.023733854293823242" sim_time_ns="11290.000000000007" ratio_time="475691.80547881935" />
   </testsuite>
 </testsuites>

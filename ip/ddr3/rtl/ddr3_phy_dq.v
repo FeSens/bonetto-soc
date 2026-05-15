@@ -161,7 +161,12 @@ module ddr3_phy_dq #(
                 .CLKDIVP  (1'b0),
                 .CE1      (1'b1),
                 .CE2      (1'b0),
-                .OCLK     (1'b0), .OCLKB (1'b0),
+                // OCLK/OCLKB are unused in INTERFACE_TYPE="NETWORKING" but
+                // must be driven by a real clock (the OCLK pin is a
+                // clkbuf_sink — nextpnr-xilinx can't route a constant
+                // here). Reuse clk_phy_x4 to satisfy the routing
+                // requirement; the cell ignores these in our mode.
+                .OCLK     (i_clk_phy_x4), .OCLKB (i_clk_phy_x4),
                 .DDLY     (dq_in_delayed[i]),
                 .D        (1'b0),
                 .BITSLIP  (1'b0),
@@ -177,14 +182,15 @@ module ddr3_phy_dq #(
             assign o_rd_data[i*4 +: 4] = rd_bits;
 
             // -------- IOBUF for the DQ pad ----------
-            IOBUFDS_DCIEN #(.SLEW("FAST")) u_dq_iobuf (
-                .O   (dq_in_raw[i]),
-                .IO  (io_ddr3_dq[i]),
-                .IOB (),
-                .I   (dq_out[i]),
-                .T   (dq_tristate_n[i]),
-                .IBUFDISABLE (1'b0),
-                .DCITERMDISABLE (1'b0)
+            // DQ is single-ended SSTL15 — IOBUF is the simplest primitive
+            // that nextpnr-xilinx maps cleanly. (DCI / IBUF_DISABLE knobs
+            // are out-of-scope for iter-3 silicon bring-up; they only
+            // matter for power optimisation at full DDR3-1600.)
+            IOBUF #(.SLEW("FAST")) u_dq_iobuf (
+                .O  (dq_in_raw[i]),
+                .IO (io_ddr3_dq[i]),
+                .I  (dq_out[i]),
+                .T  (dq_tristate_n[i])
             );
         end
     endgenerate
@@ -219,14 +225,14 @@ module ddr3_phy_dq #(
         .TBYTEIN (1'b0)
     );
 
-    IOBUFDS_DCIEN #(.SLEW("FAST")) u_dqs_iobuf (
+    // DQS is DIFF_SSTL15 — IOBUFDS is the standard primitive that
+    // nextpnr-xilinx's pack_io_xc7 recognises as a differential pair.
+    IOBUFDS #(.SLEW("FAST")) u_dqs_iobuf (
         .O   (dqs_in_raw),
         .IO  (io_ddr3_dqs_p),
         .IOB (io_ddr3_dqs_n),
         .I   (dqs_out),
-        .T   (dqs_tristate_n),
-        .IBUFDISABLE (1'b0),
-        .DCITERMDISABLE (1'b0)
+        .T   (dqs_tristate_n)
     );
 
     IDELAYE2 #(
