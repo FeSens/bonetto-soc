@@ -70,7 +70,7 @@
   `define DDR3_TMRD       4
   `define DDR3_TDLLK      512
   `define DDR3_TZQINIT    512
-  `define DDR3_TXPR       128           // max(5 tCK, tRFC + 10 ns)
+  `define DDR3_TXPR       136           // max(5 tCK, tRFC + 10 ns) = 170 ns / 1.25 ns rounded up
 
   // Power-on init timings (in tCK — for our 1.25 ns tCK, 1 µs = 800 cycles)
   `define DDR3_TRESET_TCK     160000    // 200 µs minimum
@@ -87,18 +87,12 @@
   //   A[12]    PD       = 0      (fast exit)
   `define DDR3_MR0_VAL    16'b0_0110_1_0_111_0_00_0   // A12..A0 = 0_110_1_0_111_0_00_0
 
-  // MR1 (BA=001):
+  // MR1 (BA=001) — minimal config: DLL enabled, RZQ/6 ODS, no levelling,
+  // no AL, no RTT_NOM, no TDQS, output buffer enabled. All reserved
+  // bits programmed to zero (Micron model is strict about this).
   //   A[0]     DLL      = 0      (DLL enabled)
-  //   A[5,1]   ODS      = 0,1    (RZQ/7 = 34 Ω, default output drive)
-  //   A[3:2]   AL       = 00     (AL = 0)
-  //   A[4]     WL_E     = 0      (write levelling disabled)
-  //   A[9,6]   RTT_NOM  = 0,1    (RZQ/4 = 60 Ω — reasonable default for ZQ=240Ω)
-  //   A[7]     reserved
-  //   A[8]     TDQS     = 0      (x8 default)
-  //   A[10]    reserved
-  //   A[11]    Qoff     = 0      (output buffer enabled)
-  //   A[12]    reserved
-  `define DDR3_MR1_VAL    16'b0_0_0_0_1_0_0_0_0_0_0_1_0  // see bit map above
+  //   everything else = 0
+  `define DDR3_MR1_VAL    16'd0
 
   // MR2 (BA=010):
   //   A[2:0]   PASR     = 000    (full array, normal temp range)
