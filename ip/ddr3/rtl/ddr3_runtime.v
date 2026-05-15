@@ -67,7 +67,18 @@ module ddr3_runtime #(
     // -------- DDR3 DQ side (placeholder for iter-3 PHY layer) --------
     input  wire [DQ_BITS-1:0]         i_dq,           // from PHY read path
     output wire [DQ_BITS-1:0]         o_dq,           // to PHY write path
-    output wire                       o_dq_oe         // 1 = drive DQ
+    output wire                       o_dq_oe,        // 1 = drive DQ
+
+    // -------- MPR-read request port (iter-3c, for read-leveling) --------
+    // When `i_mpr_req` pulses, the FSM emits an RD command with
+    // address bits driven from `i_mpr_addr` (A[12]=1, A[2:0]=000 for
+    // MPR location 0). No ACT precedes, no PRE follows — MPR data is
+    // internal to the DDR3 chip, not in a row. The chip must already
+    // be in MR3[2]=1 mode (programmed via the init FSM's MR3-rewrite
+    // pass after standard init completes).
+    input  wire                       i_mpr_req,
+    input  wire [12:0]                i_mpr_addr,
+    output wire                       o_mpr_busy
 );
     // ---- WB address split ----
     // adr = { bank, row, col[COL_BITS-1:3] } — bottom 3 bits absorbed by BL8.
@@ -114,9 +125,31 @@ module ddr3_runtime #(
         S_REF_PRE   = 5'd11,
         S_REF_WAIT_RP = 5'd12,
         S_REF       = 5'd13,
-        S_REF_WAIT  = 5'd14;
+        S_REF_WAIT  = 5'd14,
+        S_MPR_RD    = 5'd15,
+        S_MPR_WAIT  = 5'd16;
+
+    // ---- MPR-request latch (single-shot; cleared on completion) ----
+    reg        mpr_pending;
+    reg [12:0] mpr_addr_q;
+    reg        mpr_clear;     // pulses from FSM when MPR-RD command emitted
 
     reg [4:0]  state;
+
+    always @(posedge i_clk_phy) begin
+        if (i_rst || !i_init_done) begin
+            mpr_pending <= 1'b0;
+            mpr_addr_q  <= 13'd0;
+        end else begin
+            if (i_mpr_req) begin
+                mpr_pending <= 1'b1;
+                mpr_addr_q  <= i_mpr_addr;
+            end
+            if (mpr_clear) mpr_pending <= 1'b0;
+        end
+    end
+
+    assign o_mpr_busy = mpr_pending || (state == S_MPR_RD) || (state == S_MPR_WAIT);
     reg [7:0]  beat_ctr;                   // BL8 beat counter (0..7)
     reg [7:0]  wait_ctr;                   // generic wait counter
     reg [BANK_BITS-1:0]  saved_bank;
@@ -146,17 +179,22 @@ module ddr3_runtime #(
             beat_ctr    <= 8'd0;
             wait_ctr    <= 8'd0;
             ref_clear   <= 1'b0;
+            mpr_clear   <= 1'b0;
         end else begin
             o_cmd_valid <= 1'b0;
             o_cmd       <= `DDR3_CMD_NOP;
             o_wb_ack    <= 1'b0;
             ref_clear   <= 1'b0;
+            mpr_clear   <= 1'b0;
 
             case (state)
                 S_IDLE: begin
                     if (ref_pending) begin
-                        // Refresh has higher priority than new WB requests.
+                        // Refresh has higher priority than new WB / MPR requests.
                         state    <= S_REF_PRE;
+                    end else if (mpr_pending) begin
+                        // MPR-read takes priority over WB during calibration.
+                        state    <= S_MPR_RD;
                     end else if (i_wb_cyc && i_wb_stb && !o_wb_stall) begin
                         saved_bank <= wb_bank;
                         saved_row  <= wb_row;
@@ -299,6 +337,36 @@ module ddr3_runtime #(
                         wait_ctr  <= 8'd0;
                         ref_clear <= 1'b1;          // pulse to refresh scheduler
                         state     <= S_IDLE;
+                    end else begin
+                        wait_ctr <= wait_ctr + 1'b1;
+                    end
+                end
+
+                // ---- MPR-read path (used by read-leveling) ----
+                // No ACT, no PRE — MPR data is internal to the chip.
+                // After RD with A[12]=1, wait CL cycles for data to
+                // start appearing on DQ; rdlvl drives its own data
+                // capture via the PHY's o_rd_valid pulse.
+                S_MPR_RD: begin
+                    o_cmd_valid <= 1'b1;
+                    o_cmd       <= `DDR3_CMD_READ;
+                    o_cmd_ba    <= {BANK_BITS{1'b0}};
+                    // ROW_BITS-wide address; low 13 bits come from rdlvl,
+                    // upper bits zero.
+                    o_cmd_addr  <= { {(ROW_BITS-13){1'b0}}, mpr_addr_q };
+                    mpr_clear   <= 1'b1;        // ack the request
+                    wait_ctr    <= 8'd0;
+                    state       <= S_MPR_WAIT;
+                end
+
+                S_MPR_WAIT: begin
+                    // tCCD = 4 tCK minimum between back-to-back reads
+                    // (BL8 occupies 4 tCK on the bus). After tCCD the
+                    // next RD command can issue; rdlvl gates that by
+                    // its own SETTLE_CYCLES + READ_LATENCY logic.
+                    if (wait_ctr == `DDR3_TCCD - 1) begin
+                        wait_ctr <= 8'd0;
+                        state    <= S_IDLE;
                     end else begin
                         wait_ctr <= wait_ctr + 1'b1;
                     end

@@ -59,6 +59,15 @@ module ddr3_ctrl #(
     // DQ/DQS/DM tristate handled by IOB cells in the PHY layer (iter-3).
     // For iter-2 they are unused.
 
+    // -------- MPR-read interface (for ddr3_phy_rdlvl, board-level wiring) -----
+    // The PHY's read-leveling FSM pulses i_mpr_req with the desired
+    // MPR address; ctrl forwards to ddr3_runtime which emits an RD on
+    // the command bus. o_mpr_busy is high while a request is queued
+    // or being serviced.
+    input  wire                     i_mpr_req,
+    input  wire [12:0]              i_mpr_addr,
+    output wire                     o_mpr_busy,
+
     // -------- Status (for host / debug) --------
     output wire                     o_init_done,
     output wire                     o_init_error,
@@ -142,7 +151,11 @@ module ddr3_ctrl #(
 
         .i_dq        ({DQ_BITS{1'b0}}),     // PHY iter-3
         .o_dq        (),
-        .o_dq_oe     ()
+        .o_dq_oe     (),
+
+        .i_mpr_req   (i_mpr_req),
+        .i_mpr_addr  (i_mpr_addr),
+        .o_mpr_busy  (o_mpr_busy)
     );
 
     // ---------------- Command bus mux ----------------

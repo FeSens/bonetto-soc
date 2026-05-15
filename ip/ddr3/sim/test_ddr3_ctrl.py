@@ -40,6 +40,8 @@ async def reset(dut):
     dut.i_wb_adr.value  = 0
     dut.i_wb_dat.value  = 0
     dut.i_wb_sel.value  = 0
+    dut.i_mpr_req.value = 0
+    dut.i_mpr_addr.value = 0
     for _ in range(20):
         await RisingEdge(dut.i_clk_phy)
     dut.i_rst.value = 0
@@ -217,3 +219,56 @@ async def refresh_fires_after_trefi(dut):
             f"runtime FSM did not issue REF within {TREFI * 2 + 200} "
             f"cycles after init_done"
         )
+
+
+@cocotb.test()
+async def mpr_req_emits_rd_with_a12_high(dut):
+    """After init_done, pulsing i_mpr_req with A[12]=1 in i_mpr_addr makes
+    the runtime FSM emit an RD command (cs_n=0, ras_n=1, cas_n=0, we_n=1)
+    whose address bus has bit 12 set. Proves the iter-3c MPR-read path
+    is wired from the PHY-side rdlvl request through to the DDR3 cmd bus."""
+    cocotb.start_soon(Clock(dut.i_clk,     TCK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk_phy, TCK_PS, units="ps").start())
+    await reset(dut)
+
+    for _ in range(INIT_DEADLINE):
+        await RisingEdge(dut.i_clk_phy)
+        if int(dut.o_init_done.value):
+            break
+    else:
+        raise AssertionError("init never completed")
+
+    # Pulse the MPR-read request — A[12]=1 (BC# disable + MPR mode bit),
+    # A[2:0]=000 (location 0 of the predefined pattern register).
+    MPR_ADDR = 0x1000
+    dut.i_mpr_addr.value = MPR_ADDR
+    dut.i_mpr_req.value  = 1
+    await RisingEdge(dut.i_clk_phy)
+    dut.i_mpr_req.value  = 0
+
+    # o_mpr_busy must assert within a few cycles.
+    for _ in range(10):
+        await RisingEdge(dut.i_clk_phy)
+        if int(dut.o_mpr_busy.value):
+            break
+    else:
+        raise AssertionError("o_mpr_busy never asserted")
+
+    # Watch for the RD command + verify A[12]=1.
+    for cycle in range(100):
+        await RisingEdge(dut.i_clk_phy)
+        if cmd_is(dut, cs=0, ras=1, cas=0, we=1):
+            addr = int(dut.o_ddr3_addr.value)
+            assert (addr >> 12) & 1, \
+                f"MPR RD addr A[12] not set — got 0x{addr:04x}"
+            dut._log.info(
+                f"saw MPR RD at cycle {cycle}, addr=0x{addr:04x}"
+            )
+            # busy must drop within tCCD (4 tCK) + a few cycles.
+            for _ in range(20):
+                await RisingEdge(dut.i_clk_phy)
+                if not int(dut.o_mpr_busy.value):
+                    return
+            raise AssertionError("o_mpr_busy didn't drop after RD")
+
+    raise AssertionError("RD command never fired after MPR request")
