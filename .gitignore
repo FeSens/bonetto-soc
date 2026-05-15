@@ -8,6 +8,9 @@ build/
 
 # Simulation
 sim_build/
+sim_build_*/
+results.xml
+results_*.xml
 *.vcd
 *.fst
 *.lxt2
