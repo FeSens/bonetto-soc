@@ -1,11 +1,14 @@
 .PHONY: formal sim sim-init clean
 
-# ----- Formal -----
-# Wishbone protocol compliance for ddr3_ctrl (same fwb_slave pattern as
-# wb-memory). Init-FSM cover properties are tested via sim (full state-
-# machine traversal needs ~2M cycles; sim is faster than BMC at that depth).
 BUILD := formal/build
+
+# ----- Formal -----
+# WB slave protocol compliance: same fwb_slave pattern as ip/wb-memory.
+# Init FSM correctness is covered by sim (full traversal needs ~600k
+# cycles — sim is way faster than BMC at that depth).
+
 SOLVER ?= yices
+DEPTH  ?= 20
 
 formal: $(BUILD)/proof.passed
 
@@ -13,16 +16,17 @@ $(BUILD):
 	@mkdir -p $@
 
 $(BUILD)/ddr3_ctrl.smt2: rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh ../../formal/vendor/fwb_slave.v formal/wrapper.sv | $(BUILD)
-	@echo "[ddr3] formal harness not yet written — placeholder"
-	@touch $@
+	yosys -q -p "\
+	  read_verilog -formal -DFORMAL -I rtl rtl/ddr3_ctrl.v rtl/ddr3_init.v ../../formal/vendor/fwb_slave.v formal/wrapper.sv; \
+	  prep -top ddr3_ctrl_wrapper; \
+	  write_smt2 -wires $@"
 
 $(BUILD)/proof.passed: $(BUILD)/ddr3_ctrl.smt2
-	@echo "[ddr3] formal wrapper is iter-2.5; using fwb_slave pattern from ip/wb-memory"
+	@echo "[ddr3] formal: WB slave protocol against fwb_slave (depth $(DEPTH), solver=$(SOLVER))"
+	yosys-smtbmc --presat -s $(SOLVER) -t $(DEPTH) $<
 	@touch $@
 
 # ----- Sim -----
-# Verilator + tb_ddr3_init.cpp. Drives ddr3_ctrl through the JEDEC init
-# sequence and asserts init_done within the deadline.
 sim: sim-init
 
 sim-init: sim/build/Vddr3_ctrl
