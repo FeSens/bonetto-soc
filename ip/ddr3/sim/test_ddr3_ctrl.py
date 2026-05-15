@@ -180,3 +180,40 @@ async def wb_write_read_roundtrip(dut):
 
     # Read data will be 0 in iter-2 (PHY tristates DQ), but the round-trip
     # protocol must complete cleanly.
+
+
+@cocotb.test()
+async def refresh_fires_after_trefi(dut):
+    """After init_done, the runtime FSM's refresh scheduler issues a REF
+    command (cs_n=0, ras_n=0, cas_n=0, we_n=1) within tREFI cycles of
+    init_done with no WB traffic on the bus."""
+    cocotb.start_soon(Clock(dut.i_clk,     TCK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk_phy, TCK_PS, units="ps").start())
+    await reset(dut)
+
+    for _ in range(INIT_DEADLINE):
+        await RisingEdge(dut.i_clk_phy)
+        if int(dut.o_init_done.value):
+            break
+    else:
+        raise AssertionError("init never completed")
+
+    dut._log.info("init_done; watching for REF post-tREFI")
+
+    # tREFI = 6240 cycles (DDR3-1600 @ 1.25 ns tCK = 7.8 us avg refresh).
+    # After init_done, the refresh scheduler should fire REF within
+    # tREFI + a few PRE/wait cycles. Give a 2x margin.
+    TREFI = 6240
+    saw_ref = False
+    for cycle in range(TREFI * 2 + 200):
+        await RisingEdge(dut.i_clk_phy)
+        if cmd_is(dut, cs=0, ras=0, cas=0, we=1):
+            dut._log.info(f"saw REF command at cycle {cycle} post-init_done")
+            saw_ref = True
+            break
+
+    if not saw_ref:
+        raise AssertionError(
+            f"runtime FSM did not issue REF within {TREFI * 2 + 200} "
+            f"cycles after init_done"
+        )
