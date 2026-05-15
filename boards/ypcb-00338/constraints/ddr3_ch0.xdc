@@ -1,15 +1,19 @@
 # DDR3 Channel 0 pin assignments for the Inspur YPCB-00338.
-# Pulled from the LiteX board file (litex-hub/litex-boards@6d58ae6).
-# Targets the Micron MT41K256M8DA-125 chips on Channel 0 (64-bit + 8-bit ECC).
+# Pulled verbatim from the LiteX board file (litex-hub/litex-boards@6d58ae6).
+# Targets the eight Micron MT41K256M8DA-125 chips on Channel 0
+# (64-bit data + 8-bit ECC = 72-bit interface).
 #
-# Loaded by `make fpga BOARD=ypcb-00338` alongside ypcb-00338.xdc; activate
-# by switching the board top from wb_memory to ddr3_ctrl (iter-3b SoC swap).
+# Loaded by `make fpga BOARD=ypcb-00338` after constraints/ypcb-00338.xdc.
+# Active when the board top routes DDR3 chip-side ports out from
+# ddr3_phy / ddr3_phy_dq.
 #
-# All signal-quality constraints (SSTL15 IO standard, SLEW=FAST,
-# IN_TERM=UNTUNED_SPLIT_40) mirror LiteX's settings.
+# IO standard: SSTL15 single-ended, DIFF_SSTL15 for DQS and clock.
+# Termination: IN_TERM=UNTUNED_SPLIT_40 on DQ/DQS (LiteX setting).
+# SLEW=FAST on every output.
 
-# -------- Address / bank / control --------
-# A[14:0] — DDR3-1600 row address, 15 bits for 2 Gb x8 (32 K rows).
+# ====================================================================
+# Address / bank / control
+# ====================================================================
 set_property PACKAGE_PIN AK27 [get_ports {ddr3_addr[0]}]
 set_property PACKAGE_PIN AN23 [get_ports {ddr3_addr[1]}]
 set_property PACKAGE_PIN AL24 [get_ports {ddr3_addr[2]}]
@@ -41,13 +45,17 @@ set_property PACKAGE_PIN AK29 [get_ports ddr3_odt]
 set_property PACKAGE_PIN AD31 [get_ports ddr3_reset_n]
 set_property IOSTANDARD SSTL15 [get_ports {ddr3_ras_n ddr3_cas_n ddr3_we_n ddr3_cs_n ddr3_cke ddr3_odt ddr3_reset_n}]
 
-# -------- Differential clock --------
+# ====================================================================
+# Differential clock
+# ====================================================================
 set_property PACKAGE_PIN AN25 [get_ports ddr3_ck_p]
 set_property PACKAGE_PIN AP25 [get_ports ddr3_ck_n]
 set_property IOSTANDARD DIFF_SSTL15 [get_ports {ddr3_ck_p ddr3_ck_n}]
 
-# -------- DQ (64 data + 8 ECC = 72 bits) --------
-# Byte lane 0: DQ[7:0]
+# ====================================================================
+# DQ — full 72-bit data path (8 byte lanes + 1 ECC lane)
+# ====================================================================
+# Byte lane 0 — DQ[7:0]
 set_property PACKAGE_PIN AG17 [get_ports {ddr3_dq[0]}]
 set_property PACKAGE_PIN AG16 [get_ports {ddr3_dq[1]}]
 set_property PACKAGE_PIN AH17 [get_ports {ddr3_dq[2]}]
@@ -56,7 +64,7 @@ set_property PACKAGE_PIN AH18 [get_ports {ddr3_dq[4]}]
 set_property PACKAGE_PIN AH19 [get_ports {ddr3_dq[5]}]
 set_property PACKAGE_PIN AJ16 [get_ports {ddr3_dq[6]}]
 set_property PACKAGE_PIN AJ17 [get_ports {ddr3_dq[7]}]
-# Byte lane 1: DQ[15:8]
+# Byte lane 1 — DQ[15:8]
 set_property PACKAGE_PIN AL20 [get_ports {ddr3_dq[8]}]
 set_property PACKAGE_PIN AN17 [get_ports {ddr3_dq[9]}]
 set_property PACKAGE_PIN AL19 [get_ports {ddr3_dq[10]}]
@@ -65,25 +73,105 @@ set_property PACKAGE_PIN AL18 [get_ports {ddr3_dq[12]}]
 set_property PACKAGE_PIN AL16 [get_ports {ddr3_dq[13]}]
 set_property PACKAGE_PIN AM20 [get_ports {ddr3_dq[14]}]
 set_property PACKAGE_PIN AN18 [get_ports {ddr3_dq[15]}]
-# Byte lanes 2-7 + ECC are listed in the LiteX board file; left out of
-# iter-3a XDC to keep this file scoped to the lanes ddr3_phy_dq
-# instantiates. Full 72-bit map added when the multi-lane phy lands.
+# Byte lane 2 — DQ[23:16]
+set_property PACKAGE_PIN AL23 [get_ports {ddr3_dq[16]}]
+set_property PACKAGE_PIN AN20 [get_ports {ddr3_dq[17]}]
+set_property PACKAGE_PIN AK23 [get_ports {ddr3_dq[18]}]
+set_property PACKAGE_PIN AP19 [get_ports {ddr3_dq[19]}]
+set_property PACKAGE_PIN AN22 [get_ports {ddr3_dq[20]}]
+set_property PACKAGE_PIN AN19 [get_ports {ddr3_dq[21]}]
+set_property PACKAGE_PIN AM22 [get_ports {ddr3_dq[22]}]
+set_property PACKAGE_PIN AP20 [get_ports {ddr3_dq[23]}]
+# Byte lane 3 — DQ[31:24]
+set_property PACKAGE_PIN AJ21 [get_ports {ddr3_dq[24]}]
+set_property PACKAGE_PIN AH22 [get_ports {ddr3_dq[25]}]
+set_property PACKAGE_PIN AK21 [get_ports {ddr3_dq[26]}]
+set_property PACKAGE_PIN AG21 [get_ports {ddr3_dq[27]}]
+set_property PACKAGE_PIN AG22 [get_ports {ddr3_dq[28]}]
+set_property PACKAGE_PIN AG20 [get_ports {ddr3_dq[29]}]
+set_property PACKAGE_PIN AH23 [get_ports {ddr3_dq[30]}]
+set_property PACKAGE_PIN AG23 [get_ports {ddr3_dq[31]}]
+# Byte lane 4 — DQ[39:32]
+set_property PACKAGE_PIN AJ32 [get_ports {ddr3_dq[32]}]
+set_property PACKAGE_PIN AK32 [get_ports {ddr3_dq[33]}]
+set_property PACKAGE_PIN AK31 [get_ports {ddr3_dq[34]}]
+set_property PACKAGE_PIN AL30 [get_ports {ddr3_dq[35]}]
+set_property PACKAGE_PIN AL34 [get_ports {ddr3_dq[36]}]
+set_property PACKAGE_PIN AL31 [get_ports {ddr3_dq[37]}]
+set_property PACKAGE_PIN AK34 [get_ports {ddr3_dq[38]}]
+set_property PACKAGE_PIN AL29 [get_ports {ddr3_dq[39]}]
+# Byte lane 5 — DQ[47:40]
+set_property PACKAGE_PIN AJ34 [get_ports {ddr3_dq[40]}]
+set_property PACKAGE_PIN AH32 [get_ports {ddr3_dq[41]}]
+set_property PACKAGE_PIN AJ30 [get_ports {ddr3_dq[42]}]
+set_property PACKAGE_PIN AH34 [get_ports {ddr3_dq[43]}]
+set_property PACKAGE_PIN AF31 [get_ports {ddr3_dq[44]}]
+set_property PACKAGE_PIN AG30 [get_ports {ddr3_dq[45]}]
+set_property PACKAGE_PIN AG31 [get_ports {ddr3_dq[46]}]
+set_property PACKAGE_PIN AF30 [get_ports {ddr3_dq[47]}]
+# Byte lane 6 — DQ[55:48]
+set_property PACKAGE_PIN AE32 [get_ports {ddr3_dq[48]}]
+set_property PACKAGE_PIN AC33 [get_ports {ddr3_dq[49]}]
+set_property PACKAGE_PIN AF33 [get_ports {ddr3_dq[50]}]
+set_property PACKAGE_PIN AC32 [get_ports {ddr3_dq[51]}]
+set_property PACKAGE_PIN AD34 [get_ports {ddr3_dq[52]}]
+set_property PACKAGE_PIN AC34 [get_ports {ddr3_dq[53]}]
+set_property PACKAGE_PIN AE33 [get_ports {ddr3_dq[54]}]
+set_property PACKAGE_PIN AE31 [get_ports {ddr3_dq[55]}]
+# Byte lane 7 — DQ[63:56]
+set_property PACKAGE_PIN AE26 [get_ports {ddr3_dq[56]}]
+set_property PACKAGE_PIN AF29 [get_ports {ddr3_dq[57]}]
+set_property PACKAGE_PIN AE24 [get_ports {ddr3_dq[58]}]
+set_property PACKAGE_PIN AF28 [get_ports {ddr3_dq[59]}]
+set_property PACKAGE_PIN AF24 [get_ports {ddr3_dq[60]}]
+set_property PACKAGE_PIN AG25 [get_ports {ddr3_dq[61]}]
+set_property PACKAGE_PIN AF26 [get_ports {ddr3_dq[62]}]
+set_property PACKAGE_PIN AF25 [get_ports {ddr3_dq[63]}]
+# ECC lane — DQ[71:64]
+set_property PACKAGE_PIN AN34 [get_ports {ddr3_dq[64]}]
+set_property PACKAGE_PIN AP30 [get_ports {ddr3_dq[65]}]
+set_property PACKAGE_PIN AM33 [get_ports {ddr3_dq[66]}]
+set_property PACKAGE_PIN AN29 [get_ports {ddr3_dq[67]}]
+set_property PACKAGE_PIN AP32 [get_ports {ddr3_dq[68]}]
+set_property PACKAGE_PIN AP29 [get_ports {ddr3_dq[69]}]
+set_property PACKAGE_PIN AM31 [get_ports {ddr3_dq[70]}]
+set_property PACKAGE_PIN AP31 [get_ports {ddr3_dq[71]}]
 
 set_property IOSTANDARD SSTL15 [get_ports {ddr3_dq[*]}]
 set_property IN_TERM UNTUNED_SPLIT_40 [get_ports {ddr3_dq[*]}]
 
-# -------- DQS (differential strobe, one pair per byte lane) --------
-# Byte lane 0 / 1 DQS pairs (others land with the rest of DQ).
+# ====================================================================
+# DQS — 9 differential strobe pairs (one per byte lane + ECC)
+# ====================================================================
 set_property PACKAGE_PIN AK16 [get_ports {ddr3_dqs_p[0]}]
 set_property PACKAGE_PIN AK17 [get_ports {ddr3_dqs_n[0]}]
 set_property PACKAGE_PIN AM17 [get_ports {ddr3_dqs_p[1]}]
 set_property PACKAGE_PIN AM18 [get_ports {ddr3_dqs_n[1]}]
+set_property PACKAGE_PIN AP21 [get_ports {ddr3_dqs_p[2]}]
+set_property PACKAGE_PIN AP22 [get_ports {ddr3_dqs_n[2]}]
+set_property PACKAGE_PIN AH20 [get_ports {ddr3_dqs_p[3]}]
+set_property PACKAGE_PIN AJ20 [get_ports {ddr3_dqs_n[3]}]
+set_property PACKAGE_PIN AK33 [get_ports {ddr3_dqs_p[4]}]
+set_property PACKAGE_PIN AL33 [get_ports {ddr3_dqs_n[4]}]
+set_property PACKAGE_PIN AG33 [get_ports {ddr3_dqs_p[5]}]
+set_property PACKAGE_PIN AH33 [get_ports {ddr3_dqs_n[5]}]
+set_property PACKAGE_PIN AE34 [get_ports {ddr3_dqs_p[6]}]
+set_property PACKAGE_PIN AF34 [get_ports {ddr3_dqs_n[6]}]
+set_property PACKAGE_PIN AE27 [get_ports {ddr3_dqs_p[7]}]
+set_property PACKAGE_PIN AE28 [get_ports {ddr3_dqs_n[7]}]
+set_property PACKAGE_PIN AN32 [get_ports {ddr3_dqs_p[8]}]
+set_property PACKAGE_PIN AP33 [get_ports {ddr3_dqs_n[8]}]
 set_property IOSTANDARD DIFF_SSTL15 [get_ports {ddr3_dqs_p[*] ddr3_dqs_n[*]}]
 set_property IN_TERM UNTUNED_SPLIT_40 [get_ports {ddr3_dqs_p[*] ddr3_dqs_n[*]}]
 
-# -------- IO bank VREF (SSTL15 requires 0.75 V VREF) --------
-# Banks 11..18 hold the DDR3 IOs on this device.
+# ====================================================================
+# IO bank VREF — SSTL15 requires 0.75 V
+# ====================================================================
 set_property INTERNAL_VREF 0.750 [get_iobanks 11]
 set_property INTERNAL_VREF 0.750 [get_iobanks 12]
 set_property INTERNAL_VREF 0.750 [get_iobanks 13]
 set_property INTERNAL_VREF 0.750 [get_iobanks 14]
+set_property INTERNAL_VREF 0.750 [get_iobanks 15]
+set_property INTERNAL_VREF 0.750 [get_iobanks 16]
+set_property INTERNAL_VREF 0.750 [get_iobanks 17]
+set_property INTERNAL_VREF 0.750 [get_iobanks 18]
