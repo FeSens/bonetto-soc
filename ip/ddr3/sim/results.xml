@@ -1,7 +1,0 @@
-<testsuites name="results">
-  <testsuite name="all" package="all">
-    <property name="random_seed" value="1778816642" />
-    <testcase name="init_completes" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="49" time="24.099908113479614" sim_time_ns="701678.75" ratio_time="29115.41183875035" />
-    <testcase name="wb_write_triggers_activate" classname="test_ddr3_ctrl" file="/Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/test_ddr3_ctrl.py" lineno="73" time="23.99060297012329" sim_time_ns="701683.7499999999" ratio_time="29248.27487136701" />
-  </testsuite>
-</testsuites>

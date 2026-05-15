@@ -121,3 +121,62 @@ async def wb_write_triggers_activate(dut):
         raise AssertionError(
             f"runtime FSM didn't issue ACT within {WB_DEADLINE} cycles"
         )
+
+
+@cocotb.test()
+async def wb_write_read_roundtrip(dut):
+    """After init_done, a WB write completes (ack), then a WB read completes
+    (ack). Both transactions traverse the runtime FSM's ACT/CMD/PRE arc
+    correctly — proves WB-side protocol survives the runtime path, even
+    if the iter-2 PHY tristates DQ (read data is 0)."""
+    cocotb.start_soon(Clock(dut.i_clk,     TCK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk_phy, TCK_PS, units="ps").start())
+    await reset(dut)
+
+    for _ in range(INIT_DEADLINE):
+        await RisingEdge(dut.i_clk_phy)
+        if int(dut.o_init_done.value):
+            break
+    else:
+        raise AssertionError("init never completed")
+
+    async def wb_xact(adr: int, dat: int = 0, we: bool = False) -> int:
+        # Drive the request; wait for stall to drop.
+        dut.i_wb_cyc.value = 1
+        dut.i_wb_stb.value = 1
+        dut.i_wb_we.value  = 1 if we else 0
+        dut.i_wb_adr.value = adr
+        dut.i_wb_dat.value = dat
+        dut.i_wb_sel.value = 0xF
+        for _ in range(50):
+            await RisingEdge(dut.i_clk_phy)
+            if int(dut.o_wb_stall.value) == 0:
+                break
+        else:
+            raise AssertionError(f"WB stalled for >50 cycles on adr={adr:#x}")
+        # Release stb after one cycle past stall-drop.
+        await RisingEdge(dut.i_clk_phy)
+        dut.i_wb_stb.value = 0
+        # Wait for ack, then drop cyc.
+        for _ in range(200):
+            await RisingEdge(dut.i_clk_phy)
+            if int(dut.o_wb_ack.value):
+                rdat = int(dut.o_wb_dat.value)
+                dut.i_wb_cyc.value = 0
+                return rdat
+        raise AssertionError(f"WB ack never came for adr={adr:#x}")
+
+    dut._log.info("running WB write")
+    await wb_xact(adr=0x00020000, dat=0xDEADBEEF, we=True)
+    dut._log.info("write acked")
+
+    # Let the runtime FSM return to IDLE before issuing the read.
+    for _ in range(50):
+        await RisingEdge(dut.i_clk_phy)
+
+    dut._log.info("running WB read")
+    rdat = await wb_xact(adr=0x00020000, we=False)
+    dut._log.info(f"read acked, data=0x{rdat:08x}")
+
+    # Read data will be 0 in iter-2 (PHY tristates DQ), but the round-trip
+    # protocol must complete cleanly.
