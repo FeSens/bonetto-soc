@@ -19,7 +19,8 @@ RTL := \
     rtl/top.v \
     rtl/memtest_lite.v \
     ../../ip/wb-memory/rtl/wb_memory.v \
-    ../../ip/jtag-uart/rtl/jtag_uart.v
+    ../../ip/jtag-uart/rtl/jtag_uart.v \
+    ../../ip/wishbone/rtl/wb_decode2.v
 XDC := constraints/ypcb-00338.xdc
 
 # Shared-header include dirs are wired into read_verilog inside the
