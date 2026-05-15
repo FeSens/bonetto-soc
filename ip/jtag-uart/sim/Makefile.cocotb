@@ -1,0 +1,9 @@
+SIM           ?= icarus
+TOPLEVEL_LANG ?= verilog
+TOPLEVEL      ?= jtag_uart
+MODULE        ?= test_jtag_uart
+
+VERILOG_SOURCES = ../rtl/jtag_uart.v
+COMPILE_ARGS    += -g2012 -DBONETTO_SOC_SIM
+
+include $(shell cocotb-config --makefiles)/Makefile.sim
