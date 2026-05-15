@@ -20,15 +20,27 @@ RTL := \
     rtl/memtest_lite.v \
     ../../ip/wb-memory/rtl/wb_memory.v \
     ../../ip/jtag-uart/rtl/jtag_uart.v \
-    ../../ip/wishbone/rtl/wb_decode2.v
-XDC := constraints/ypcb-00338.xdc
-
-# Shared-header include dirs are wired into read_verilog inside the
-# yosys script (yosys's CLI has no -I flag — includes go via `read_verilog -I`).
-INCDIRS := -I ../../verification/common -I ../../ip/wishbone/rtl
+    ../../ip/wishbone/rtl/wb_decode2.v \
+    ../../ip/ddr3/rtl/ddr3_ctrl.v \
+    ../../ip/ddr3/rtl/ddr3_init.v \
+    ../../ip/ddr3/rtl/ddr3_runtime.v \
+    ../../ip/ddr3/rtl/ddr3_phy.v \
+    ../../ip/ddr3/rtl/ddr3_phy_lane_array.v \
+    ../../ip/ddr3/rtl/ddr3_phy_dq.v \
+    ../../ip/ddr3/rtl/ddr3_phy_wlvl.v \
+    ../../ip/ddr3/rtl/ddr3_phy_rdlvl.v
 
 BUILD  := build
 CHIPDB := $(BUILD)/chipdb
+
+# Constraints — base IO pins + DDR3 channel 0 pin map (iter-3a → 3d)
+# nextpnr-xilinx takes a single XDC file, so we cat them at build time.
+XDC_FILES := constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc
+XDC       := $(BUILD)/$(PROJECT).xdc
+
+# Shared-header include dirs are wired into read_verilog inside the
+# yosys script (yosys's CLI has no -I flag — includes go via `read_verilog -I`).
+INCDIRS := -I ../../verification/common -I ../../ip/wishbone/rtl -I ../../ip/ddr3/rtl
 
 PYPY3  ?= pypy3
 
@@ -48,6 +60,9 @@ $(CHIPDB)/$(DBPART).bin: | $(CHIPDB)
 	$(PYPY3) $(NEXTPNR_XILINX_PYTHON_DIR)/bbaexport.py --device $(PART) --bba $(BUILD)/$(DBPART).bba
 	bbasm -l $(BUILD)/$(DBPART).bba $@
 	rm -f $(BUILD)/$(DBPART).bba
+
+$(XDC): $(XDC_FILES) | $(BUILD)
+	cat $(XDC_FILES) > $@
 
 $(BUILD)/$(PROJECT).fasm: $(BUILD)/$(PROJECT).json $(CHIPDB)/$(DBPART).bin $(XDC)
 	nextpnr-xilinx --chipdb $(CHIPDB)/$(DBPART).bin --xdc $(XDC) --json $(BUILD)/$(PROJECT).json --fasm $@

@@ -171,8 +171,7 @@ module ddr3_phy_dq #(
                 .O        (),
                 .SHIFTIN1 (1'b0), .SHIFTIN2 (1'b0),
                 .SHIFTOUT1(), .SHIFTOUT2 (),
-                .OFB      (1'b0),
-                .TFB      (), .TBYTEIN (1'b0), .TBYTEOUT ()
+                .OFB      (1'b0)
             );
 
             assign o_rd_data[i*4 +: 4] = rd_bits;
