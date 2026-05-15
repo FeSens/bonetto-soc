@@ -21,8 +21,14 @@ __pycache__/
 
 # Formal
 formal/work*/
+formal/build/
 sby_work/
 *.sby_work/
+**/cal_seq_bmc/
+**/cal_seq_cover/
+**/*_bmc/
+**/*_cover/
+**/*_prove/
 
 # Editor / OS
 .DS_Store
