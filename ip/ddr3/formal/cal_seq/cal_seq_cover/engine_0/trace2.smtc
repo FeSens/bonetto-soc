@@ -1,0 +1,47 @@
+initial
+assume (= [$auto$async2sync.cc:107:execute$221] #b0)
+assume (= [$auto$async2sync.cc:116:execute$225] #b1)
+assume (= [$auto$async2sync.cc:116:execute$231] #b1)
+assume (= [$auto$async2sync.cc:116:execute$237] #b1)
+assume (= [dut.o_cal_done] #b0)
+assume (= [dut.o_cal_error] #b0)
+assume (= [dut.o_cal_error_code] #b00)
+assume (= [dut.o_rdlvl_start] #b0)
+assume (= [dut.o_state] #b0000)
+assume (= [dut.o_wlvl_start] #b0)
+
+state 0
+assume (= [clk] #b0)
+assume (= [rst] #b1)
+
+state 1
+assume (= [clk] #b0)
+assume (= [rst] #b0)
+
+state 2
+assume (= [clk] #b0)
+assume (= [rst] #b0)
+
+state 3
+assume (= [clk] #b0)
+assume (= [rst] #b0)
+
+state 4
+assume (= [clk] #b0)
+assume (= [rst] #b0)
+
+state 5
+assume (= [clk] #b0)
+assume (= [rst] #b0)
+
+state 6
+assume (= [clk] #b0)
+assume (= [rst] #b0)
+
+state 7
+assume (= [clk] #b0)
+assume (= [rst] #b0)
+
+state 8
+assume (= [clk] #b0)
+assume (= [rst] false)

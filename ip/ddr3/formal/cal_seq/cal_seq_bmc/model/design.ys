@@ -1,0 +1,9 @@
+# running in cal_seq_bmc/src/
+read -formal ddr3_cal_seq.v
+read -formal wrapper.sv
+prep -top cal_seq_wrapper
+
+hierarchy -smtcheck
+rename -witness
+write_jny -no-connections ../model/design.json
+write_rtlil ../model/design.il

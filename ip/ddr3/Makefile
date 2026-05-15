@@ -10,14 +10,20 @@ BUILD := formal/build
 SOLVER ?= yices
 DEPTH  ?= 20
 
-formal: $(BUILD)/proof.passed
+formal: $(BUILD)/proof.passed formal-cal-seq
+
+# Cal sequencer FSM safety + cover proofs via SymbiYosys.
+.PHONY: formal-cal-seq
+formal-cal-seq:
+	@echo "[ddr3] formal: cal_seq BMC + cover"
+	cd formal/cal_seq && sby -f cal_seq.sby
 
 $(BUILD):
 	@mkdir -p $@
 
-$(BUILD)/ddr3_ctrl.smt2: rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh ../../formal/vendor/fwb_slave.v formal/wrapper.sv | $(BUILD)
+$(BUILD)/ddr3_ctrl.smt2: rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh ../../formal/vendor/fwb_slave.v formal/wrapper.sv | $(BUILD)
 	yosys -q -p "\
-	  read_verilog -formal -DFORMAL -I rtl rtl/ddr3_ctrl.v rtl/ddr3_init.v ../../formal/vendor/fwb_slave.v formal/wrapper.sv; \
+	  read_verilog -formal -DFORMAL -I rtl rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v ../../formal/vendor/fwb_slave.v formal/wrapper.sv; \
 	  prep -top ddr3_ctrl_wrapper; \
 	  write_smt2 -wires $@"
 

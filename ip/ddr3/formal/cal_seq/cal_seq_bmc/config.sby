@@ -1,0 +1,16 @@
+[options]
+mode bmc
+depth 50
+multiclock off
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+read -formal ddr3_cal_seq.v
+read -formal wrapper.sv
+prep -top cal_seq_wrapper
+
+[files]
+../../rtl/ddr3_cal_seq.v
+wrapper.sv
