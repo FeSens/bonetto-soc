@@ -1,0 +1,15 @@
+Vtb_ddr3_init_top__Trace__0.o: \
+  /Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/build_micron/Vtb_ddr3_init_top__pch.h \
+  /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/share/verilator/include/verilated.h \
+  /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/share/verilator/include/verilated_config.h \
+  /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/share/verilator/include/verilatedos.h \
+  /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/share/verilator/include/verilated_types.h \
+  /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/share/verilator/include/verilated_funcs.h \
+  /Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/build_micron/Vtb_ddr3_init_top__Syms.h \
+  /Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/build_micron/Vtb_ddr3_init_top.h \
+  /Users/bonetto/bonetto/bonetto-soc/ip/ddr3/sim/build_micron/Vtb_ddr3_init_top___024root.h \
+  /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/share/verilator/include/verilated_timing.h \
+  Vtb_ddr3_init_top__Trace__0.cpp \
+  /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/share/verilator/include/verilated_vcd_c.h \
+  /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/share/verilator/include/verilated_trace.h \
+  Vtb_ddr3_init_top__Syms.h

@@ -1,0 +1,165 @@
+// tb_ddr3_init_top.sv — SystemVerilog top wiring ddr3_ctrl to the
+// Micron MT41K behavioural model. The C++ harness (tb_ddr3_init.cpp
+// for ctrl-only, tb_ddr3_init_micron.cpp for the full integration)
+// instantiates this and just ticks the clock.
+//
+// Pins:
+//   - ck / ck_n: differential clock (we drive ck = clk_phy, ck_n = ~clk_phy)
+//   - cs_n / ras_n / cas_n / we_n / ba / addr / cke / odt / rst_n:
+//     direct from ddr3_ctrl
+//   - dq / dqs / dqs_n / dm_tdqs: inout, left floating during init
+//
+// `define MICRON_TOP enables the Micron model. Without it, this tb
+// runs ddr3_ctrl standalone (matches the iter-2 cycle-only sim).
+
+`default_nettype none
+
+`timescale 1ns / 1ps
+
+module tb_ddr3_init_top (
+    output wire done_or_err     // pulses high when sim should stop
+);
+    // ------------------------------------------------------------------
+    // Clock generation — must use real #delays so the Micron model's
+    // timing checks see proper inter-edge spacing.
+    // tCK = 1250 ps for DDR3-1600.
+    // ------------------------------------------------------------------
+    reg clk_phy = 0;
+    always #625 clk_phy = ~clk_phy;  // 625 ps half-period -> 1250 ps period
+
+    // The SoC clock (i_clk) is 50 MHz on the YPCB-00338 = 20 ns period.
+    // For sim we run it at the same rate as clk_phy (cycle-precise init
+    // doesn't depend on clk vs clk_phy ratio — iter-3 introduces an MMCM).
+    wire clk_50 = clk_phy;
+
+    // Reset: hold high for 10 cycles, then drop.
+    reg rst = 1;
+    initial begin
+        #20000 rst = 0;        // release after 20 ns
+    end
+    // -------- ddr3_ctrl + Micron model wiring --------
+    localparam integer ROW_BITS  = 15;
+    localparam integer BANK_BITS = 3;
+    localparam integer DQ_BITS   = 8;
+    localparam integer DM_BITS   = DQ_BITS / 8;
+    localparam integer DQS_BITS  = DQ_BITS / 8;
+    localparam integer ADDR_BITS = 16;  // Micron model uses 16, we use 15
+
+    wire                       reset_n;
+    wire                       cke;
+    wire                       odt;
+    wire                       cs_n, ras_n, cas_n, we_n;
+    wire [BANK_BITS-1:0]       ba;
+    wire [ROW_BITS-1:0]        addr;
+
+    wire                       init_done;
+    wire                       init_error;
+    wire [3:0]                 init_error_code;
+    wire [4:0]                 init_state;
+
+    ddr3_ctrl #(
+        .WB_DATA_W (32),
+        .WB_ADDR_W (28),
+        .ROW_BITS  (ROW_BITS),
+        .BANK_BITS (BANK_BITS),
+        .COL_BITS  (10),
+        .DQ_BITS   (DQ_BITS)
+    ) u_dut (
+        .i_clk      (clk_50),
+        .i_clk_phy  (clk_phy),
+        .i_rst      (rst),
+        // WB tied off — sim watches init only.
+        .i_wb_cyc   (1'b0),
+        .i_wb_stb   (1'b0),
+        .i_wb_we    (1'b0),
+        .i_wb_adr   (28'd0),
+        .i_wb_dat   (32'd0),
+        .i_wb_sel   (4'd0),
+        .o_wb_stall (),
+        .o_wb_ack   (),
+        .o_wb_dat   (),
+        .o_wb_err   (),
+        // DDR3 pins
+        .o_ddr3_reset_n (reset_n),
+        .o_ddr3_cke     (cke),
+        .o_ddr3_odt     (odt),
+        .o_ddr3_cs_n    (cs_n),
+        .o_ddr3_ras_n   (ras_n),
+        .o_ddr3_cas_n   (cas_n),
+        .o_ddr3_we_n    (we_n),
+        .o_ddr3_ba      (ba),
+        .o_ddr3_addr    (addr),
+        // Status
+        .o_init_done       (init_done),
+        .o_init_error      (init_error),
+        .o_init_error_code (init_error_code),
+        .o_init_state      (init_state)
+    );
+
+`ifdef WITH_MICRON
+    // Micron model needs a 16-bit addr; pad our 15-bit with a 0.
+    wire [ADDR_BITS-1:0] addr_padded = {1'b0, addr};
+
+    // ck_n = inverted ck for differential clock.
+    wire ck_n = ~clk_phy;
+
+    // DQ / DQS / DM unused during init (no read/write). Wire them as
+    // dangling inout nets; Verilator will warn-but-not-error if we
+    // suppress the lint.
+    wire [DQ_BITS-1:0]  dq;
+    wire [DQS_BITS-1:0] dqs;
+    wire [DQS_BITS-1:0] dqs_n;
+    wire [DM_BITS-1:0]  dm_tdqs;
+    wire [DQS_BITS-1:0] tdqs_n;
+
+    // Pull-up resistors that DDR3 chips expect on the bus during init.
+    // Without them, Verilator x-propagates undriven nets and the Micron
+    // model trips checks that aren't actually violated by our controller.
+    pullup p_dq[DQ_BITS-1:0]   (dq);
+    pullup p_dqs[DQS_BITS-1:0] (dqs);
+
+    ddr3 u_micron (
+        .rst_n  (reset_n),
+        .ck     (clk_phy),
+        .ck_n   (ck_n),
+        .cke    (cke),
+        .cs_n   (cs_n),
+        .ras_n  (ras_n),
+        .cas_n  (cas_n),
+        .we_n   (we_n),
+        .dm_tdqs(dm_tdqs),
+        .ba     (ba),
+        .addr   (addr_padded),
+        .dq     (dq),
+        .dqs    (dqs),
+        .dqs_n  (dqs_n),
+        .tdqs_n (tdqs_n),
+        .odt    (odt)
+    );
+`endif
+
+    // ------------------------------------------------------------------
+    // Sim stop condition: trip done_or_err when init completes / fails,
+    // OR after a hard cap (1 ms simulated time).
+    // ------------------------------------------------------------------
+    assign done_or_err = init_done | init_error;
+
+    initial begin
+        // Hard timeout for the C++ harness — guarantee we don't run forever.
+        #1500000 $display("[tb] timeout reached (1.5 ms sim time)");
+        $finish;
+    end
+
+    initial begin
+        @(posedge init_done);
+        $display("[tb] *** init_done asserted at time %0t ps ***", $time);
+        // Let the Micron model log any straggling violations before we stop.
+        #100 $finish;
+    end
+
+    initial begin
+        @(posedge init_error);
+        $display("[tb] *** init_error asserted, code=%0d ***", init_error_code);
+        #100 $finish;
+    end
+endmodule
