@@ -21,7 +21,8 @@ RTL := \
     ../../ip/wb-memory/rtl/wb_memory.v
 XDC := constraints/ypcb-00338.xdc
 
-# Includes for shared headers
+# Shared-header include dirs are wired into read_verilog inside the
+# yosys script (yosys's CLI has no -I flag — includes go via `read_verilog -I`).
 INCDIRS := -I ../../verification/common -I ../../ip/wishbone/rtl
 
 BUILD  := build
@@ -38,7 +39,7 @@ $(BUILD) $(CHIPDB):
 	mkdir -p $@
 
 $(BUILD)/$(PROJECT).json: $(RTL) | $(BUILD)
-	yosys $(INCDIRS) -p "synth_xilinx -flatten -abc9 -arch xc7 -top $(TOP); write_json $@" $(RTL)
+	yosys -p "read_verilog $(INCDIRS) $(RTL); synth_xilinx -flatten -abc9 -arch xc7 -top $(TOP); write_json $@"
 
 $(CHIPDB)/$(DBPART).bin: | $(CHIPDB)
 	@echo ">> generating chipdb for $(PART) (one-time, ~5-15 min)"
