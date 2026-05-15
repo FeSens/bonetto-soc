@@ -1,0 +1,24 @@
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+cover: mode cover
+depth 20
+multiclock off
+
+[engines]
+prove: smtbmc bitwuzla
+cover: smtbmc bitwuzla
+
+[script]
+read -formal -define FORMAL wb_memory.v
+read -formal -define FORMAL fwb_slave.v
+read -formal -define FORMAL wrapper.sv
+prep -top wb_memory_wrapper
+
+[files]
+../rtl/wb_memory.v
+../../../formal/vendor/fwb_slave.v
+wrapper.sv
