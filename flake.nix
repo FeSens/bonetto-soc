@@ -25,7 +25,14 @@
     in {
       devShells = forAllSystems (system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
+          # allowUnsupportedSystem skips the meta.platforms hard-block on
+          # ghdl-mcode (transitively pulled in by pkgs.symbiyosys's VHDL
+          # support). ghdl-mcode's JIT backend is x86-only, but we don't
+          # use VHDL here — the package just needs to evaluate, not build.
+          pkgs = import nixpkgs {
+            inherit system;
+            config.allowUnsupportedSystem = true;
+          };
           ox   = openxc7.packages.${system};
           pyPkg = p: "${p}/lib/python3.12/site-packages/:";
 
@@ -46,41 +53,29 @@
         in {
           default = pkgs.mkShell {
             buildInputs = [
-              # Synth, PnR, bitstream
+              # Synth, PnR, bitstream — same as inspur-adventures, known to
+              # build on aarch64-darwin via the openXC7-pinned nixpkgs.
               ox.nextpnr-xilinx
               ox.prjxray
               ox.fasm
               pkgs.yosys
 
-              # Programming
+              # Programming (XPCU-patched)
               openfpgaloader-xpcu
 
-              # Formal
-              pkgs.symbiyosys
-              pkgs.bitwuzla
-              pkgs.boolector
-              pkgs.yices
-
-              # Simulation
-              pkgs.verilator
-              pkgs.gtkwave
-
-              # Python / cocotb
-              pkgs.python312
-              pkgs.python312Packages.cocotb
-              pkgs.python312Packages.pytest
+              # Python ecosystem (used by prjxray's fasm scripts and by
+              # cocotb-based simulation later).
+              pkgs.pypy310
               pkgs.python312Packages.pyyaml
               pkgs.python312Packages.textx
               pkgs.python312Packages.simplejson
               pkgs.python312Packages.intervaltree
-
-              # pypy for chipdb gen
-              pkgs.pypy310
-
-              # General
-              pkgs.gnumake
-              pkgs.git
             ];
+
+            # Verification tools (verilator, z3, cocotb, symbiyosys) live
+            # in a separate dev shell — see `devShells.verification` —
+            # so the iter-1 synth/program flow doesn't pull in derivations
+            # that fail to evaluate on aarch64-darwin in this nixpkgs pin.
 
             shellHook = ''
               export NEXTPNR_XILINX_DIR=${ox.nextpnr-xilinx}
