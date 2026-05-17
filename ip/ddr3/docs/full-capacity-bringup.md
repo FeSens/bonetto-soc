@@ -17,6 +17,33 @@ DDR3-1600 speed bin.
 | Transfer rate | DDR3-1600, 1600 MT/s |
 | Controller-visible word address | 30 bits of 32-bit words |
 
+## Online Board References
+
+Use the public YPCB-00338-1P1 reference files as the source of truth for board
+pins and MIG geometry:
+
+| Reference | Use |
+|---|---|
+| `https://github.com/TiferKing/ypcb_00338_1p1_hack` | Online board reverse-engineering archive |
+| `constraints/MEMORY_CH0.ucf` | Channel-0 DDR3 pins |
+| `constraints/MEMORY_CH1.ucf` | Channel-1 DDR3 pins |
+| `constraints/ypcb003381p1.xdc` | Board-level system clock/reset pins |
+| `ypcb003381p1/1.0/mig_0.prj` | Single-controller CH0 MIG reference |
+| `ypcb003381p1/1.0/mig_1.prj` | Single-controller CH1 MIG reference |
+| `ypcb003381p1/1.0/mig_01.prj` | Dual-controller MIG reference |
+
+The dual-controller MIG reference confirms the board-file geometry to design
+against: `MT41K256M8XX-125`, 72 DQ bits per channel, ECC enabled, no data mask,
+15 row bits, 10 column bits, 3 bank bits, 2 GiB data capacity per channel, and
+a 512-bit AXI/UI data width per channel. That 512-bit payload is the natural
+full BL8 interface for one 64-bit channel.
+
+Do not copy the MIG clocking target blindly for the DDR3-1600 goal. The online
+MIG projects use `TimePeriod=1875` ps with a 4:1 PHY ratio and 200 MHz input
+clock, which is a DDR3-1066-class reference rather than the 800 MHz CK /
+1600 MT/s target. The pin and geometry data are still useful; the full-speed
+PLL/MMCM, timing, and hardware validation need to be proven in this repo.
+
 ## Current Validated State
 
 The hardware-proven image is intentionally narrower:

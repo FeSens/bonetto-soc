@@ -33,6 +33,15 @@ DDR3 runtime/PHY before the extra address bits map to unique DRAM cells.
 reference with `ddr3_ch1_*` port names for the later dual-channel top. It is not
 part of the current CH0-only `XDC_FILES` list.
 
+For pin work, use the public board reference archive rather than deriving pins
+from the current reduced top:
+
+| Online file | Local use |
+|---|---|
+| `https://github.com/TiferKing/ypcb_00338_1p1_hack/blob/main/constraints/MEMORY_CH0.ucf` | CH0 DDR3 pin source |
+| `https://github.com/TiferKing/ypcb_00338_1p1_hack/blob/main/constraints/MEMORY_CH1.ucf` | CH1 DDR3 pin source |
+| `https://github.com/TiferKing/ypcb_00338_1p1_hack/blob/main/ypcb003381p1/1.0/mig_01.prj` | Dual-controller MIG geometry/reference |
+
 See `DDR3_VALIDATION.md` for the current hardware evidence.
 
 ## Build And Program
