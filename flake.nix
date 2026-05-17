@@ -8,16 +8,9 @@
     openxc7.url    = "git+https://github.com/openXC7/toolchain-nix";
     nixpkgs.follows = "openxc7/nixpkgs";
 
-    # XPCU patch for openFPGALoader on macOS (LIBUSB_ERROR_OVERFLOW fix).
-    # Vendored as a flake so we share the patch with inspur-adventures
-    # without copy-pasting it here.
-    xpcu-macos = {
-      url   = "github:FeSens/xpcu-macos";
-      flake = false;
-    };
   };
 
-  outputs = { self, openxc7, nixpkgs, xpcu-macos, ... }:
+  outputs = { self, openxc7, nixpkgs, ... }:
     let
       forAllSystems = nixpkgs.lib.genAttrs [
         "aarch64-darwin" "x86_64-darwin" "aarch64-linux" "x86_64-linux"
@@ -36,8 +29,27 @@
           ox   = openxc7.packages.${system};
           pyPkg = p: "${p}/lib/python3.12/site-packages/:";
 
-          # openFPGALoader from master with the macOS bulk-read patch.
-          openfpgaloader-xpcu = pkgs.openfpgaloader.overrideAttrs (old: {
+          # Keep all XPCU USB consumers on the same libusb ABI. libusb 1.0.29
+          # has newer Darwin backend behavior than the nixpkgs pin's 1.0.27.
+          libusb1-xpcu = pkgs.libusb1.overrideAttrs (_old: {
+            version = "1.0.29";
+            src = pkgs.fetchFromGitHub {
+              owner = "libusb";
+              repo = "libusb";
+              rev = "v1.0.29";
+              hash = "sha256-m1w+uF8+2WCn72LvoaGUYa+R0PyXHtFFONQjdRfImYY=";
+            };
+          });
+          libftdi1-xpcu = pkgs.libftdi1.override {
+            libusb1 = libusb1-xpcu;
+          };
+
+          # openFPGALoader from master with the DLC10/XPCU macOS patches from
+          # inspur-adventures plus the XVC hooks used by the JTAG-WB tooling.
+          openfpgaloader-xpcu = (pkgs.openfpgaloader.override {
+            libftdi1 = libftdi1-xpcu;
+            libusb1 = libusb1-xpcu;
+          }).overrideAttrs (old: {
             version = "git-be5de3c";
             src = pkgs.fetchFromGitHub {
               owner = "trabucayre";
@@ -46,10 +58,12 @@
               hash  = "sha256-F8yddHA4yTGJCMZmtv/Adhts0Dv2yv8yfdI+73dKS1k=";
             };
             patches = (old.patches or []) ++ [
-              "${xpcu-macos}/openfpgaloader-fx2-macos-overflow.patch"
+              ./patches/openfpgaloader-fx2-macos-overflow.patch
+              ./patches/openfpgaloader-fx2-macos-ctrl-timeout.patch
+              ./patches/openfpgaloader-fx2-macos-clear-halt.patch
+              ./patches/openfpgaloader-xpcu-skip-missing-alt.patch
               ./patches/openfpgaloader-xvc-xpcu.patch
               ./patches/openfpgaloader-xpcu-writetmstdi.patch
-              ./patches/openfpgaloader-xpcu-no-alt-setting-darwin.patch
             ];
           });
 

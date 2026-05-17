@@ -62,7 +62,7 @@ See `INVARIANTS.md` for the hard contracts and the don't-touch list.
 ## Related work
 
 - [`inspur-adventures`](https://github.com/FeSens/inspur-adventures) — original bring-up of the YPCB-00338 (openXC7 toolchain on macOS, three-LED blink).
-- [`xpcu-macos`](https://github.com/FeSens/xpcu-macos) — Xilinx Platform Cable USB II support on macOS, vendored here via flake input.
+- Local `patches/openfpgaloader-*.patch` files — Xilinx DLC10 / Platform Cable USB II support on macOS, carried from `inspur-adventures` and extended for XVC/JTAG-WB access.
 - [`auto-arch-tournament`](https://github.com/FeSens/auto-arch-tournament) — verification-loop pattern this SoC's CI/orchestrator follows.
 
 ## License

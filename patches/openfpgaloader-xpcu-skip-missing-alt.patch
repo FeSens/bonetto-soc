@@ -1,0 +1,58 @@
+From: Felipe Bonetto <felipesensbonetto@gmail.com>
+Subject: [PATCH] xpcu: skip absent FX2 alternate interface setting
+
+The Xilinx Platform Cable USB II firmware used by this DLC10 cable
+re-enumerates as 03fd:0008 with only alternate setting 0 on interface 0.
+Calling libusb_set_interface_alt_setting(0, 1) therefore fails on macOS
+before JTAG traffic starts.
+
+Inspect the active descriptor first. If the requested alternate setting is
+not advertised, keep the current setting and let the XPCU driver use the
+bulk endpoints already present on alt 0.
+
+--- a/src/fx2_ll.cpp
++++ b/src/fx2_ll.cpp
+@@ -92,11 +92,41 @@ bool FX2_ll::close()
+ 
+ bool FX2_ll::set_interface_alt_setting(const int if_num, const int alt_setting)
+ {
++	libusb_config_descriptor *config = nullptr;
++	const int desc_ret = libusb_get_active_config_descriptor(
++			libusb_get_device(dev_handle), &config);
++	if (desc_ret == LIBUSB_SUCCESS && config) {
++		bool found = false;
++		for (uint8_t i = 0; i < config->bNumInterfaces && !found; i++) {
++			const libusb_interface &iface = config->interface[i];
++			for (int a = 0; a < iface.num_altsetting; a++) {
++				const libusb_interface_descriptor &alt =
++						iface.altsetting[a];
++				if (alt.bInterfaceNumber == if_num &&
++						alt.bAlternateSetting == alt_setting) {
++					found = true;
++					break;
++				}
++			}
++		}
++		libusb_free_config_descriptor(config);
++		if (!found) {
++			printInfo("USB alternate interface "
++					+ std::to_string(alt_setting)
++					+ " not present; keeping current setting");
++			return true;
++		}
++	} else if (desc_ret != LIBUSB_SUCCESS) {
++		printWarn("unable to inspect active USB configuration: "
++				+ std::string(libusb_error_name(desc_ret)));
++	}
++
+ 	const int ret = libusb_set_interface_alt_setting(dev_handle, if_num,
+ 		alt_setting);
+ 	if (ret && ret != LIBUSB_ERROR_NOT_FOUND) {
+-		printWarn("unable to select alternate interface 1: "
+-			+ std::string(libusb_error_name(ret)));
++		printWarn("unable to select alternate interface "
++			+ std::to_string(alt_setting) + ": "
++			+ std::string(libusb_error_name(ret)));
+ 		return false;
+ 	}
+ 	return true;

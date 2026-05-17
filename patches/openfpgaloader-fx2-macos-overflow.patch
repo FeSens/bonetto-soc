@@ -1,0 +1,48 @@
+From: Felipe Bonetto <felipesensbonetto@gmail.com>
+Subject: [PATCH] fx2_ll: 512-byte bounce buffer for small bulk reads on macOS
+
+On macOS, libusb_bulk_transfer returns LIBUSB_ERROR_OVERFLOW when the
+host buffer is smaller than the bulk endpoint's wMaxPacketSize (512 B
+at USB 2.0 high-speed), even if the device sent fewer bytes. The
+Linux libusb is more lenient. The Xilinx Platform Cable USB II driver
+issues 4-byte reads for IDCODE which trigger this on macOS.
+
+Additionally, the set_interface_alt_setting(0, 1) call fails with
+LIBUSB_ERROR_OTHER on macOS, so the switch to an alt setting with
+smaller endpoint packets doesn't happen.
+
+Fix: read into a 512 B stack bounce buffer for small reads and copy
+out only what the caller asked for.
+
+--- a/src/fx2_ll.cpp
++++ b/src/fx2_ll.cpp
+@@ -1,5 +1,6 @@
+ // SPDX-License-Identifier: Apache-2.0
+ 
++#include <cstring>
+ #include <libusb.h>
+ #include <stdint.h>
+ #include <unistd.h>
+@@ -143,6 +144,22 @@ int FX2_ll::write(uint8_t endpoint, uint8_t *buff, uint16_t len)
+ int FX2_ll::read(uint8_t endpoint, uint8_t *buff, uint16_t len)
+ {
+ 	int ret, actual_length;
++	/* macOS workaround: libusb returns LIBUSB_ERROR_OVERFLOW when the
++	 * host buffer is smaller than the bulk endpoint's wMaxPacketSize
++	 * (512 B at HS). For small reads, bounce through a 512 B buffer.
++	 */
++	if (len < 512) {
++		uint8_t bounce[512];
++		ret = libusb_bulk_transfer(dev_handle, LIBUSB_ENDPOINT_IN | endpoint,
++				bounce, sizeof(bounce), &actual_length, 1000);
++		if (ret != LIBUSB_SUCCESS) {
++			printError("FX2 read error: " + std::string(libusb_error_name(ret)));
++			return -1;
++		}
++		if (actual_length > len) actual_length = len;
++		memcpy(buff, bounce, actual_length);
++		return actual_length;
++	}
+ 	ret = libusb_bulk_transfer(dev_handle, LIBUSB_ENDPOINT_IN | endpoint,
+ 			buff, len, &actual_length, 1000);
+ 	if (ret != LIBUSB_SUCCESS) {

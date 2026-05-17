@@ -58,8 +58,7 @@
           "openxc7",
           "nixpkgs"
         ],
-        "openxc7": "openxc7",
-        "xpcu-macos": "xpcu-macos"
+        "openxc7": "openxc7"
       }
     },
     "systems": {
@@ -74,22 +73,6 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
-        "type": "github"
-      }
-    },
-    "xpcu-macos": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1778807000,
-        "narHash": "sha256-LApKcmuKn5AsANgHwjMDhLOG7wD2/UpcB1Wag0X5kd0=",
-        "owner": "FeSens",
-        "repo": "xpcu-macos",
-        "rev": "b38e956880557b5f2e94321878e654567de5cdd2",
-        "type": "github"
-      },
-      "original": {
-        "owner": "FeSens",
-        "repo": "xpcu-macos",
         "type": "github"
       }
     }

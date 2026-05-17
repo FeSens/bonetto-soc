@@ -12,7 +12,8 @@ CABLE    := xilinxPlatformCableUsb
 FIRMWARE := firmware/xusb_xp2.hex
 FIRMWARE_URL := https://raw.githubusercontent.com/bwhite/fpga-image-registration/master/edk_project/install_drivers/linux_drivers/pcusb/xusb_xp2.hex
 MISC_DEV := --misc-device 0x10931093,8,inspur_cpld
-FREQ     := --freq 6000000
+FREQ_DETECT  := --freq 500000
+FREQ_PROGRAM := --freq 6000000
 
 # Source list — all IPs feeding the top
 RTL := \
@@ -92,15 +93,30 @@ $(FIRMWARE):
 	@mkdir -p $(@D)
 	curl -fsSL -o $@ $(FIRMWARE_URL)
 
-OFL := openFPGALoader --cable $(CABLE) --probe-firmware $(FIRMWARE) $(FREQ) $(MISC_DEV)
+OFL_BASE := openFPGALoader --cable $(CABLE) --probe-firmware $(FIRMWARE) $(MISC_DEV)
+RETRIES  := 1 2 3 4 5 6 7 8 9 10
 
 detect: $(FIRMWARE)
-	@for i in 1 2 3 4 5; do echo ">> detect $$i"; $(OFL) --detect && exit 0; sleep 2; done; \
-	echo "detect failed"; exit 1
+	@for i in $(RETRIES); do \
+	  echo ">> detect attempt $$i"; \
+	  $(OFL_BASE) $(FREQ_DETECT) --detect && exit 0; \
+	  sleep 2; \
+	done; \
+	echo "detect failed after 10 attempts -- if all attempts after #1"; \
+	echo "showed 'Unable to read constant', the cable is wedged. Physical"; \
+	echo "unplug+replug of the USB cable from the Mac is required."; \
+	exit 1
 
 program: $(BUILD)/$(PROJECT).bit $(FIRMWARE)
-	@for i in 1 2 3 4 5; do echo ">> program $$i"; $(OFL) --index-chain 0 $< && exit 0; sleep 2; done; \
-	echo "program failed"; exit 1
+	@for i in $(RETRIES); do \
+	  echo ">> program attempt $$i"; \
+	  $(OFL_BASE) $(FREQ_PROGRAM) --index-chain 0 $< && exit 0; \
+	  sleep 2; \
+	done; \
+	echo "program failed after 10 attempts -- if all attempts after #1"; \
+	echo "showed 'Unable to read constant', the cable is wedged. Physical"; \
+	echo "unplug+replug of the USB cable from the Mac is required."; \
+	exit 1
 
 memtest: program
 	@echo ">> memtest runs on the FPGA; observe the LEDs:"

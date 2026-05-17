@@ -83,7 +83,7 @@ Each IP carries its own three-stage verification:
    - Run with `make sim-<ip>`.
 
 3. **Hardware bring-up** (`boards/<board>/`)
-   - Final witness. Bitstream loaded via JTAG (XPCU patch from `xpcu-macos` flake).
+   - Final witness. Bitstream loaded via JTAG with the local DLC10/XPCU openFPGALoader patches.
    - Memory test runs on the FPGA and reports results back via `jtag-uart`.
    - Run with `make fpga && make program && make memtest`.
 
@@ -92,7 +92,7 @@ Each IP carries its own three-stage verification:
 Same Nix dev shell as the [`inspur-adventures`](https://github.com/FeSens/inspur-adventures) project, plus formal + sim tools:
 
 - **yosys** + **nextpnr-xilinx** + **prjxray** (synth → PnR → bitstream — from openXC7)
-- **openFPGALoader** patched per [`xpcu-macos`](https://github.com/FeSens/xpcu-macos) (Xilinx Platform Cable USB II support on macOS)
+- **openFPGALoader** patched locally for the DLC10/XPCU path on macOS, including the FX2 bulk-read, control-timeout, endpoint-clear, missing-alt-setting, and XVC shift fixes
 - **SymbiYosys** + **bitwuzla** / **boolector** (formal)
 - **Verilator** (cycle-accurate sim)
 - **cocotb** + **pytest** (directed tests)

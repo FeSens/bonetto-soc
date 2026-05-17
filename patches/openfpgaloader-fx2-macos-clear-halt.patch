@@ -1,0 +1,30 @@
+From: Felipe Bonetto <felipesensbonetto@gmail.com>
+Subject: [PATCH] fx2_ll: clear bulk endpoint halts after claim on macOS
+
+On macOS, the XPCU's bulk endpoints (0x02 OUT, 0x86 IN) can come up
+in a halted state after the device re-enumerates following firmware
+load. The XPCU driver's first JTAG control transfer (GPIO_TRANSFER)
+expects the bulk endpoints to be ready to accept data immediately
+after; if they're halted, the FX2 firmware blocks waiting on stalled
+pipes and never ACKs the control transfer, manifesting as
+LIBUSB_ERROR_TIMEOUT on what should be a fast vendor command.
+
+libusb_clear_halt is a no-op on a healthy endpoint, so it's safe to
+issue unconditionally for the XPCU's known endpoints.
+
+--- a/src/fx2_ll.cpp
++++ b/src/fx2_ll.cpp
+@@ -80,6 +80,13 @@
+ 		libusb_exit(usb_ctx);
+ 		throw std::runtime_error("claim interface failed");
+ 	}
++	/* macOS: bulk endpoints can come up halted after re-enumeration
++	 * (post firmware-load). Clear them so the first bulk transfer
++	 * doesn't hit a stalled pipe. clear_halt is harmless on a healthy
++	 * endpoint, so we do it unconditionally for the XPCU's known
++	 * endpoints (0x02 OUT, 0x86 IN). Ignore errors. */
++	libusb_clear_halt(dev_handle, 0x02);
++	libusb_clear_halt(dev_handle, 0x86);
+ }
+ 
+ bool FX2_ll::set_interface_alt_setting(const int if_num, const int alt_setting)

@@ -1,0 +1,76 @@
+From: Felipe Bonetto <felipesensbonetto@gmail.com>
+Subject: [PATCH] fx2_ll: longer timeout + retry on TIMEOUT for vendor control transfers
+
+On macOS, the Xilinx Platform Cable USB II occasionally hits
+LIBUSB_ERROR_TIMEOUT on the first XPCU_CMD_GPIO_TRANSFER vendor
+control transfer after init, even though earlier control transfers
+in the same session (version reads, status read, SET_SPEED) succeed.
+
+When this happens, the cable's USB endpoints wedge into a state
+from which no openFPGALoader call recovers — every subsequent
+attempt fails with LIBUSB_ERROR_TIMEOUT on the very first control
+read (RETURN_CONSTANT). Even libusb_reset_device times out on the
+wedged endpoint, dropping the cable off the bus until physical
+unplug.
+
+The fix: bump the per-call timeout from 100 ms to 1 s and retry once
+on LIBUSB_ERROR_TIMEOUT (with a 50 ms delay) before propagating
+failure. The slower per-call ceiling buys headroom for the macOS USB
+stack to settle; the retry lets a transient stall recover without
+wedging the higher level.
+
+Linux is unaffected — these transfers complete in well under 100 ms
+there, so the new timeout is never exercised.
+
+--- a/src/fx2_ll.cpp
++++ b/src/fx2_ll.cpp
+@@ -155,12 +155,21 @@ int FX2_ll::write(uint8_t endpoint, uint8_t *buff, uint16_t len)
+ int FX2_ll::write_ctrl(uint8_t bRequest, uint16_t wValue,
+ 		uint8_t *buff, uint16_t len, uint16_t wIndex)
+ {
+-	int ret = libusb_control_transfer(dev_handle,
+-			LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+-			bRequest, wValue, wIndex, buff, len, 100);
++	/* macOS: bump timeout to 1 s and retry once on TIMEOUT.
++	 * A single timed-out control transfer wedges the cable's USB
++	 * endpoints and only physical unplug recovers it. */
++	int ret;
++	for (int attempt = 0; attempt < 2; attempt++) {
++		ret = libusb_control_transfer(dev_handle,
++				LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
++				bRequest, wValue, wIndex, buff, len, 1000);
++		if (ret >= 0 || ret != LIBUSB_ERROR_TIMEOUT)
++			break;
++		usleep(50000); /* 50 ms */
++	}
+ 	if (ret < 0) {
+ 		printError("Unable to send control request: "
+-				+ std::string(libusb_error_name(ret)));
++				+ std::string(libusb_error_name(ret)) + " (bRequest=0x" + std::to_string(bRequest) + ", wValue=0x" + std::to_string(wValue) + ")");
+ 		return false;
+ 	}
+ 	return true;
+@@ -171,12 +180,19 @@ int FX2_ll::write_ctrl(uint8_t bRequest, uint16_t wValue,
+ int FX2_ll::read_ctrl(uint8_t bRequest, uint16_t wValue,
+ 		uint8_t *buff, uint16_t len, uint16_t wIndex)
+ {
+-	int ret = libusb_control_transfer(dev_handle,
+-			LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+-			bRequest, wValue, wIndex, buff, len, 100);
++	/* Same macOS workaround as write_ctrl. */
++	int ret;
++	for (int attempt = 0; attempt < 2; attempt++) {
++		ret = libusb_control_transfer(dev_handle,
++				LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
++				bRequest, wValue, wIndex, buff, len, 1000);
++		if (ret >= 0 || ret != LIBUSB_ERROR_TIMEOUT)
++			break;
++		usleep(50000); /* 50 ms */
++	}
+ 	if (ret < 0) {
+ 		printError("Unable to read control request: "
+-				+ std::string(libusb_error_name(ret)));
++				+ std::string(libusb_error_name(ret)) + " (bRequest=0x" + std::to_string(bRequest) + ", wValue=0x" + std::to_string(wValue) + ")");
+ 		return false;
+ 	}
+ 	return true;
