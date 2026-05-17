@@ -28,8 +28,7 @@ $(BUILD)/proof.passed: $(BUILD)/wb_memory.smt2
 	@touch $@
 
 sim:
-	@echo "[wb-memory] sim placeholder — Verilator/cocotb in iter 2"
-	@true
+	@$(MAKE) -C sim -f Makefile.cocotb
 
 clean:
 	rm -rf $(BUILD)
