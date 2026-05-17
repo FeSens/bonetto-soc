@@ -68,6 +68,15 @@ module ddr3_ctrl #(
     input  wire [12:0]              i_mpr_addr,
     output wire                     o_mpr_busy,
 
+    // -------- MRS-rewrite interface (iter-8, for cal_seq) -----
+    // cal_seq pulses i_mrs_req with the target MR (via i_mrs_ba) and
+    // payload (via i_mrs_addr) to toggle write-leveling or MPR modes
+    // mid-calibration. Forwarded directly to the runtime FSM.
+    input  wire                     i_mrs_req,
+    input  wire [BANK_BITS-1:0]     i_mrs_ba,
+    input  wire [ROW_BITS-1:0]      i_mrs_addr,
+    output wire                     o_mrs_busy,
+
     // -------- Status (for host / debug) --------
     output wire                     o_init_done,
     output wire                     o_init_error,
@@ -155,7 +164,12 @@ module ddr3_ctrl #(
 
         .i_mpr_req   (i_mpr_req),
         .i_mpr_addr  (i_mpr_addr),
-        .o_mpr_busy  (o_mpr_busy)
+        .o_mpr_busy  (o_mpr_busy),
+
+        .i_mrs_req   (i_mrs_req),
+        .i_mrs_ba    (i_mrs_ba),
+        .i_mrs_addr  (i_mrs_addr),
+        .o_mrs_busy  (o_mrs_busy)
     );
 
     // ---------------- Command bus mux ----------------

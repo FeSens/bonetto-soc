@@ -293,6 +293,11 @@ module top (
     wire [12:0] phy_mpr_addr;
     wire        ctrl_mpr_busy;
 
+    wire        cal_mrs_req;
+    wire [2:0]  cal_mrs_ba;
+    wire [14:0] cal_mrs_addr;
+    wire        ctrl_mrs_busy;
+
     wire        cal_wlvl_start, cal_wlvl_done, cal_wlvl_error;
     wire        cal_rdlvl_start, cal_rdlvl_done, cal_rdlvl_error;
 
@@ -322,6 +327,10 @@ module top (
         .i_mpr_req      (phy_mpr_req),
         .i_mpr_addr     (phy_mpr_addr),
         .o_mpr_busy     (ctrl_mpr_busy),
+        .i_mrs_req      (cal_mrs_req),
+        .i_mrs_ba       (cal_mrs_ba),
+        .i_mrs_addr     (cal_mrs_addr),
+        .o_mrs_busy     (ctrl_mrs_busy),
         .o_init_done        (ctrl_init_done),
         .o_init_error       (ctrl_init_error),
         .o_init_error_code  (ctrl_init_error_code),
@@ -338,6 +347,10 @@ module top (
         .o_rdlvl_start    (cal_rdlvl_start),
         .i_rdlvl_done     (cal_rdlvl_done),
         .i_rdlvl_error    (cal_rdlvl_error),
+        .o_mrs_req        (cal_mrs_req),
+        .o_mrs_ba         (cal_mrs_ba),
+        .o_mrs_addr       (cal_mrs_addr),
+        .i_mrs_busy       (ctrl_mrs_busy),
         .o_cal_done       (cal_done),
         .o_cal_error      (cal_error),
         .o_cal_error_code (cal_error_code),
@@ -571,7 +584,7 @@ module top (
             8'h11:   status_word = {17'd0, jwb_addr_echo_sync[1]};
             8'h12:   status_word = jwb_data_echo_sync[1];
             8'h13:   status_word = jwb_rd_data_sync[1];
-            8'hFE:   status_word = {16'hB07E, 16'h0007};
+            8'hFE:   status_word = {16'hB07E, 16'h0008};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase

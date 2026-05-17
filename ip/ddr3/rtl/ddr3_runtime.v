@@ -78,7 +78,17 @@ module ddr3_runtime #(
     // pass after standard init completes).
     input  wire                       i_mpr_req,
     input  wire [12:0]                i_mpr_addr,
-    output wire                       o_mpr_busy
+    output wire                       o_mpr_busy,
+
+    // -------- MRS-rewrite request port (iter-8, for cal_seq) --------
+    // Lets cal_seq toggle MR1[7] (wlvl enable) or MR3[2] (MPR enable)
+    // mid-calibration. The runtime FSM emits a single MRS command with
+    // the supplied bank/addr and then waits tMOD before resuming WB
+    // traffic. Priority: refresh > MRS > MPR > WB.
+    input  wire                       i_mrs_req,
+    input  wire [BANK_BITS-1:0]       i_mrs_ba,
+    input  wire [ROW_BITS-1:0]        i_mrs_addr,
+    output wire                       o_mrs_busy
 );
     // ---- WB address split ----
     // adr = { bank, row, col[COL_BITS-1:3] } — bottom 3 bits absorbed by BL8.
@@ -127,7 +137,9 @@ module ddr3_runtime #(
         S_REF       = 5'd13,
         S_REF_WAIT  = 5'd14,
         S_MPR_RD    = 5'd15,
-        S_MPR_WAIT  = 5'd16;
+        S_MPR_WAIT  = 5'd16,
+        S_MRS       = 5'd17,
+        S_MRS_WAIT  = 5'd18;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -150,6 +162,28 @@ module ddr3_runtime #(
     end
 
     assign o_mpr_busy = mpr_pending || (state == S_MPR_RD) || (state == S_MPR_WAIT);
+
+    // ---- MRS-rewrite latch (single-shot; cleared when FSM emits MRS) ----
+    reg                       mrs_pending;
+    reg [BANK_BITS-1:0]       mrs_ba_q;
+    reg [ROW_BITS-1:0]        mrs_addr_q;
+    reg                       mrs_clear;
+    always @(posedge i_clk_phy) begin
+        if (i_rst || !i_init_done) begin
+            mrs_pending <= 1'b0;
+            mrs_ba_q    <= {BANK_BITS{1'b0}};
+            mrs_addr_q  <= {ROW_BITS{1'b0}};
+        end else begin
+            if (i_mrs_req) begin
+                mrs_pending <= 1'b1;
+                mrs_ba_q    <= i_mrs_ba;
+                mrs_addr_q  <= i_mrs_addr;
+            end
+            if (mrs_clear) mrs_pending <= 1'b0;
+        end
+    end
+
+    assign o_mrs_busy = mrs_pending || (state == S_MRS) || (state == S_MRS_WAIT);
     reg [7:0]  beat_ctr;                   // BL8 beat counter (0..7)
     reg [7:0]  wait_ctr;                   // generic wait counter
     reg [BANK_BITS-1:0]  saved_bank;
@@ -180,20 +214,25 @@ module ddr3_runtime #(
             wait_ctr    <= 8'd0;
             ref_clear   <= 1'b0;
             mpr_clear   <= 1'b0;
+            mrs_clear   <= 1'b0;
         end else begin
             o_cmd_valid <= 1'b0;
             o_cmd       <= `DDR3_CMD_NOP;
             o_wb_ack    <= 1'b0;
             ref_clear   <= 1'b0;
             mpr_clear   <= 1'b0;
+            mrs_clear   <= 1'b0;
 
             case (state)
                 S_IDLE: begin
                     if (ref_pending) begin
-                        // Refresh has higher priority than new WB / MPR requests.
+                        // Refresh has higher priority than new WB / MPR / MRS requests.
                         state    <= S_REF_PRE;
+                    end else if (mrs_pending) begin
+                        // MRS-rewrite (cal driving MR1[7] or MR3[2]) — before MPR
+                        // so cal_seq can enable MPR mode before issuing MPR reads.
+                        state    <= S_MRS;
                     end else if (mpr_pending) begin
-                        // MPR-read takes priority over WB during calibration.
                         state    <= S_MPR_RD;
                     end else if (i_wb_cyc && i_wb_stb && !o_wb_stall) begin
                         saved_bank <= wb_bank;
@@ -365,6 +404,27 @@ module ddr3_runtime #(
                     // next RD command can issue; rdlvl gates that by
                     // its own SETTLE_CYCLES + READ_LATENCY logic.
                     if (wait_ctr == `DDR3_TCCD - 1) begin
+                        wait_ctr <= 8'd0;
+                        state    <= S_IDLE;
+                    end else begin
+                        wait_ctr <= wait_ctr + 1'b1;
+                    end
+                end
+
+                // ---- MRS-rewrite path (used by cal_seq) ----
+                S_MRS: begin
+                    o_cmd_valid <= 1'b1;
+                    o_cmd       <= `DDR3_CMD_MRS;
+                    o_cmd_ba    <= mrs_ba_q;
+                    o_cmd_addr  <= mrs_addr_q;
+                    mrs_clear   <= 1'b1;
+                    wait_ctr    <= 8'd0;
+                    state       <= S_MRS_WAIT;
+                end
+
+                S_MRS_WAIT: begin
+                    // tMOD before any non-MRS command may issue.
+                    if (wait_ctr == `DDR3_TMOD - 1) begin
                         wait_ctr <= 8'd0;
                         state    <= S_IDLE;
                     end else begin

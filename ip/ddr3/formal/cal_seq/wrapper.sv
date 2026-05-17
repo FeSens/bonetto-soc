@@ -24,8 +24,12 @@ module cal_seq_wrapper (
     (* anyseq *) wire init_done;
     (* anyseq *) wire wlvl_done, wlvl_error;
     (* anyseq *) wire rdlvl_done, rdlvl_error;
+    (* anyseq *) wire mrs_busy;
 
     wire        wlvl_start, rdlvl_start;
+    wire        mrs_req;
+    wire [2:0]  mrs_ba;
+    wire [14:0] mrs_addr;
     wire        cal_done, cal_error;
     wire [1:0]  cal_error_code;
     wire [3:0]  state;
@@ -43,6 +47,10 @@ module cal_seq_wrapper (
         .o_rdlvl_start    (rdlvl_start),
         .i_rdlvl_done     (rdlvl_done),
         .i_rdlvl_error    (rdlvl_error),
+        .o_mrs_req        (mrs_req),
+        .o_mrs_ba         (mrs_ba),
+        .o_mrs_addr       (mrs_addr),
+        .i_mrs_busy       (mrs_busy),
         .o_cal_done       (cal_done),
         .o_cal_error      (cal_error),
         .o_cal_error_code (cal_error_code),

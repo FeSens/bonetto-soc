@@ -264,9 +264,11 @@ INIT_STATE_NAMES = {
 }
 
 CAL_SEQ_STATE_NAMES = {
-    0: "IDLE",         1: "WAIT_INIT",   2: "PULSE_WLVL",
-    3: "WAIT_WLVL",    4: "PULSE_RDLVL", 5: "WAIT_RDLVL",
-    6: "DONE",         7: "ERROR",
+    0:  "IDLE",         1:  "WAIT_INIT",    2:  "PULSE_WLVL",
+    3:  "WAIT_WLVL",    4:  "PULSE_RDLVL",  5:  "WAIT_RDLVL",
+    6:  "DONE",         7:  "ERROR",
+    8:  "MR3_EN_PULSE", 9:  "MR3_EN_WAIT",  10: "MR3_DIS_PULSE",
+    11: "MR3_DIS_WAIT",
 }
 
 CAL_ERROR_NAMES = {
