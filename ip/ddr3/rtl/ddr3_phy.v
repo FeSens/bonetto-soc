@@ -292,7 +292,7 @@ module ddr3_phy #(
     reg [ROW_BITS-1:0]   addr_q;
     reg [1:0]            cmd_phase;
     reg                  wr_cmd_launch_q;
-    localparam integer WR_DQS_DELAY_CK = 3;
+    localparam integer WR_DQS_DELAY_CK = 2;
 
     always @(posedge o_clk_dq or posedge phy_io_rst) begin
         if (phy_io_rst) begin
