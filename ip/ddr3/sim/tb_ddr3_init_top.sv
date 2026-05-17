@@ -58,6 +58,19 @@ module tb_ddr3_init_top (
     wire [3:0]                 init_error_code;
     wire [4:0]                 init_state;
 
+    // iter-8 MR3-rewrite handshake between cal_seq and ddr3_ctrl.
+    wire                       mrs_req;
+    wire [BANK_BITS-1:0]       mrs_ba;
+    wire [ROW_BITS-1:0]        mrs_addr;
+    wire                       mrs_busy;
+
+    // cal_seq status (mainly cal_done for the testbench).
+    wire                       cal_done;
+    wire                       cal_error;
+    wire [1:0]                 cal_error_code;
+    wire [3:0]                 cal_seq_state;
+    wire                       wlvl_start, rdlvl_start;
+
     ddr3_ctrl #(
         .WB_DATA_W (32),
         .WB_ADDR_W (28),
@@ -90,11 +103,40 @@ module tb_ddr3_init_top (
         .o_ddr3_we_n    (we_n),
         .o_ddr3_ba      (ba),
         .o_ddr3_addr    (addr),
+        // MPR-req tied off — we don't drive MPR reads from this tb.
+        .i_mpr_req   (1'b0),
+        .i_mpr_addr  (13'd0),
+        .o_mpr_busy  (),
+        // MRS-rewrite from cal_seq.
+        .i_mrs_req   (mrs_req),
+        .i_mrs_ba    (mrs_ba),
+        .i_mrs_addr  (mrs_addr),
+        .o_mrs_busy  (mrs_busy),
         // Status
         .o_init_done       (init_done),
         .o_init_error      (init_error),
         .o_init_error_code (init_error_code),
         .o_init_state      (init_state)
+    );
+
+    ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(1)) u_cal_seq (
+        .i_clk            (clk_50),
+        .i_rst            (rst),
+        .i_init_done      (init_done),
+        .o_wlvl_start     (wlvl_start),
+        .i_wlvl_done      (1'b0),
+        .i_wlvl_error     (1'b0),
+        .o_rdlvl_start    (rdlvl_start),
+        .i_rdlvl_done     (1'b0),
+        .i_rdlvl_error    (1'b0),
+        .o_mrs_req        (mrs_req),
+        .o_mrs_ba         (mrs_ba),
+        .o_mrs_addr       (mrs_addr),
+        .i_mrs_busy       (mrs_busy),
+        .o_cal_done       (cal_done),
+        .o_cal_error      (cal_error),
+        .o_cal_error_code (cal_error_code),
+        .o_state          (cal_seq_state)
     );
 
 `ifdef WITH_MICRON
@@ -143,7 +185,8 @@ module tb_ddr3_init_top (
     // Sim stop condition: trip done_or_err when init completes / fails,
     // OR after a hard cap (1 ms simulated time).
     // ------------------------------------------------------------------
-    assign done_or_err = init_done | init_error;
+    // Sim completes when cal_done fires (after init_done) OR any error.
+    assign done_or_err = cal_done | init_error | cal_error;
 
     initial begin
         // Hard timeout in ps. Full init takes ~700 µs (tRESET + tCKE_LOW
@@ -171,13 +214,25 @@ module tb_ddr3_init_top (
     initial begin
         @(posedge init_done);
         $display("[tb] *** init_done asserted at time %0t ps ***", $time);
-        // Let the Micron model log any straggling violations before we stop.
+    end
+
+    initial begin
+        @(posedge cal_done);
+        $display("[tb] *** cal_done asserted at time %0t ps ***", $time);
+        $display("[tb] cal_seq_state=%0d cal_error=%0b code=%0d",
+                 cal_seq_state, cal_error, cal_error_code);
         #100 $finish;
     end
 
     initial begin
         @(posedge init_error);
         $display("[tb] *** init_error asserted, code=%0d ***", init_error_code);
+        #100 $finish;
+    end
+
+    initial begin
+        @(posedge cal_error);
+        $display("[tb] *** cal_error asserted, code=%0d ***", cal_error_code);
         #100 $finish;
     end
 endmodule
