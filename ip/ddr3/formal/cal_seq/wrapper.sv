@@ -6,14 +6,16 @@
 //   P3: cal_done and cal_error are mutually exclusive.
 //   P4: o_wlvl_start is a one-cycle pulse (never two cycles in a row).
 //   P5: o_rdlvl_start is a one-cycle pulse.
-//   P6: wlvl_error path latches cal_error_code = 2'b01.
-//   P7: rdlvl_error path latches cal_error_code = 2'b10.
+//   P6: cal_error_code value 2'b11 never appears (only {00, 01, 10}).
+//   P7: cal_error_code is stable once it has become nonzero.
 //   P8: cal_done implies cal_error_code == 0.
+//   P9: o_mrs_req is a one-cycle pulse (matches wlvl/rdlvl_start pulse pattern).
 //
 // Cover properties (to demonstrate the FSM CAN reach each terminal):
-//   C1: reach cal_done (full happy path).
+//   C1: reach cal_done (full happy path through MR3 enable + rdlvl + MR3 disable).
 //   C2: reach cal_error with code=01 (wlvl error).
 //   C3: reach cal_error with code=10 (rdlvl error).
+//   C4: reach o_mrs_req=1 at least once (exercises the MR3-rewrite path).
 
 `default_nettype none
 
@@ -65,17 +67,23 @@ module cal_seq_wrapper (
     reg cal_error_q    = 1'b0;
     reg wlvl_start_q   = 1'b0;
     reg rdlvl_start_q  = 1'b0;
+    reg mrs_req_q      = 1'b0;
+    reg [1:0] cal_error_code_q = 2'b00;
     always @(posedge clk) begin
         if (rst) begin
-            cal_done_q    <= 1'b0;
-            cal_error_q   <= 1'b0;
-            wlvl_start_q  <= 1'b0;
-            rdlvl_start_q <= 1'b0;
+            cal_done_q       <= 1'b0;
+            cal_error_q      <= 1'b0;
+            wlvl_start_q     <= 1'b0;
+            rdlvl_start_q    <= 1'b0;
+            mrs_req_q        <= 1'b0;
+            cal_error_code_q <= 2'b00;
         end else begin
-            cal_done_q     <= cal_done;
-            cal_error_q    <= cal_error;
-            wlvl_start_q   <= wlvl_start;
-            rdlvl_start_q  <= rdlvl_start;
+            cal_done_q       <= cal_done;
+            cal_error_q      <= cal_error;
+            wlvl_start_q     <= wlvl_start;
+            rdlvl_start_q    <= rdlvl_start;
+            mrs_req_q        <= mrs_req;
+            cal_error_code_q <= cal_error_code;
         end
     end
 
@@ -109,10 +117,28 @@ module cal_seq_wrapper (
             assert(!rdlvl_start);
     end
 
+    // -------- P6: cal_error_code never takes value 2'b11 --------
+    always @(posedge clk) begin
+        if (!rst)
+            assert(cal_error_code != 2'b11);
+    end
+
+    // -------- P7: cal_error_code stable once nonzero --------
+    always @(posedge clk) begin
+        if (!rst && cal_error_code_q != 2'b00)
+            assert(cal_error_code == cal_error_code_q);
+    end
+
     // -------- P8: cal_done implies cal_error_code == 0 --------
     always @(posedge clk) begin
         if (!rst && cal_done)
             assert(cal_error_code == 2'b00);
+    end
+
+    // -------- P9: o_mrs_req is a 1-cycle pulse --------
+    always @(posedge clk) begin
+        if (!rst && mrs_req_q)
+            assert(!mrs_req);
     end
 
     // -------- Cover properties --------
@@ -121,6 +147,7 @@ module cal_seq_wrapper (
             cover(cal_done);
             cover(cal_error && cal_error_code == 2'b01);
             cover(cal_error && cal_error_code == 2'b10);
+            cover(mrs_req);
         end
     end
 `endif

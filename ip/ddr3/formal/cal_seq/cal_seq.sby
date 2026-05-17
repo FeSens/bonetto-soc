@@ -19,4 +19,5 @@ prep -top cal_seq_wrapper
 
 [files]
 ../../rtl/ddr3_cal_seq.v
+../../rtl/ddr3_params.vh
 wrapper.sv
