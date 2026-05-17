@@ -370,6 +370,14 @@ REG_DECODERS = {
         f"magic=0x{w>>16:04x} clk_sys_alive={(w>>15)&1} "
         f"sys_hb_bit={(w>>14)&1} sys_hb_ticks_lo={w & 0x3F}"
     )),
+    0x16: ("CLK_PHY_X4_PROBE", lambda w: (
+        f"magic=0x{w>>16:04x} clk_phy_x4_alive={(w>>15)&1} "
+        f"phy_x4_hb_bit={(w>>14)&1} phy_x4_ticks_lo={w & 0x3F}"
+    )),
+    0x17: ("CLK_DQ_PROBE", lambda w: (
+        f"magic=0x{w>>16:04x} clk_dq_alive={(w>>15)&1} "
+        f"dq_hb_bit={(w>>14)&1} dq_ticks_lo={w & 0x3F}"
+    )),
     0xFE: ("VERSION",    lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
     0xFF: ("ECHO",       lambda w: f"{w:#010x}"),
 }

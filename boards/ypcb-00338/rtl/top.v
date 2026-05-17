@@ -449,11 +449,14 @@ module top (
     // 0x12  | JWB_DATA     (host-written write data)
     // 0x13  | JWB_RD_DATA  (last successful read)
     // 0x14  | PHASE_STATUS {magic=0xAB14, busy, count8b} (iter-11)
-    // 0x15  | CLK_SYS_PROBE {magic=0xAB15, alive, sys_hb_count[15:0], synced_bit}
-    //         (iter-13 — detects MMCM-locks-but-clocks-dead, the prjxray
-    //         CMT_R_LOWER_B_MMCM_CLKOUT* segbit-gap symptom). If host
-    //         polls this twice and `sys_hb_count` doesn't change AND
-    //         `alive=0`, clk_sys is not ticking despite mmcm_locked=1.
+    // 0x15  | CLK_SYS_PROBE    {magic=0xAB15, alive, synced_bit, _, ticks_lo[5:0]}
+    // 0x16  | CLK_PHY_X4_PROBE {magic=0xAB16, alive, synced_bit, _, ticks_lo[5:0]}
+    // 0x17  | CLK_DQ_PROBE     {magic=0xAB17, alive, synced_bit, _, ticks_lo[5:0]}
+    //         (iter-13 — detect prjxray-gap CLKOUT routing failures.
+    //         Each CLKOUT can fail independently because per-output
+    //         CMT_LR_LOWER_B_MMCM_CLKOUT segbits are independently missing
+    //         from prjxray's kintex7 DB. If any `alive=0` while
+    //         mmcm_locked=1, that specific clock domain is silently dead.)
     // 0xFE  | VERSION (magic + iter)
     // 0xFF  | ECHO (returns last host-written word)
     // other | 0xDEADBA<idx>
@@ -463,31 +466,41 @@ module top (
     reg [23:0] heartbeat = 24'd0;
     always @(posedge clk_50) heartbeat <= heartbeat + 1'b1;
 
-    // clk_sys liveness probe — increments a 4-bit gray-like counter on
-    // clk_sys, syncs MSB into clk_50, and counts observed toggles. If
-    // the MMCM locks but the CLKOUT routing is broken (open-source-flow
-    // segbit gap), the toggle count stays 0 and we can detect it.
-    reg [7:0] sys_hb_q = 8'd0;
-    always @(posedge clk_sys) sys_hb_q <= sys_hb_q + 1'b1;
+    // Liveness probes for each MMCM CLKOUT. The prjxray-db kintex7
+    // segbit gap for CMT_LR_LOWER_B_MMCM_CLKOUT0/1/2 means each output's
+    // routing can fail INDEPENDENTLY in silicon. We probe all three.
+    wire sys_clk_alive;
+    wire [5:0] sys_hb_ticks_lo;
+    wire       sys_hb_synced_bit;
+    clk_liveness #(.DIV_BIT(7)) u_clk_sys_probe (
+        .i_clk        (clk_sys),
+        .i_clk_obs    (clk_50),
+        .o_alive      (sys_clk_alive),
+        .o_synced_bit (sys_hb_synced_bit),
+        .o_ticks_lo   (sys_hb_ticks_lo)
+    );
 
-    reg [1:0] sys_hb_sync = 2'b00;
-    reg       sys_hb_prev = 1'b0;
-    reg [15:0] sys_hb_ticks = 16'd0;
-    reg [15:0] sys_hb_freshness = 16'hFFFF;
-    always @(posedge clk_50) begin
-        sys_hb_sync <= {sys_hb_sync[0], sys_hb_q[7]};
-        sys_hb_prev <= sys_hb_sync[1];
-        if (sys_hb_sync[1] != sys_hb_prev) begin
-            sys_hb_ticks    <= sys_hb_ticks + 1'b1;
-            sys_hb_freshness <= 16'd0;
-        end else if (sys_hb_freshness != 16'hFFFF) begin
-            sys_hb_freshness <= sys_hb_freshness + 1'b1;
-        end
-    end
-    // alive = at least one toggle seen in the last ~1 ms (16'hFFFF clk_50
-    // cycles = 65535 / 50e6 ≈ 1.31 ms; clk_sys=200 MHz so sys_hb_q[7]
-    // toggles every 2^7 / 200e6 = 640 ns — ~2000 toggles per ms).
-    wire sys_clk_alive = (sys_hb_freshness != 16'hFFFF);
+    wire phy_x4_alive;
+    wire [5:0] phy_x4_ticks_lo;
+    wire       phy_x4_synced_bit;
+    clk_liveness #(.DIV_BIT(8)) u_clk_phy_x4_probe (  // 400 MHz / 2^8 = 1.56 MHz
+        .i_clk        (clk_phy_x4),
+        .i_clk_obs    (clk_50),
+        .o_alive      (phy_x4_alive),
+        .o_synced_bit (phy_x4_synced_bit),
+        .o_ticks_lo   (phy_x4_ticks_lo)
+    );
+
+    wire dq_alive;
+    wire [5:0] dq_ticks_lo;
+    wire       dq_synced_bit;
+    clk_liveness #(.DIV_BIT(8)) u_clk_dq_probe (
+        .i_clk        (clk_dq),
+        .i_clk_obs    (clk_50),
+        .o_alive      (dq_alive),
+        .o_synced_bit (dq_synced_bit),
+        .o_ticks_lo   (dq_ticks_lo)
+    );
 
     // CDC sync: clk_sys → clk_50 for status bits.
     reg [1:0] mmcm_locked_sync     = 2'b00;
@@ -660,9 +673,13 @@ module top (
             8'h12:   status_word = jwb_data_echo_sync[1];
             8'h13:   status_word = jwb_rd_data_sync[1];
             8'h14:   status_word = {16'hAB14, 7'd0, phase_busy_sync[1], phase_count_sync[1]};
-            8'h15:   status_word = {16'hAB15, sys_clk_alive, sys_hb_sync[1],
-                                    7'd0, sys_hb_ticks[5:0]};
-            8'hFE:   status_word = {16'hB07E, 16'h000D};
+            8'h15:   status_word = {16'hAB15, sys_clk_alive, sys_hb_synced_bit,
+                                    7'd0, sys_hb_ticks_lo};
+            8'h16:   status_word = {16'hAB16, phy_x4_alive, phy_x4_synced_bit,
+                                    7'd0, phy_x4_ticks_lo};
+            8'h17:   status_word = {16'hAB17, dq_alive, dq_synced_bit,
+                                    7'd0, dq_ticks_lo};
+            8'hFE:   status_word = {16'hB07E, 16'h000E};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase
@@ -687,7 +704,7 @@ module top (
     );
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, clk_phy_x4, clk_dq, ctrl_mpr_busy,
+    wire _u = &{1'b0, ctrl_mpr_busy,
                 cal_wlvl_state, cal_rdlvl_state, idelay_ready, 1'b0};
     /* verilator lint_on UNUSED */
 endmodule

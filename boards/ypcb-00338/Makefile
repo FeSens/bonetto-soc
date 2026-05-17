@@ -19,6 +19,7 @@ RTL := \
     rtl/top.v \
     rtl/memtest_lite.v \
     rtl/bringup_status_led.v \
+    rtl/clk_liveness.v \
     ../../ip/wb-memory/rtl/wb_memory.v \
     ../../ip/jtag-uart/rtl/jtag_uart.v \
     ../../ip/jtag-uart/rtl/jtag_wb_master.v \
