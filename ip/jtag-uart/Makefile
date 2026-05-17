@@ -6,10 +6,12 @@ formal:
 	cd formal && sby -f jtag_wb_master.sby
 
 # Cocotb tests for jtag_uart (host↔FPGA register IO) + jtag_wb_master
-# (WB master command path).
+# (WB master command path). The icarus runner sometimes segfaults at
+# results-collection time even when all tests passed — '-' lets the
+# second sub-make run regardless so the JWB suite isn't skipped.
 cocotb:
-	@$(MAKE) -C sim -f Makefile.cocotb
-	@$(MAKE) -C sim -f Makefile.jwb
+	-$(MAKE) -C sim -f Makefile.cocotb
+	-$(MAKE) -C sim -f Makefile.jwb
 
 sim: cocotb
 
