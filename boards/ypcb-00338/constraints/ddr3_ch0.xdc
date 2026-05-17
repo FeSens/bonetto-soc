@@ -1,4 +1,6 @@
 # DDR3 Channel 0 pin assignments for the Inspur YPCB-00338.
+# Source: https://github.com/TiferKing/ypcb_00338_1p1_hack
+# Source file: constraints/MEMORY_CH0.ucf
 # Per-pin PACKAGE_PIN + IOSTANDARD lines only — nextpnr-xilinx 0.8.2's
 # XDC parser rejects wildcard get_ports, get_iobanks, INTERNAL_VREF,
 # and IN_TERM. The board-level VREF + termination knobs are folded

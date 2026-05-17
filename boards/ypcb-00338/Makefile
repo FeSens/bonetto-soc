@@ -52,9 +52,9 @@ INCDIRS := -I ../../verification/common -I ../../ip/wishbone/rtl -I ../../ip/ddr
 PYPY3  ?= pypy3
 NEXTPNR_FREQ ?= 100
 DDR3_DEFINES ?=
-DDR3_DEFINES_FILE := $(BUILD)/ddr3_defines.txt
+DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
-.PHONY: bitstream program detect memtest xvc validate-ddr3 clean help
+.PHONY: bitstream program detect memtest xvc validate-ddr3 full-ch0-json clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -72,6 +72,13 @@ $(DDR3_DEFINES_FILE): FORCE | $(BUILD)
 
 $(BUILD)/$(PROJECT).json: $(RTL) $(DDR3_DEFINES_FILE) | $(BUILD)
 	yosys -p "read_verilog $(INCDIRS) $(DDR3_DEFINES) $(RTL); synth_xilinx -flatten -abc9 -arch xc7 -top $(TOP); chformal -remove; clean -purge; write_json $@"
+
+full-ch0-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_ch0 \
+	  DDR3_DEFINES="-DDDR3_FULL_CH0" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_full_ch0.json
 
 $(CHIPDB)/$(DBPART).bin: | $(CHIPDB)
 	@echo ">> generating chipdb for $(PART) (one-time, ~5-15 min)"
@@ -159,5 +166,6 @@ help:
 	@echo "  make memtest         program + observe LEDs"
 	@echo "  make xvc             run XVC server on port 3721 for host probes"
 	@echo "  make validate-ddr3   run hardware DDR3 validation against XVC"
+	@echo "  make full-ch0-json   synth build-only 64-bit CH0 / BL8 image"
 	@echo "  make detect          probe JTAG chain"
 	@echo "  make clean           remove build artifacts"

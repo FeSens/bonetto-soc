@@ -33,9 +33,15 @@ module top (
     output wire        ddr3_reset_n,
     output wire        ddr3_ck_p,
     output wire        ddr3_ck_n,
+`ifdef DDR3_FULL_CH0
+    inout  wire [71:0] ddr3_dq,
+    inout  wire [8:0]  ddr3_dqs_p,
+    inout  wire [8:0]  ddr3_dqs_n
+`else
     inout  wire [39:0] ddr3_dq,
     inout  wire [4:0]  ddr3_dqs_p,
     inout  wire [4:0]  ddr3_dqs_n
+`endif
 );
     // ---- Power-on reset on clk_50 (16K cycles ≈ 320 µs @ 50 MHz) ----
     reg [13:0] por_ctr_50 = 14'h3FFF;
@@ -70,7 +76,19 @@ module top (
     // direct control).
     // =================================================================
     localparam integer FABRIC_ADDR_W = `WB_ADDR_W;
+`ifdef DDR3_FULL_CH0
+    // Build-only CH0 expansion: 64 data bits over BL8, with physical lane 3
+    // bypassed and the board ECC lane used as logical data lane 7.
+    localparam integer DDR3_MEMTEST_ADDR_W = 29;
+    localparam integer DDR3_ACTIVE_BYTE_LANES = 8;
+    localparam integer DDR3_SERDES_RATIO = 8;
+    localparam integer DDR3_WB_BURST_WORD_BITS = 4;
+`else
     localparam integer DDR3_MEMTEST_ADDR_W = 25;
+    localparam integer DDR3_ACTIVE_BYTE_LANES = 4;
+    localparam integer DDR3_SERDES_RATIO = 4;
+    localparam integer DDR3_WB_BURST_WORD_BITS = 0;
+`endif
     localparam integer JWB_LOCAL_ADDR_W = 15;
     localparam integer JWB_DDR3_LOCAL_W = 14;
     localparam integer JWB_DDR3_HI_W = FABRIC_ADDR_W - JWB_DDR3_LOCAL_W;
@@ -113,6 +131,33 @@ module top (
     wire        mtest_target;
     wire [1:0]  mtest_pattern_idx;
     wire [2:0]  mt_led_unused;
+
+`ifdef DDR3_FULL_CH0
+    // Physical lane 3 is present in the online pin map but intentionally
+    // bypassed by this build. Keep those package pins undriven.
+    wire [7:0] ddr3_lane3_dq_unused;
+    wire       ddr3_lane3_dqs_unused;
+
+    genvar ddr3_lane3_i;
+    generate
+        for (ddr3_lane3_i = 0; ddr3_lane3_i < 8; ddr3_lane3_i = ddr3_lane3_i + 1) begin : g_ddr3_lane3_bypass
+            IOBUF #(.SLEW("FAST")) u_dq_iobuf (
+                .O  (ddr3_lane3_dq_unused[ddr3_lane3_i]),
+                .IO (ddr3_dq[24 + ddr3_lane3_i]),
+                .I  (1'b0),
+                .T  (1'b1)
+            );
+        end
+    endgenerate
+
+    IOBUFDS #(.SLEW("FAST")) u_dqs_iobuf (
+        .O   (ddr3_lane3_dqs_unused),
+        .IO  (ddr3_dqs_p[3]),
+        .IOB (ddr3_dqs_n[3]),
+        .I   (1'b0),
+        .T   (1'b1)
+    );
+`endif
 
     // Cal done signal lives in clk_sys (cal_seq runs there).
     wire ctrl_init_done;
@@ -364,9 +409,7 @@ module top (
 
     wire        cal_wlvl_start, cal_wlvl_done, cal_wlvl_error;
     wire        cal_rdlvl_start, cal_rdlvl_done, cal_rdlvl_error;
-    localparam integer DDR3_ACTIVE_BYTE_LANES = 4;
     localparam integer DDR3_DQ_BITS = 8;
-    localparam integer DDR3_SERDES_RATIO = 4;
     localparam integer DDR3_PHY_DATA_W =
         DDR3_ACTIVE_BYTE_LANES * DDR3_DQ_BITS * DDR3_SERDES_RATIO;
 
@@ -382,7 +425,8 @@ module top (
         .WB_ADDR_W(FABRIC_ADDR_W),
         .DQ_BITS(DDR3_DQ_BITS),
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
-        .SERDES_RATIO(DDR3_SERDES_RATIO)
+        .SERDES_RATIO(DDR3_SERDES_RATIO),
+        .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS)
     ) u_ddr3_ctrl (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),
@@ -504,12 +548,23 @@ module top (
         .o_ddr3_odt     (ddr3_odt),
         .o_ddr3_ba      (ddr3_ba),
         .o_ddr3_addr    (ddr3_addr),
+`ifdef DDR3_FULL_CH0
+        // Full CH0 build-only map from the online MEMORY_CH0.ucf: skip
+        // physical lane 3 and use the ECC lane as logical data lane 7.
+        .io_ddr3_dq     ({ddr3_dq[71:64], ddr3_dq[63:56], ddr3_dq[55:48],
+                          ddr3_dq[47:40], ddr3_dq[39:32], ddr3_dq[23:0]}),
+        .io_ddr3_dqs_p  ({ddr3_dqs_p[8], ddr3_dqs_p[7], ddr3_dqs_p[6],
+                          ddr3_dqs_p[5], ddr3_dqs_p[4], ddr3_dqs_p[2:0]}),
+        .io_ddr3_dqs_n  ({ddr3_dqs_n[8], ddr3_dqs_n[7], ddr3_dqs_n[6],
+                          ddr3_dqs_n[5], ddr3_dqs_n[4], ddr3_dqs_n[2:0]}),
+`else
         // Physical lane 3 currently reads as a stuck-zero byte on YPCB-00338.
-        // Use lanes 0,1,2,4 as the active 32-bit slice while keeping the
+        // Use lanes 0,1,2,4 as the validated 32-bit slice while keeping the
         // controller-facing byte order contiguous.
         .io_ddr3_dq     ({ddr3_dq[39:32], ddr3_dq[23:0]}),
         .io_ddr3_dqs_p  ({ddr3_dqs_p[4],  ddr3_dqs_p[2:0]}),
         .io_ddr3_dqs_n  ({ddr3_dqs_n[4],  ddr3_dqs_n[2:0]}),
+`endif
         .o_ddr3_dm      ()
     );
 
@@ -796,7 +851,9 @@ module top (
             8'h17:   status_word = {16'hAB17, dq_alive, dq_synced_bit,
                                     8'd0, dq_ticks_lo};
             8'h18:   status_word = {16'hAB18, 15'd0, phy_rd_capture_sync[1]};
-            8'h19:   status_word = {16'hAB19, 12'd0, phy_rd_valid_lane_sync[1]};
+            8'h19:   status_word = {16'hAB19,
+                                    {(16-DDR3_ACTIVE_BYTE_LANES){1'b0}},
+                                    phy_rd_valid_lane_sync[1]};
             8'h1A:   status_word = {16'hAB1A, jwb_addr_hi_echo_sync[1]};
             8'h1B:   status_word = {16'hAB1B, 16'd0};
             8'h1C:   status_word = {24'hAB1C00, d3_ctrl_sync[1]};
