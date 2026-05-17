@@ -37,6 +37,9 @@ LAST_REG00=$(grep -E '\[0x00\].*STATUS_FLAGS' /tmp/silicon_validate.log | tail -
 LAST_REG01=$(grep -E '\[0x01\].*STATE_BITS' /tmp/silicon_validate.log | tail -1)
 LAST_REG03=$(grep -E '\[0x03\].*MTEST_PASS_CTR' /tmp/silicon_validate.log | tail -1)
 LAST_REG08=$(grep -E '\[0x08\].*MTEST_DDR3' /tmp/silicon_validate.log | tail -1)
+CLK_SYS_LINE=$(grep -E '\[0x15\].*CLK_SYS_PROBE'    /tmp/silicon_validate.log | tail -1)
+CLK_PHY_LINE=$(grep -E '\[0x16\].*CLK_PHY_X4_PROBE' /tmp/silicon_validate.log | tail -1)
+CLK_DQ_LINE=$(grep -E '\[0x17\].*CLK_DQ_PROBE'      /tmp/silicon_validate.log | tail -1)
 JWB_BRAM_WRITE=$(grep -A0 'WB write addr=0x0010' /tmp/silicon_validate.log | tail -1)
 JWB_BRAM_READ=$(grep -A0 'WB read addr=0x0010'  /tmp/silicon_validate.log | tail -1)
 JWB_DDR_WRITE=$(grep -A0 'WB write addr=0x4010' /tmp/silicon_validate.log | tail -1)
@@ -49,6 +52,10 @@ PROBE_SUMMARY=$(grep -E 'SILICON_PROBE_SUMMARY' /tmp/silicon_validate.log | tail
   echo "$LAST_REG01"
   echo "$LAST_REG03"
   echo "$LAST_REG08"
+  echo "== iter-13 clock liveness =="
+  echo "$CLK_SYS_LINE"
+  echo "$CLK_PHY_LINE"
+  echo "$CLK_DQ_LINE"
   echo "== iter-7 JTAG-WB probe results =="
   echo "$JWB_BRAM_WRITE"
   echo "$JWB_BRAM_READ"
@@ -58,6 +65,26 @@ PROBE_SUMMARY=$(grep -E 'SILICON_PROBE_SUMMARY' /tmp/silicon_validate.log | tail
   echo "$PROBE_SUMMARY"
   echo
   echo "== recommended next iteration =="
+  # Pre-flight: clock liveness gates everything else. If a CLKOUT is dead,
+  # all downstream probes are meaningless.
+  if echo "$CLK_SYS_LINE" | grep -q 'clk_sys_alive=0'; then
+      echo "  CRITICAL: clk_sys is dead (MMCM CLKOUT0 not driving fabric)."
+      echo "  This is the prjxray-db gap symptom — MMCM_MUXED segbits missing."
+      echo "  Next step: probably need a Vivado-built reference bitstream or a"
+      echo "  different MMCM configuration. iter-9..12 bitstreams will all fail"
+      echo "  the same way on this chip."
+      exit 0
+  fi
+  if echo "$CLK_PHY_LINE" | grep -q 'clk_phy_x4_alive=0'; then
+      echo "  CRITICAL: clk_phy_x4 is dead (MMCM CLKOUT1 not driving fabric)."
+      echo "  OSERDESE2 cells can't shift — DDR3 commands won't toggle."
+      exit 0
+  fi
+  if echo "$CLK_DQ_LINE" | grep -q 'clk_dq_alive=0'; then
+      echo "  CRITICAL: clk_dq is dead (MMCM CLKOUT2 not driving fabric)."
+      echo "  DQS-out edge alignment broken — writes will be garbage."
+      exit 0
+  fi
   # First branch on the comprehensive silicon_probe summary if present.
   if [ -n "$PROBE_SUMMARY" ]; then
       if echo "$PROBE_SUMMARY" | grep -q 'bram_ok=1 ddr3_ok=1'; then

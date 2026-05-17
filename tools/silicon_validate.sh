@@ -48,6 +48,34 @@ echo
 echo "== full-dump 2 (TCK=500kHz, i.e. 2000ns period) ==" | tee -a "$LOG"
 python3 tools/jtag_uart_read.py --tck-ns 2000 2>&1 | tee -a "$LOG"
 
+# iter-13: explicit clock-liveness gate. If any MMCM CLKOUT is dead,
+# everything downstream is meaningless — call it out clearly. Pull from
+# the cached full-dump output instead of re-issuing the JTAG reads.
+echo
+echo "== iter-13 clock liveness check ==" | tee -a "$LOG"
+CLK_SYS_LINE=$(grep -E '\[0x15\].*CLK_SYS_PROBE'    "$LOG" | tail -1)
+CLK_PHY_LINE=$(grep -E '\[0x16\].*CLK_PHY_X4_PROBE' "$LOG" | tail -1)
+CLK_DQ_LINE=$(grep -E '\[0x17\].*CLK_DQ_PROBE'      "$LOG" | tail -1)
+echo "$CLK_SYS_LINE" | tee -a "$LOG"
+echo "$CLK_PHY_LINE" | tee -a "$LOG"
+echo "$CLK_DQ_LINE"  | tee -a "$LOG"
+CLK_FAIL=0
+if echo "$CLK_SYS_LINE" | grep -q 'clk_sys_alive=0'; then
+    echo "  FAIL: clk_sys is dead. MMCM CLKOUT0 routing broken or MMCM unlocked." | tee -a "$LOG"
+    CLK_FAIL=1
+fi
+if echo "$CLK_PHY_LINE" | grep -q 'clk_phy_x4_alive=0'; then
+    echo "  FAIL: clk_phy_x4 is dead. MMCM CLKOUT1 routing broken." | tee -a "$LOG"
+    CLK_FAIL=1
+fi
+if echo "$CLK_DQ_LINE" | grep -q 'clk_dq_alive=0'; then
+    echo "  FAIL: clk_dq is dead. MMCM CLKOUT2 routing broken." | tee -a "$LOG"
+    CLK_FAIL=1
+fi
+if [ "$CLK_FAIL" = "0" ]; then
+    echo "  OK: all 3 MMCM CLKOUTs are alive on silicon." | tee -a "$LOG"
+fi
+
 # 60s watch loop, dumping every 10s.
 echo
 echo "== 60s watch (10s polls, looking for progress) ==" | tee -a "$LOG"
