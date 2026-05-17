@@ -628,7 +628,7 @@ module top (
             8'h12:   status_word = jwb_data_echo_sync[1];
             8'h13:   status_word = jwb_rd_data_sync[1];
             8'h14:   status_word = {16'hAB14, 7'd0, phase_busy_sync[1], phase_count_sync[1]};
-            8'hFE:   status_word = {16'hB07E, 16'h000B};
+            8'hFE:   status_word = {16'hB07E, 16'h000C};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase
