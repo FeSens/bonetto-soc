@@ -20,7 +20,7 @@ wires the PHY data/control ports to the physical pins.
 | `COL_BITS` | `DDR3_COL_BITS` | 10 for MT41K256M8. Bottom 3 column bits are absorbed by BL8. |
 | `DQ_BITS` | `8` | Per-byte-lane DQ width. |
 | `NUM_BYTE_LANES` | `9` | PHY-facing byte lanes. YPCB-00338 top uses 4 active lanes. |
-| `SERDES_RATIO` | `4` | Fabric-to-DDR serialization ratio. |
+| `SERDES_RATIO` | `4` | Fabric-to-DDR serialization ratio. Use `8` for a true BL8 byte lane once the board top enables the full-width PHY path. |
 | `WB_BURST_WORD_BITS` | `0` | Low Wishbone word-address bits inside one BL8 burst. Keep `0` for the current validated CH0 image; use `4` for a 64-bit channel exposed as 32-bit words with the full burst-capable PHY path. |
 
 Adding a new memory part means adding one timing/geometry block to
@@ -126,7 +126,8 @@ perform a runtime read-modify-write cycle: read the BL8 payload, merge
 `i_wb_dat` according to `i_wb_sel`, and write the full payload back.
 
 The current YPCB-00338 hardware image still uses `WB_BURST_WORD_BITS=0`
-because the board PHY path is not yet a true 8-edge BL8 serializer/deserializer.
+because the full-width `SERDES_RATIO=8` PHY path still needs top-level routing,
+timing closure, and hardware proof.
 If `WB_ADDR_W` is wider than the consumed channel-local address, the runtime
 deliberately ignores the high bits; board-level dual-channel integration should
 decode channel select outside each per-channel `ddr3_ctrl` instance.

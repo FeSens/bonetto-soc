@@ -72,11 +72,14 @@ module ddr3_phy_dq #(
                 1'b0};
     /* verilator lint_on UNUSED */
 `else
-    // Board bring-up path: avoid OSERDES/ISERDES clocking until the PHY has
-    // per-bank BUFIO/BUFR resources. Runtime writes currently repeat each DQ
-    // bit across the whole BL8 beat group, so a stable DQ level plus gated DQS
-    // is sufficient for the 32-bit hardware validation path.
-    reg  [DQ_BITS-1:0] dq_out_q;
+    localparam integer FULL_BL8_SERDES = (RATIO >= 8);
+
+    // Board bring-up path: use fabric DDR flops. The legacy RATIO=4 mode keeps
+    // one stable DQ value per bit for the validated narrow image. RATIO>=8
+    // sequences the eight BL8 samples as four DDR cycles under the DQS burst.
+    reg  [DQ_BITS-1:0] dq_rise_q;
+    reg  [DQ_BITS-1:0] dq_fall_q;
+    reg  [DQ_BITS*RATIO-1:0] wr_data_q;
     wire [DQ_BITS-1:0] dq_out_ddr;
     wire [DQ_BITS-1:0] dq_in_raw;
 
@@ -95,7 +98,9 @@ module ddr3_phy_dq #(
     integer j;
     always @(posedge i_clk_dq or posedge i_rst) begin
         if (i_rst) begin
-            dq_out_q   <= {DQ_BITS{1'b0}};
+            dq_rise_q  <= {DQ_BITS{1'b0}};
+            dq_fall_q  <= {DQ_BITS{1'b0}};
+            wr_data_q  <= {(DQ_BITS*RATIO){1'b0}};
             wr_en_dq_q <= 1'b0;
             wr_start_sr <= {(WR_DQS_DELAY_CK+1){1'b0}};
             dqs_seq_sr <= 6'b000000;
@@ -105,14 +110,42 @@ module ddr3_phy_dq #(
             wr_start_sr <= {wr_start_sr[WR_DQS_DELAY_CK-1:0], wr_start_dq};
             if (wr_start_dq) begin
                 dq_drive_q <= 1'b1;
-                for (j = 0; j < DQ_BITS; j = j + 1)
-                    dq_out_q[j] <= i_wr_data[j*RATIO];
+                wr_data_q <= i_wr_data;
+                for (j = 0; j < DQ_BITS; j = j + 1) begin
+                    dq_rise_q[j] <= i_wr_data[j*RATIO + 0];
+                    dq_fall_q[j] <= FULL_BL8_SERDES ? i_wr_data[j*RATIO + 1] :
+                                                       i_wr_data[j*RATIO + 0];
+                end
             end
 
             if (wr_delay_fire) begin
                 dqs_seq_sr <= 6'b000001;
+                if (FULL_BL8_SERDES) begin
+                    for (j = 0; j < DQ_BITS; j = j + 1) begin
+                        dq_rise_q[j] <= wr_data_q[j*RATIO + 0];
+                        dq_fall_q[j] <= wr_data_q[j*RATIO + 1];
+                    end
+                end
             end else begin
                 dqs_seq_sr <= {dqs_seq_sr[4:0], 1'b0};
+            end
+            if (FULL_BL8_SERDES) begin
+                if (dqs_seq_sr[1]) begin
+                    for (j = 0; j < DQ_BITS; j = j + 1) begin
+                        dq_rise_q[j] <= wr_data_q[j*RATIO + 2];
+                        dq_fall_q[j] <= wr_data_q[j*RATIO + 3];
+                    end
+                end else if (dqs_seq_sr[2]) begin
+                    for (j = 0; j < DQ_BITS; j = j + 1) begin
+                        dq_rise_q[j] <= wr_data_q[j*RATIO + 4];
+                        dq_fall_q[j] <= wr_data_q[j*RATIO + 5];
+                    end
+                end else if (dqs_seq_sr[3]) begin
+                    for (j = 0; j < DQ_BITS; j = j + 1) begin
+                        dq_rise_q[j] <= wr_data_q[j*RATIO + 6];
+                        dq_fall_q[j] <= wr_data_q[j*RATIO + 7];
+                    end
+                end
             end
             if (dqs_seq_done)
                 dq_drive_q <= 1'b0;
@@ -130,8 +163,8 @@ module ddr3_phy_dq #(
                 .Q  (dq_out_ddr[i]),
                 .C  (i_clk_dq),
                 .CE (1'b1),
-                .D1 (dq_out_q[i]),
-                .D2 (dq_out_q[i]),
+                .D1 (dq_rise_q[i]),
+                .D2 (dq_fall_q[i]),
                 .R  (i_rst),
                 .S  (1'b0)
             );
@@ -178,7 +211,7 @@ module ddr3_phy_dq #(
         .T   (~dqs_drive)
     );
 
-    wire [DQ_BITS*RATIO-1:0] rd_data_dqs;
+    reg [DQ_BITS*RATIO-1:0] rd_data_dqs = {(DQ_BITS*RATIO){1'b0}};
     reg [DQ_BITS*RATIO-1:0] rd_data_sys = {(DQ_BITS*RATIO){1'b0}};
     reg [7:0] dqs_edges_dqs = 8'd0;
     reg [7:0] dqs_edges_sys = 8'd0;
@@ -204,10 +237,37 @@ module ddr3_phy_dq #(
                 .S  (1'b0)
             );
 
-            assign rd_data_dqs[i*RATIO + 0] = rd_rise;
-            assign rd_data_dqs[i*RATIO + 1] = rd_fall;
-            assign rd_data_dqs[i*RATIO + 2] = rd_rise;
-            assign rd_data_dqs[i*RATIO + 3] = rd_fall;
+            always @(posedge dqs_in_raw or posedge i_rst) begin
+                if (i_rst) begin
+                    rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
+                end else if (i_rd_capture && !dqs_drive) begin
+                    if (FULL_BL8_SERDES) begin
+                        case (dqs_edges_dqs[1:0])
+                            2'd0: begin
+                                rd_data_dqs[i*RATIO + 0] <= rd_rise;
+                                rd_data_dqs[i*RATIO + 1] <= rd_fall;
+                            end
+                            2'd1: begin
+                                rd_data_dqs[i*RATIO + 2] <= rd_rise;
+                                rd_data_dqs[i*RATIO + 3] <= rd_fall;
+                            end
+                            2'd2: begin
+                                rd_data_dqs[i*RATIO + 4] <= rd_rise;
+                                rd_data_dqs[i*RATIO + 5] <= rd_fall;
+                            end
+                            default: begin
+                                rd_data_dqs[i*RATIO + 6] <= rd_rise;
+                                rd_data_dqs[i*RATIO + 7] <= rd_fall;
+                            end
+                        endcase
+                    end else begin
+                        rd_data_dqs[i*RATIO + 0] <= rd_rise;
+                        rd_data_dqs[i*RATIO + 1] <= rd_fall;
+                        rd_data_dqs[i*RATIO + 2] <= rd_rise;
+                        rd_data_dqs[i*RATIO + 3] <= rd_fall;
+                    end
+                end
+            end
         end
     endgenerate
 

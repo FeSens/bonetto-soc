@@ -66,9 +66,11 @@ capacity guarantee: the runtime and PHY still need to consume them.
 
 1. Replace the current constant-DQ write/read shortcut with a true BL8 data
    path. `WB_BURST_WORD_BITS` now gives the runtime a BL8 word-offset address
-   hook, read-word select, and read-modify-write merge path. It stays at `0`
-   in the validated CH0 image until the board PHY provides a real full-BL8
-   serializer/deserializer.
+   hook, read-word select, and read-modify-write merge path. The byte-lane PHY
+   now has a `RATIO>=8` BL8 sample sequencer that synthesizes standalone, but
+   the validated CH0 board image still keeps `WB_BURST_WORD_BITS=0` and
+   `SERDES_RATIO=4` until a full-lane top-level build and hardware timing are
+   proven.
 2. Expand CH0 to a 64-bit data path. On this board, either recover physical
    byte lane 3 or explicitly remap data lane 3 onto the ECC byte lane and run
    without ECC for the first 64-bit proof.
@@ -90,6 +92,7 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 
 | Gate | Evidence Required |
 |---|---|
+| PHY BL8 lane synthesis | `make -C ip/ddr3 synth-phy-dq-ratio8` passes |
 | CH0 64-bit DDR3-800 | deterministic, walking address/data, per-byte lane, checksum, and soak over unique BL8 offsets |
 | CH1 64-bit DDR3-800 | same checks on the second channel |
 | Dual-channel address map | boundary tests across the channel-select bit and top-of-memory |

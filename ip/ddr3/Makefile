@@ -1,4 +1,4 @@
-.PHONY: formal sim sim-init sim-runtime-addr cocotb clean
+.PHONY: formal sim sim-init sim-runtime-addr synth-phy-dq-ratio8 cocotb clean
 
 BUILD := formal/build
 SIM_BUILD := sim/build
@@ -68,6 +68,13 @@ sim: sim-init sim-micron
 
 cocotb:
 	@$(MAKE) -C sim -f Makefile.cocotb DDR3_DEFINES="$(DDR3_DEFINES)"
+
+synth-phy-dq-ratio8:
+	yosys -q -p "\
+	  read_verilog rtl/ddr3_phy_dq.v; \
+	  hierarchy -top ddr3_phy_dq -chparam RATIO 8; \
+	  synth_xilinx -flatten -abc9 -arch xc7 -top ddr3_phy_dq; \
+	  check"
 
 sim-init: sim/build/Vddr3_ctrl
 	@./sim/build/Vddr3_ctrl
