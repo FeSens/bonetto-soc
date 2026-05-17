@@ -65,10 +65,14 @@ PROBE_SUMMARY=$(grep -E 'SILICON_PROBE_SUMMARY' /tmp/silicon_validate.log | tail
           echo "  Continue monitoring DDR3_PASS_CTR (0x08) for sustained increments."
           exit 0
       elif echo "$PROBE_SUMMARY" | grep -q 'bram_ok=1 ddr3_ok=0'; then
-          echo "  silicon_probe: BRAM clean, DDR3 failing. Check per-pattern fail lines"
-          echo "  above for stuck-bit / lane-swap / phase-skew signature. If patterns"
-          echo "  fail uniformly, try iter-9 (SKIP_RDLVL=0): build via"
-          echo "  tools/build_iter9_rdlvl.sh, then flash bonetto_soc_iter9_rdlvl.bit."
+          echo "  silicon_probe: BRAM clean, DDR3 failing. Three recovery options:"
+          echo "    (a) iter-10 host-driven IDELAY sweep (no reflash needed):"
+          echo "          python3 tools/idelay_sweep.py --tck-ns 2000"
+          echo "        Finds the per-lane DQS centre tap without involving rdlvl."
+          echo "    (b) iter-9 with FPGA-driven rdlvl (MPR mode):"
+          echo "          (cd $BOARD && make program BITSTREAM=build/bonetto_soc_iter9_rdlvl.bit)"
+          echo "    (c) Inspect per-pattern fails above; uniform failure = phase issue;"
+          echo "        single-bit fails = lane swap or stuck bit."
           exit 0
       elif echo "$PROBE_SUMMARY" | grep -q 'bram_ok=0'; then
           echo "  silicon_probe: BRAM probe failed. WB bus / decoder / clock issue."
