@@ -1,12 +1,13 @@
-"""cocotb tests for jtag_uart's Wishbone slave port.
+"""cocotb tests for jtag_uart iter-4 (status-mux interface).
 
 The BSCANE2 side can't be sim'd without Xilinx unisims, so we drive
 the module with `\\`BONETTO_SOC_SIM` (tying off the JTAG signals) and
-exercise the WB scratch-register behaviour from the controller side:
+exercise the WB slave from the controller side plus the new status-
+mux interface:
 
-  * WB write at offset 0 stores into fpga_to_host (the value the host
-    reads via JTAG USER1).
-  * WB read at offset 0 returns host_to_fpga (latched from JTAG).
+  * WB read returns host_to_fpga (latched from JTAG; in sim that's 0).
+  * WB write is now a no-op (status comes from i_fpga_to_host port).
+  * o_host_to_fpga reflects the host's last write (always 0 in sim).
 """
 
 import cocotb
@@ -22,6 +23,7 @@ async def reset(dut):
     dut.i_wb_adr.value = 0
     dut.i_wb_dat.value = 0
     dut.i_wb_sel.value = 0
+    dut.i_fpga_to_host.value = 0
     for _ in range(5):
         await RisingEdge(dut.i_clk)
     dut.i_rst.value = 0

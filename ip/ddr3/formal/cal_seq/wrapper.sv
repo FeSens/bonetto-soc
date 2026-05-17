@@ -30,7 +30,10 @@ module cal_seq_wrapper (
     wire [1:0]  cal_error_code;
     wire [3:0]  state;
 
-    ddr3_cal_seq dut (
+    ddr3_cal_seq #(
+        .SKIP_WLVL  (0),     // formal still proves the full wlvl-then-rdlvl flow
+        .SKIP_RDLVL (0)
+    ) dut (
         .i_clk            (clk),
         .i_rst            (rst),
         .i_init_done      (init_done),

@@ -205,30 +205,18 @@ module ddr3_phy #(
     // ============================================================
     // Lane array — multi-byte-lane data path + IDELAYCTRL
     // ============================================================
-    wire [NUM_BYTE_LANES-1:0]    cal_dq_load_lane;     // unused for now (per-bit deskew is iter-3c)
-    wire [DQ_BITS-1:0]           cal_dq_sel = {DQ_BITS{1'b0}};
-    wire [4:0]                   cal_dq_tap = 5'd0;
+    wire [NUM_BYTE_LANES-1:0]    cal_dq_load_lane = {NUM_BYTE_LANES{1'b0}}; // per-bit deskew TBD
+    wire [DQ_BITS-1:0]           cal_dq_sel       = {DQ_BITS{1'b0}};
+    wire [4:0]                   cal_dq_tap       = 5'd0;
 
-    wire [NUM_BYTE_LANES-1:0]    wlvl_dqs_load_lane;
-    wire [4:0]                   wlvl_dqs_tap;
+    // wlvl drives the DQS OUTPUT path (ODELAYE2) per lane
+    wire [NUM_BYTE_LANES-1:0]    wlvl_dqs_out_load_lane;
+    wire [4:0]                   wlvl_dqs_out_tap;
     wire [NUM_BYTE_LANES-1:0]    wlvl_dqs_toggle_en;
 
-    wire [NUM_BYTE_LANES-1:0]    rdlvl_dqs_load_lane;
-    wire [4:0]                   rdlvl_dqs_tap;
-
-    // Mux DQS-input-IDELAY load source: wlvl writes the OUTPUT delay
-    // (held inside ddr3_phy_dq as a separate ODELAYE2 — TODO: add that
-    // primitive in iter-3b finish; current build wires both wlvl and
-    // rdlvl into the IDELAYE2 input delay so the FSMs are exercised
-    // against the same primitive). rdlvl owns the IDELAYE2 load.
-    // For now we OR the loads with priority: rdlvl > wlvl. The taps
-    // get muxed similarly.
-    wire [NUM_BYTE_LANES-1:0] dqs_in_load_lane =
-        rdlvl_dqs_load_lane | wlvl_dqs_load_lane;
-    wire [4:0] dqs_in_tap =
-        (|rdlvl_dqs_load_lane) ? rdlvl_dqs_tap : wlvl_dqs_tap;
-
-    assign cal_dq_load_lane = {NUM_BYTE_LANES{1'b0}};
+    // rdlvl drives the DQS INPUT path (IDELAYE2) per lane
+    wire [NUM_BYTE_LANES-1:0]    rdlvl_dqs_in_load_lane;
+    wire [4:0]                   rdlvl_dqs_in_tap;
 
     // Per-lane read-data + read-valid (lane-aligned by ISERDESE2)
     wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] lane_rd_data;
@@ -239,32 +227,37 @@ module ddr3_phy #(
         .DQ_BITS        (DQ_BITS),
         .RATIO          (SERDES_RATIO)
     ) u_lanes (
-        .i_clk_sys           (o_clk_sys),
-        .i_clk_phy_x4        (o_clk_phy_x4),
-        .i_clk_dq            (o_clk_dq),
-        .i_clk_ref_200       (o_clk_sys),       // 200 MHz sys clock doubles as IDELAYCTRL ref
-        .i_rst               (i_rst_ref),
+        .i_clk_sys                (o_clk_sys),
+        .i_clk_phy_x4             (o_clk_phy_x4),
+        .i_clk_dq                 (o_clk_dq),
+        .i_clk_ref_200            (o_clk_sys),       // 200 MHz sys clock doubles as IDELAYCTRL ref
+        .i_rst                    (i_rst_ref),
 
-        .i_wr_en             (i_wr_valid),
-        .i_wr_data           (i_wr_data),
-        .i_wr_dqs_en         (i_wr_valid | (|wlvl_dqs_toggle_en)),
+        .i_wr_en                  (i_wr_valid),
+        .i_wr_data                (i_wr_data),
+        .i_wr_dqs_en              (i_wr_valid),      // normal-write DQS strobe
 
-        .o_rd_data           (lane_rd_data),
-        .o_rd_valid_lane     (lane_rd_valid),
-        .o_rd_valid_all      (o_rd_valid),
+        .o_rd_data                (lane_rd_data),
+        .o_rd_valid_lane          (lane_rd_valid),
+        .o_rd_valid_all           (o_rd_valid),
 
-        .i_cal_dq_load_lane  (cal_dq_load_lane),
-        .i_cal_dq_sel        (cal_dq_sel),
-        .i_cal_dq_tap        (cal_dq_tap),
-        .i_cal_dqs_load_lane (dqs_in_load_lane),
-        .i_cal_dqs_tap       (dqs_in_tap),
+        .i_cal_dq_load_lane       (cal_dq_load_lane),
+        .i_cal_dq_sel             (cal_dq_sel),
+        .i_cal_dq_tap             (cal_dq_tap),
 
-        .o_idelay_ready      (o_idelay_ready),
+        .i_cal_dqs_in_load_lane   (rdlvl_dqs_in_load_lane),
+        .i_cal_dqs_in_tap         (rdlvl_dqs_in_tap),
 
-        .io_ddr3_dq          (io_ddr3_dq),
-        .io_ddr3_dqs_p       (io_ddr3_dqs_p),
-        .io_ddr3_dqs_n       (io_ddr3_dqs_n),
-        .o_ddr3_dm           (o_ddr3_dm)
+        .i_cal_dqs_out_load_lane  (wlvl_dqs_out_load_lane),
+        .i_cal_dqs_out_tap        (wlvl_dqs_out_tap),
+        .i_cal_dqs_toggle_en_lane (wlvl_dqs_toggle_en),
+
+        .o_idelay_ready           (o_idelay_ready),
+
+        .io_ddr3_dq               (io_ddr3_dq),
+        .io_ddr3_dqs_p            (io_ddr3_dqs_p),
+        .io_ddr3_dqs_n            (io_ddr3_dqs_n),
+        .o_ddr3_dm                (o_ddr3_dm)
     );
 
     assign o_rd_data = lane_rd_data;
@@ -292,8 +285,8 @@ module ddr3_phy #(
         .o_error              (o_cal_error_wlvl),
         .o_state              (o_cal_state_wlvl),
         .i_dq0_per_lane       (dq0_per_lane),
-        .o_dqs_out_load_lane  (wlvl_dqs_load_lane),
-        .o_dqs_out_tap        (wlvl_dqs_tap),
+        .o_dqs_out_load_lane  (wlvl_dqs_out_load_lane),
+        .o_dqs_out_tap        (wlvl_dqs_out_tap),
         .o_dqs_toggle_en_lane (wlvl_dqs_toggle_en),
         .o_locked_tap_lane    ()
     );
@@ -316,8 +309,8 @@ module ddr3_phy #(
         .o_mpr_read_addr    (o_mpr_read_addr),
         .i_rd_data_valid    (o_rd_valid),
         .i_rd_data          (lane_rd_data),
-        .o_dqs_in_load_lane (rdlvl_dqs_load_lane),
-        .o_dqs_in_tap       (rdlvl_dqs_tap),
+        .o_dqs_in_load_lane (rdlvl_dqs_in_load_lane),
+        .o_dqs_in_tap       (rdlvl_dqs_in_tap),
         .o_locked_tap_lane  ()
     );
 

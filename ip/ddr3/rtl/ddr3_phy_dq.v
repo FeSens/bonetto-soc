@@ -1,82 +1,75 @@
 // ddr3_phy_dq — Single byte-lane DQ + DQS path for the DDR3 PHY.
 //
-// Implements one "byte lane" (8 DQ bits, 1 DQS pair, 1 DM) of the
-// DDR3 data path using Xilinx 7-series primitives:
+// Iter-4 (HR-bank compatible): YPCB-00338's DDR3 DQS pins land on HR
+// (high-range) banks of the xc7k480t — these don't support ODELAYE2.
+// Write-leveling per JEDEC requires sweeping DQS output delay, so on
+// this board we accept fixed 90° DQS-vs-CK timing from `clk_dq` (the
+// MMCM's +90° output) and skip programmable DQS-out delay entirely.
 //
-//   Writes (4:1 SERDES, DDR-mode):
-//     ctrl-side 4 bits per DQ per clk_sys cycle →
-//     OSERDESE2 (DATA_RATE_OQ=DDR, MODE=MASTER, RATE=4) →
-//     IOBUF_DCIEN → DQ pin
+// The cal interface still exposes DQS-out load/tap/toggle_en ports so
+// upstream FSMs (wlvl) stay protocol-compatible; the load/tap inputs
+// are simply ignored. The toggle_en still gates the OSERDESE2 T1 so
+// wlvl-mode DQS toggling (for the future MMCM-phase-shift wlvl path)
+// is possible without spurious lane interactions.
 //
-//     OE control via separate OSERDESE2 (TQ tristate-mode).
-//
-//   Writes — DQS:
-//     OSERDESE2 producing a 90°-phase-shifted strobe (uses clk_dq, the
-//     90° MMCM output of ddr3_phy_clock) →
-//     OBUFTDS_DCIEN → DQS_P/N pin pair.
-//
-//   Reads (4:1 SERDES, DDR-mode):
-//     DQ pin → IDELAYE2 (per-bit calibrated delay) →
-//     ISERDESE2 (DATA_RATE=DDR, MODE=MASTER, RATE=4) → 4 ctrl-side bits.
-//
-//   Reads — DQS:
-//     DQS_P/N → IBUFDS_DIFF_OUT → IDELAYE2 (gate-trained) →
-//     drives ISERDESE2 strobes (CLKDIVP/CLKB).
-//
-// Per-bit IDELAYE2 taps default to 0. Calibration writes new tap
-// values via the cal interface; iter-3b's calibration FSM lands in
-// `ddr3_phy_cal.v` and trains taps for the eye centre.
-//
-// Sim guard: `BONETTO_SOC_SIM` stubs primitives the same way as
-// ddr3_phy.v / jtag_uart.v.
+// DQ INPUT path: per-bit IDELAYE2 (rdlvl).
+// DQS INPUT path: per-lane IDELAYE2 (rdlvl, gate-train).
+// DQ OUTPUT path: direct from OSERDESE2 (no delay).
+// DQS OUTPUT path: direct from OSERDESE2 on clk_dq (no programmable delay).
 
 `default_nettype none
 
 module ddr3_phy_dq #(
     parameter integer DQ_BITS = 8,
-    parameter integer RATIO   = 4         // OSERDESE2 / ISERDESE2 ratio
+    parameter integer RATIO   = 4
 ) (
-    // -------- Clocks --------
-    input  wire                     i_clk_sys,        // controller domain
-    input  wire                     i_clk_phy_x4,     // 4× SERDES clock (= clk_sys × 4)
-    input  wire                     i_clk_dq,         // 90° phase of clk_phy_x4 for DQS
+    input  wire                     i_clk_sys,
+    input  wire                     i_clk_phy_x4,
+    input  wire                     i_clk_dq,
     input  wire                     i_rst,
 
-    // -------- Controller-side parallel buses (per clk_sys cycle) ----
-    input  wire                     i_wr_en,          // 1 = drive DQ this cycle
-    input  wire [DQ_BITS*RATIO-1:0] i_wr_data,        // 4 DDR samples per DQ bit
-    input  wire                     i_wr_dqs_en,      // DQS strobe enable
+    input  wire                     i_wr_en,
+    input  wire [DQ_BITS*RATIO-1:0] i_wr_data,
+    input  wire                     i_wr_dqs_en,
 
     output wire [DQ_BITS*RATIO-1:0] o_rd_data,
     output wire                     o_rd_valid,
 
-    // -------- Per-bit IDELAYE2 tap control (calibration interface) --
-    input  wire                     i_cal_dq_load,    // pulse to load tap value
-    input  wire [DQ_BITS-1:0]       i_cal_dq_sel,     // which DQ bit's tap to update
-    input  wire [4:0]               i_cal_dq_tap,     // 5-bit IDELAY tap (0..31)
-    input  wire                     i_cal_dqs_load,
-    input  wire [4:0]               i_cal_dqs_tap,
+    input  wire                     i_cal_dq_load,
+    input  wire [DQ_BITS-1:0]       i_cal_dq_sel,
+    input  wire [4:0]               i_cal_dq_tap,
 
-    // -------- DDR3 pins --------
+    input  wire                     i_cal_dqs_in_load,
+    input  wire [4:0]               i_cal_dqs_in_tap,
+
+    // DQS-out cal interface kept for source-compat — ignored on HR banks.
+    input  wire                     i_cal_dqs_out_load,
+    input  wire [4:0]               i_cal_dqs_out_tap,
+    input  wire                     i_cal_dqs_toggle_en,
+
     inout  wire [DQ_BITS-1:0]       io_ddr3_dq,
     inout  wire                     io_ddr3_dqs_p,
     inout  wire                     io_ddr3_dqs_n,
     output wire                     o_ddr3_dm
 );
-    // -------- DM tied to 0 in iter-3a (no byte-mask writes yet) -----
     assign o_ddr3_dm = 1'b0;
 
 `ifdef BONETTO_SOC_SIM
-    // Sim stub — primitives not visible to Verilator without unisims.
     assign io_ddr3_dq    = {DQ_BITS{1'bz}};
     assign io_ddr3_dqs_p = 1'bz;
     assign io_ddr3_dqs_n = 1'bz;
     assign o_rd_data     = {(DQ_BITS*RATIO){1'b0}};
     assign o_rd_valid    = 1'b0;
+
+    /* verilator lint_off UNUSED */
+    wire _u = &{1'b0, i_clk_sys, i_clk_phy_x4, i_clk_dq, i_rst,
+                i_wr_en, i_wr_data, i_wr_dqs_en,
+                i_cal_dq_load, i_cal_dq_sel, i_cal_dq_tap,
+                i_cal_dqs_in_load, i_cal_dqs_in_tap,
+                i_cal_dqs_out_load, i_cal_dqs_out_tap, i_cal_dqs_toggle_en,
+                1'b0};
+    /* verilator lint_on UNUSED */
 `else
-    // ===========================================================
-    // Per-DQ write path: OSERDESE2 (DATA + TRISTATE) + IOBUF
-    // ===========================================================
     wire [DQ_BITS-1:0] dq_out;
     wire [DQ_BITS-1:0] dq_tristate_n;
     wire [DQ_BITS-1:0] dq_in_raw;
@@ -86,9 +79,6 @@ module ddr3_phy_dq #(
     generate
         for (i = 0; i < DQ_BITS; i = i + 1) begin : g_dq
 
-            // -------- WRITE: data SERDES --------
-            // OSERDESE2 takes 4 bits per clk_sys cycle (D1..D4) and
-            // serialises them onto OQ at the DDR rate.
             OSERDESE2 #(
                 .DATA_RATE_OQ   ("DDR"),
                 .DATA_RATE_TQ   ("BUF"),
@@ -115,7 +105,6 @@ module ddr3_phy_dq #(
                 .TBYTEIN (1'b0)
             );
 
-            // -------- READ: IDELAYE2 (per-bit tuned delay) ----------
             IDELAYE2 #(
                 .IDELAY_TYPE   ("VAR_LOAD"),
                 .IDELAY_VALUE  (0),
@@ -140,7 +129,6 @@ module ddr3_phy_dq #(
                 .CINVCTRL (1'b0)
             );
 
-            // -------- READ: data SERDES --------
             wire [3:0] rd_bits;
             ISERDESE2 #(
                 .DATA_RATE      ("DDR"),
@@ -161,11 +149,6 @@ module ddr3_phy_dq #(
                 .CLKDIVP  (1'b0),
                 .CE1      (1'b1),
                 .CE2      (1'b0),
-                // OCLK/OCLKB are unused in INTERFACE_TYPE="NETWORKING" but
-                // must be driven by a real clock (the OCLK pin is a
-                // clkbuf_sink — nextpnr-xilinx can't route a constant
-                // here). Reuse clk_phy_x4 to satisfy the routing
-                // requirement; the cell ignores these in our mode.
                 .OCLK     (i_clk_phy_x4), .OCLKB (i_clk_phy_x4),
                 .DDLY     (dq_in_delayed[i]),
                 .D        (1'b0),
@@ -181,11 +164,6 @@ module ddr3_phy_dq #(
 
             assign o_rd_data[i*4 +: 4] = rd_bits;
 
-            // -------- IOBUF for the DQ pad ----------
-            // DQ is single-ended SSTL15 — IOBUF is the simplest primitive
-            // that nextpnr-xilinx maps cleanly. (DCI / IBUF_DISABLE knobs
-            // are out-of-scope for iter-3 silicon bring-up; they only
-            // matter for power optimisation at full DDR3-1600.)
             IOBUF #(.SLEW("FAST")) u_dq_iobuf (
                 .O  (dq_in_raw[i]),
                 .IO (io_ddr3_dq[i]),
@@ -196,10 +174,14 @@ module ddr3_phy_dq #(
     endgenerate
 
     // ===========================================================
-    // DQS — single differential strobe per byte lane
+    // DQS — differential strobe per byte lane.
+    // No ODELAYE2 (HR-bank-only constraint on YPCB-00338).
+    // DQS-out timing is fixed at 90° from CK via clk_dq.
     // ===========================================================
     wire dqs_out, dqs_tristate_n;
     wire dqs_in_raw, dqs_in_delayed;
+
+    wire dqs_drive = i_wr_dqs_en | i_cal_dqs_toggle_en;
 
     OSERDESE2 #(
         .DATA_RATE_OQ   ("DDR"),
@@ -211,12 +193,12 @@ module ddr3_phy_dq #(
     ) u_oserdes_dqs (
         .OQ      (dqs_out),
         .TQ      (dqs_tristate_n),
-        .CLK     (i_clk_dq),          // 90° shifted clock
+        .CLK     (i_clk_dq),
         .CLKDIV  (i_clk_sys),
         .D1      (1'b0), .D2 (1'b1),
         .D3      (1'b0), .D4 (1'b1),
         .D5      (1'b0), .D6 (1'b0), .D7 (1'b0), .D8 (1'b0),
-        .T1      (~i_wr_dqs_en),
+        .T1      (~dqs_drive),
         .T2      (1'b0), .T3 (1'b0), .T4 (1'b0),
         .TCE     (1'b1),
         .OCE     (1'b1),
@@ -225,8 +207,6 @@ module ddr3_phy_dq #(
         .TBYTEIN (1'b0)
     );
 
-    // DQS is DIFF_SSTL15 — IOBUFDS is the standard primitive that
-    // nextpnr-xilinx's pack_io_xc7 recognises as a differential pair.
     IOBUFDS #(.SLEW("FAST")) u_dqs_iobuf (
         .O   (dqs_in_raw),
         .IO  (io_ddr3_dqs_p),
@@ -251,18 +231,19 @@ module ddr3_phy_dq #(
         .C       (i_clk_sys),
         .CE      (1'b0),
         .INC     (1'b0),
-        .LD      (i_cal_dqs_load),
+        .LD      (i_cal_dqs_in_load),
         .LDPIPEEN(1'b0),
         .REGRST  (i_rst),
-        .CNTVALUEIN (i_cal_dqs_tap),
+        .CNTVALUEIN (i_cal_dqs_in_tap),
         .CNTVALUEOUT(),
         .CINVCTRL(1'b0)
     );
 
-    assign o_rd_valid = 1'b0;   // iter-3b: gate-train signal lights this
+    assign o_rd_valid = 1'b0;
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, dqs_in_delayed, 1'b0};
+    wire _u = &{1'b0, dqs_in_delayed,
+                i_cal_dqs_out_load, i_cal_dqs_out_tap, 1'b0};
     /* verilator lint_on UNUSED */
 `endif
 endmodule

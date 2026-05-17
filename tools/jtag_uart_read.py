@@ -3,25 +3,28 @@
 jtag_uart_read.py — host-side reader for the bonetto-soc jtag_uart IP.
 
 Talks to openFPGALoader's --xvc server (TCP port 3721 by default), navigates
-the YPCB-00338 JTAG chain (Inspur CPLD bypass + xc7k480t USER1), and prints
-whatever 32-bit value the FPGA-side `fpga_to_host` register holds.
+the YPCB-00338 JTAG chain (Inspur CPLD bypass + xc7k480t USER1), and reads
+the FPGA's status mux.
 
-Companion to:
+Iter-3 host protocol:
+  1. Write a 32-bit "register index" (with dir=1) — selects which status word.
+  2. Read (dir=0) the resulting 32-bit value.
+
+Companion server:
     openFPGALoader --xvc --port 3721 \\
         --cable xilinxPlatformCableUsb \\
         --probe-firmware boards/ypcb-00338/firmware/xusb_xp2.hex \\
         --misc-device 0x10931093,8,inspur_cpld
 
 Usage:
-    python tools/jtag_uart_read.py           # one read
-    python tools/jtag_uart_read.py --watch   # poll forever
+    python tools/jtag_uart_read.py                # dump all known regs once
+    python tools/jtag_uart_read.py --reg 0x03     # read one register
+    python tools/jtag_uart_read.py --watch        # dump-all every interval
 
 The XVC protocol is the original Xilinx Virtual Cable v1.0 — three commands:
     getinfo:                       -> "xvcServer_v1.0:NNN\\n"
     settck:<u32_le_period_ns>      -> u32 actual period
     shift:<u32_le_num_bits><tms><tdi>  -> tdo
-
-Where <tms> and <tdi> are ceil(num_bits/8)-byte LSB-first bit streams.
 
 JTAG chain layout on YPCB-00338 (TDI -> ... -> TDO):
     Inspur CPLD  IDCODE 0x10931093  IR_len 8  (BYPASS DR length = 1)
@@ -52,6 +55,17 @@ class XVC:
             info += chunk
         self.info = info.decode().strip()
 
+    def settck(self, period_ns: int) -> int:
+        cmd = b"settck:" + struct.pack("<I", period_ns)
+        self.sock.sendall(cmd)
+        out = b""
+        while len(out) < 4:
+            chunk = self.sock.recv(4 - len(out))
+            if not chunk:
+                raise RuntimeError("XVC server hung up during settck")
+            out += chunk
+        return struct.unpack("<I", out)[0]
+
     def shift(self, n_bits: int, tms: bytes, tdi: bytes) -> bytes:
         assert n_bits > 0
         n_bytes = (n_bits + 7) // 8
@@ -76,7 +90,6 @@ class XVC:
 # ---------------------------------------------------------------------------
 
 def bits_to_bytes(bits, n_bits=None):
-    """Pack a list/sequence of 0/1 bits (LSB first) into bytes."""
     if n_bits is None:
         n_bits = len(bits)
     n_bytes = (n_bits + 7) // 8
@@ -88,7 +101,6 @@ def bits_to_bytes(bits, n_bits=None):
 
 
 def bytes_to_int(b, n_bits):
-    """Unpack the low n_bits of an LSB-first byte stream into a Python int."""
     v = 0
     for i in range(n_bits):
         if b[i >> 3] & (1 << (i & 7)):
@@ -97,73 +109,43 @@ def bytes_to_int(b, n_bits):
 
 
 # ---------------------------------------------------------------------------
-# JTAG primitives (TAP state-machine aware)
+# JTAG primitives
 # ---------------------------------------------------------------------------
-#
-# TAP state-machine transitions (from RUN-TEST-IDLE):
-#   IR scan: TMS = 1,1,0,0 (go to SHIFT-IR)
-#            then IR_LEN bits with TMS=0 except last which is TMS=1
-#            (exit1-IR) then TMS=1,0 (update-IR -> RTI)
-#   DR scan: TMS = 1,0,0   (go to SHIFT-DR)
-#            then DR_LEN bits with TMS=0 except last which is TMS=1
-#            then TMS=1,0 (update-DR -> RTI)
-#
-# We bundle a navigation + shift into one XVC shift command.
 
 def tap_reset_to_rti(xvc):
-    """Drive TMS=1 five times to force test-logic-reset, then TMS=0 to RTI."""
     tms = bits_to_bytes([1, 1, 1, 1, 1, 0], 6)
     tdi = bits_to_bytes([0] * 6, 6)
     xvc.shift(6, tms, tdi)
 
 
 def ir_scan(xvc, ir_value: int, ir_len: int) -> int:
-    """From RTI: scan IR with ir_value (LSB-first ir_len bits). Returns
-    the captured IR (rarely useful for our case; we ignore it)."""
-    # Sequence: nav-in (4 TMS bits) + ir_len bits + nav-out (2 TMS bits)
     total = 4 + ir_len + 2
-
     tms_bits = [1, 1, 0, 0]
     tdi_bits = [0, 0, 0, 0]
-
     for i in range(ir_len):
         bit = (ir_value >> i) & 1
         is_last = (i == ir_len - 1)
         tms_bits.append(1 if is_last else 0)
         tdi_bits.append(bit)
-
-    # Exit1-IR -> Update-IR -> RTI
     tms_bits += [1, 0]
     tdi_bits += [0, 0]
-
-    tdo = xvc.shift(total, bits_to_bytes(tms_bits, total),
-                          bits_to_bytes(tdi_bits, total))
-    # Captured IR bits are at TDO positions [4..4+ir_len-1].
-    ir_captured_bits = []
-    for i in range(ir_len):
-        ir_captured_bits.append(tdo[(4 + i) >> 3] >> ((4 + i) & 7) & 1)
-    return sum(b << i for i, b in enumerate(ir_captured_bits))
+    xvc.shift(total, bits_to_bytes(tms_bits, total),
+                     bits_to_bytes(tdi_bits, total))
 
 
 def dr_scan(xvc, dr_tdi: int, dr_len: int) -> int:
-    """From RTI: scan DR with dr_tdi (LSB-first dr_len bits). Returns
-    the captured DR as a Python int."""
     total = 3 + dr_len + 2
-
     tms_bits = [1, 0, 0]
     tdi_bits = [0, 0, 0]
-
     for i in range(dr_len):
         bit = (dr_tdi >> i) & 1
         is_last = (i == dr_len - 1)
         tms_bits.append(1 if is_last else 0)
         tdi_bits.append(bit)
-
     tms_bits += [1, 0]
     tdi_bits += [0, 0]
-
     tdo = xvc.shift(total, bits_to_bytes(tms_bits, total),
-                          bits_to_bytes(tdi_bits, total))
+                           bits_to_bytes(tdi_bits, total))
     dr_bits = []
     for i in range(dr_len):
         dr_bits.append(tdo[(3 + i) >> 3] >> ((3 + i) & 7) & 1)
@@ -171,67 +153,172 @@ def dr_scan(xvc, dr_tdi: int, dr_len: int) -> int:
 
 
 # ---------------------------------------------------------------------------
-# YPCB-00338-specific chain knowledge
+# YPCB-00338 chain knowledge
 # ---------------------------------------------------------------------------
-# Chain: TDI -> Inspur CPLD (IR=8, BYPASS_DR=1) -> xc7k480t (IR=6, USER1_DR=33) -> TDO
-#
-# FPGA is closest to TDO. When loading IR (LSB-first into TDI), the FIRST bits
-# go to the device closest to TDO (FPGA), then CPLD.
-# So IR pattern (LSB-first, total 14 bits) = FPGA_IR (6) || CPLD_IR (8).
-#
-# To select FPGA USER1 (opcode 0x02) + CPLD BYPASS (all 1s):
-#   IR_LSBFIRST = (0xFF << 6) | 0x02 = 0x3FC2
-#
-# When shifting DR through this IR setup, CPLD is in BYPASS (1-bit DR), so
-# total DR length = 33 (FPGA USER1) + 1 (CPLD BYPASS) = 34 bits.
-# The 33-bit FPGA USER1 data lands at TDO positions [0..32]; the CPLD's BYPASS
-# bit is at position 33.
-
-YPCB_00338_IR_PATTERN = (0xFF << 6) | 0x02   # = 0x3FC2
-YPCB_00338_IR_LEN     = 14
-YPCB_00338_DR_LEN     = 33 + 1               # FPGA USER1 + CPLD BYPASS
-YPCB_00338_FPGA_DR_LEN = 33
+YPCB_IR_PATTERN = (0xFF << 6) | 0x02  # = 0x3FC2 — FPGA USER1, CPLD BYPASS
+YPCB_IR_LEN     = 14
+YPCB_DR_LEN     = 33 + 1              # 33-bit FPGA + 1-bit CPLD BYPASS
+YPCB_FPGA_DR_LEN = 33
 
 
 def select_user1(xvc):
-    """Load IR with FPGA=USER1, CPLD=BYPASS."""
-    ir_scan(xvc, YPCB_00338_IR_PATTERN, YPCB_00338_IR_LEN)
+    ir_scan(xvc, YPCB_IR_PATTERN, YPCB_IR_LEN)
 
 
-def read_fpga_to_host(xvc) -> int:
-    """Shift 34 bits of 0s through DR; recover the 32 data bits."""
-    captured = dr_scan(xvc, 0, YPCB_00338_DR_LEN)
-    # FPGA's 33 bits at positions [0..32]; data is bits [0..31] of those.
-    fpga_dr = captured & ((1 << YPCB_00338_FPGA_DR_LEN) - 1)
+def write_register_index(xvc, reg_idx: int):
+    """Shift in {dir=1, data=reg_idx}. CPLD BYPASS contributes 1 bit at LSB
+    side because the CPLD sits closer to TDI than the FPGA.
+
+    Chain order TDI→TDO is CPLD then FPGA, so when we shift dr_len bits LSB-
+    first, the FIRST bits we shift in end up closest to TDO. The FPGA captures
+    bits at TDO end; therefore the FPGA's 33-bit DR receives bits [0..32] of
+    our shifted data, and the CPLD's BYPASS swallows bit [33].
+    """
+    fpga_dr = (1 << 32) | (reg_idx & 0xFFFFFFFF)   # [32]=1 (write), [31:0]=idx
+    full_dr = fpga_dr  # bit 33 (CPLD BYPASS) = 0 — value doesn't matter
+    dr_scan(xvc, full_dr, YPCB_DR_LEN)
+
+
+def read_register(xvc) -> tuple[int, int]:
+    captured = dr_scan(xvc, 0, YPCB_DR_LEN)
+    fpga_dr = captured & ((1 << YPCB_FPGA_DR_LEN) - 1)
     data = fpga_dr & 0xFFFFFFFF
     direction = (fpga_dr >> 32) & 1
     return data, direction
+
+
+def read_status_reg(xvc, reg_idx: int) -> int:
+    """Write the register index, then read back the selected status word."""
+    write_register_index(xvc, reg_idx)
+    # The FPGA's host_to_fpga reg updates on JTAG UPDATE-DR, then the mux
+    # combinational logic produces the new status_word. A subsequent DR scan
+    # captures it on CAPTURE-DR. JTAG already gives us a fresh capture on
+    # each scan, so one read suffices.
+    data, _ = read_register(xvc)
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Status register decoders
+# ---------------------------------------------------------------------------
+
+INIT_STATE_NAMES = {
+    0: "PWR_ON",       1: "RESET_HIGH",  2: "CKE_HIGH_NOP",
+    3: "MR2",          4: "MR2_WAIT",    5: "MR3",
+    6: "MR3_WAIT",     7: "MR1",         8: "MR1_WAIT",
+    9: "MR0",         10: "MR0_WAIT",   11: "ZQCL",
+    12: "ZQ_WAIT",    13: "DLLK_WAIT",  14: "PRE_ALL",
+    15: "PRE_WAIT",   16: "FIRST_REF",  17: "REF_WAIT",
+    18: "DONE",       31: "FAIL",
+}
+
+CAL_SEQ_STATE_NAMES = {
+    0: "IDLE",         1: "WAIT_INIT",   2: "PULSE_WLVL",
+    3: "WAIT_WLVL",    4: "PULSE_RDLVL", 5: "WAIT_RDLVL",
+    6: "DONE",         7: "ERROR",
+}
+
+CAL_ERROR_NAMES = {
+    0b00: "no error",
+    0b01: "wlvl",
+    0b10: "rdlvl",
+    0b11: "both?",
+}
+
+
+def decode_status_flags(w: int) -> str:
+    magic = (w >> 16) & 0xFFFF
+    cal_done   = (w >> 15) & 1
+    cal_error  = (w >> 14) & 1
+    cal_ecode  = (w >> 12) & 0x3
+    init_done  = (w >> 11) & 1
+    init_error = (w >> 10) & 1
+    init_ecode = (w >> 6) & 0xF
+    mmcm_lck   = (w >> 5) & 1
+    idel_rdy   = (w >> 4) & 1
+    por_rst    = (w >> 3) & 1
+    mpr_busy   = (w >> 2) & 1
+    any_err    = (w >> 1) & 1
+    hb         = w & 1
+    return (f"magic=0x{magic:04x} cal_done={cal_done} cal_error={cal_error} "
+            f"cal_ecode={cal_ecode}({CAL_ERROR_NAMES.get(cal_ecode,'?')}) "
+            f"init_done={init_done} init_error={init_error} "
+            f"init_ecode={init_ecode} mmcm_locked={mmcm_lck} "
+            f"idelay_ready={idel_rdy} por_rst={por_rst} "
+            f"mpr_busy={mpr_busy} mtest_any_err={any_err} hb={hb}")
+
+
+def decode_state_bits(w: int) -> str:
+    init_st  = (w >> 27) & 0x1F
+    cal_st   = (w >> 23) & 0xF
+    wlvl_st  = (w >> 19) & 0xF
+    rdlvl_st = (w >> 15) & 0xF
+    hb       = w & 0x7FFF
+    return (f"init_state={init_st}({INIT_STATE_NAMES.get(init_st,'?')}) "
+            f"cal_seq_state={cal_st}({CAL_SEQ_STATE_NAMES.get(cal_st,'?')}) "
+            f"cal_wlvl_state={wlvl_st} cal_rdlvl_state={rdlvl_st} "
+            f"hb_low={hb}")
+
+
+REG_DECODERS = {
+    0x00: ("STATUS_FLAGS", decode_status_flags),
+    0x01: ("STATE_BITS",   decode_state_bits),
+    0x02: ("HEARTBEAT",    lambda w: f"counter=0x{w:06x} ({w} cycles @ 50 MHz ≈ {w/50e6:.3f}s)"),
+    0x03: ("MTEST_PASS_CTR",      lambda w: f"{w} ({w:#010x})"),
+    0x04: ("MTEST_ERR_CTR",       lambda w: f"{w} ({w:#010x})"),
+    0x05: ("MTEST_FIRST_ERR_ADDR",     lambda w: f"{w:#010x}"),
+    0x06: ("MTEST_FIRST_ERR_EXPECTED", lambda w: f"{w:#010x}"),
+    0x07: ("MTEST_FIRST_ERR_GOT",      lambda w: f"{w:#010x}"),
+    0xFE: ("VERSION",      lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
+    0xFF: ("ECHO",         lambda w: f"{w:#010x}"),
+}
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
+def dump_all(xvc):
+    for idx in sorted(REG_DECODERS.keys()):
+        name, decoder = REG_DECODERS[idx]
+        w = read_status_reg(xvc, idx)
+        print(f"  [{idx:#04x}] {name:<26s} = {w:#010x}   {decoder(w)}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="localhost")
     ap.add_argument("--port", type=int, default=3721)
+    ap.add_argument("--reg", type=lambda s: int(s, 0),
+                    help="read a single register by index (hex/dec ok)")
     ap.add_argument("--watch", action="store_true",
-                    help="poll once per second forever")
+                    help="poll forever")
     ap.add_argument("--interval", type=float, default=1.0,
                     help="poll interval in seconds (with --watch)")
+    ap.add_argument("--tck-ns", type=int, default=None,
+                    help="set XVC TCK period in ns (default: server default)")
     args = ap.parse_args()
 
     xvc = XVC(args.host, args.port)
     print(f"connected to {args.host}:{args.port} — {xvc.info}")
 
+    if args.tck_ns is not None:
+        actual = xvc.settck(args.tck_ns)
+        print(f"settck({args.tck_ns} ns) -> {actual} ns")
+
     tap_reset_to_rti(xvc)
     select_user1(xvc)
 
     while True:
-        data, direction = read_fpga_to_host(xvc)
-        print(f"fpga_to_host = 0x{data:08x}  (dir bit: {direction})")
+        if args.reg is not None:
+            w = read_status_reg(xvc, args.reg)
+            name, decoder = REG_DECODERS.get(args.reg, (f"REG_{args.reg:#04x}", lambda v: f"{v:#010x}"))
+            print(f"  [{args.reg:#04x}] {name:<26s} = {w:#010x}   {decoder(w)}")
+        else:
+            print(f"--- status dump @ {time.strftime('%H:%M:%S')} ---")
+            dump_all(xvc)
+
         if not args.watch:
             break
         time.sleep(args.interval)
