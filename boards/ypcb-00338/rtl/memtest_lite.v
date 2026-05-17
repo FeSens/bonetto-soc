@@ -50,13 +50,14 @@ module memtest_lite #(
 );
     assign o_wb_sel = 4'b1111;
 
-    localparam [1:0]
-        S_WRITE     = 2'd0,
-        S_WAIT_WACK = 2'd1,
-        S_READ      = 2'd2,
-        S_WAIT_RACK = 2'd3;
+    localparam [2:0]
+        S_WRITE     = 3'd0,
+        S_WAIT_WACK = 3'd1,
+        S_READ      = 3'd2,
+        S_WAIT_RACK = 3'd3,
+        S_CHECK     = 3'd4;
 
-    reg [1:0]  state              = S_WRITE;
+    reg [2:0]  state              = S_WRITE;
     reg [13:0] addr               = 14'd0;
     reg [1:0]  pattern_idx        = 2'd0;     // 0=addr-data, 1=walking1, 2=0xAA, 3=0x55
     reg [4:0]  walk_bit           = 5'd0;
@@ -69,6 +70,7 @@ module memtest_lite #(
     reg [31:0] first_err_addr     = 32'd0;
     reg [31:0] first_err_expected = 32'd0;
     reg [31:0] first_err_got      = 32'd0;
+    reg [31:0] read_dat_q         = 32'd0;
     reg [23:0] heartbeat          = 24'd0;
     reg        target             = 1'b0;
     reg        bram_validated     = 1'b0;
@@ -114,6 +116,7 @@ module memtest_lite #(
             first_err_addr     <= 32'd0;
             first_err_expected <= 32'd0;
             first_err_got      <= 32'd0;
+            read_dat_q         <= 32'd0;
             target             <= 1'b0;
             bram_validated     <= 1'b0;
             o_wb_cyc           <= 1'b0;
@@ -168,33 +171,37 @@ module memtest_lite #(
                     end else if (i_wb_ack) begin
                         o_wb_cyc <= 1'b0;
                         o_wb_stb <= 1'b0;
-                        last_ok  <= (i_wb_dat == pattern);
-                        if (i_wb_dat != pattern) begin
-                            err_ctr <= err_ctr + 1'b1;
-                            if (!any_err) begin
-                                first_err_addr     <= {15'b0, pattern_idx, target, addr};
-                                first_err_expected <= pattern;
-                                first_err_got      <= i_wb_dat;
-                            end
-                            any_err <= 1'b1;
-                        end
-                        pass_ctr <= pass_ctr + 1'b1;
-                        if (target) ddr3_pass_ctr <= ddr3_pass_ctr + 1'b1;
-
-                        if (addr == 14'h3FFF) begin
-                            addr <= 14'd0;
-                            if (target == 1'b0) bram_validated <= 1'b1;
-                            if (promote_to_ddr3) target <= 1'b1;
-                            // Cycle pattern index every BRAM wrap.
-                            pattern_idx <= pattern_idx + 1'b1;
-                            // Walking-1 bit advances every full sweep of pattern 1.
-                            if (pattern_idx == 2'd1)
-                                walk_bit <= (walk_bit == 5'd31) ? 5'd0 : walk_bit + 1'b1;
-                        end else begin
-                            addr <= addr + 1'b1;
-                        end
-                        state <= S_WRITE;
+                        read_dat_q <= i_wb_dat;
+                        state    <= S_CHECK;
                     end
+                end
+                S_CHECK: begin
+                    last_ok <= (read_dat_q == pattern);
+                    if (read_dat_q != pattern) begin
+                        err_ctr <= err_ctr + 1'b1;
+                        if (!any_err) begin
+                            first_err_addr     <= {15'b0, pattern_idx, target, addr};
+                            first_err_expected <= pattern;
+                            first_err_got      <= read_dat_q;
+                        end
+                        any_err <= 1'b1;
+                    end
+                    pass_ctr <= pass_ctr + 1'b1;
+                    if (target) ddr3_pass_ctr <= ddr3_pass_ctr + 1'b1;
+
+                    if (addr == 14'h3FFF) begin
+                        addr <= 14'd0;
+                        if (target == 1'b0) bram_validated <= 1'b1;
+                        if (promote_to_ddr3) target <= 1'b1;
+                        // Cycle pattern index every BRAM wrap.
+                        pattern_idx <= pattern_idx + 1'b1;
+                        // Walking-1 bit advances every full sweep of pattern 1.
+                        if (pattern_idx == 2'd1)
+                            walk_bit <= (walk_bit == 5'd31) ? 5'd0 : walk_bit + 1'b1;
+                    end else begin
+                        addr <= addr + 1'b1;
+                    end
+                    state <= S_WRITE;
                 end
                 default: state <= S_WRITE;
             endcase

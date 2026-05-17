@@ -4,7 +4,7 @@
 // instantiates this and just ticks the clock.
 //
 // Pins:
-//   - ck / ck_n: differential clock (we drive ck = clk_phy, ck_n = ~clk_phy)
+//   - ck / ck_n: differential clock from a 400 MHz serialized model clock
 //   - cs_n / ras_n / cas_n / we_n / ba / addr / cke / odt / rst_n:
 //     direct from ddr3_ctrl
 //   - dq / dqs / dqs_n / dm_tdqs: inout, left floating during init
@@ -22,21 +22,22 @@ module tb_ddr3_init_top (
     // ------------------------------------------------------------------
     // Clock generation — must use real #delays so the Micron model's
     // timing checks see proper inter-edge spacing.
-    // tCK = 1250 ps for DDR3-1600.
+    // tCK = 2500 ps for DDR3-800.
     // ------------------------------------------------------------------
-    reg clk_phy = 0;
-    always #625 clk_phy = ~clk_phy;  // 625 ps half-period -> 1250 ps period
+    reg clk_sys = 0;
+    always #5000 clk_sys = ~clk_sys;  // 5000 ps half-period -> 10000 ps period
 
-    // The SoC clock (i_clk) is 50 MHz on the YPCB-00338 = 20 ns period.
-    // For sim we run it at the same rate as clk_phy (cycle-precise init
-    // doesn't depend on clk vs clk_phy ratio — iter-3 introduces an MMCM).
-    wire clk_50 = clk_phy;
+    reg ck_ser = 0;
+    always #1250 ck_ser = ~ck_ser;    // 1250 ps half-period -> 2500 ps period
 
-    // Reset: hold high for 16 cycles (20 ns), then drop. Numbers are
-    // in picoseconds now (timescale 1ps/1ps).
+    // This ctrl-only testbench runs both controller ports at clk_sys.
+    wire clk_50 = clk_sys;
+
+    // Reset: hold high for 20 ns, then drop. Numbers are in picoseconds
+    // now (timescale 1ps/1ps).
     reg rst = 1;
     initial begin
-        #20000 rst = 0;        // release after 20 ns = 16 tCK
+        #20000 rst = 0;
     end
     // -------- ddr3_ctrl + Micron model wiring --------
     localparam integer ROW_BITS  = 15;
@@ -44,14 +45,13 @@ module tb_ddr3_init_top (
     localparam integer DQ_BITS   = 8;
     localparam integer DM_BITS   = DQ_BITS / 8;
     localparam integer DQS_BITS  = DQ_BITS / 8;
-    localparam integer ADDR_BITS = 16;  // Micron model uses 16, we use 15
 
-    wire                       reset_n;
-    wire                       cke;
-    wire                       odt;
-    wire                       cs_n, ras_n, cas_n, we_n;
-    wire [BANK_BITS-1:0]       ba;
-    wire [ROW_BITS-1:0]        addr;
+    wire                       ctrl_reset_n;
+    wire                       ctrl_cke;
+    wire                       ctrl_odt;
+    wire                       ctrl_cs_n, ctrl_ras_n, ctrl_cas_n, ctrl_we_n;
+    wire [BANK_BITS-1:0]       ctrl_ba;
+    wire [ROW_BITS-1:0]        ctrl_addr;
 
     wire                       init_done;
     wire                       init_error;
@@ -80,7 +80,7 @@ module tb_ddr3_init_top (
         .DQ_BITS   (DQ_BITS)
     ) u_dut (
         .i_clk      (clk_50),
-        .i_clk_phy  (clk_phy),
+        .i_clk_phy  (clk_sys),
         .i_rst      (rst),
         // WB tied off — sim watches init only.
         .i_wb_cyc   (1'b0),
@@ -94,15 +94,15 @@ module tb_ddr3_init_top (
         .o_wb_dat   (),
         .o_wb_err   (),
         // DDR3 pins
-        .o_ddr3_reset_n (reset_n),
-        .o_ddr3_cke     (cke),
-        .o_ddr3_odt     (odt),
-        .o_ddr3_cs_n    (cs_n),
-        .o_ddr3_ras_n   (ras_n),
-        .o_ddr3_cas_n   (cas_n),
-        .o_ddr3_we_n    (we_n),
-        .o_ddr3_ba      (ba),
-        .o_ddr3_addr    (addr),
+        .o_ddr3_reset_n (ctrl_reset_n),
+        .o_ddr3_cke     (ctrl_cke),
+        .o_ddr3_odt     (ctrl_odt),
+        .o_ddr3_cs_n    (ctrl_cs_n),
+        .o_ddr3_ras_n   (ctrl_ras_n),
+        .o_ddr3_cas_n   (ctrl_cas_n),
+        .o_ddr3_we_n    (ctrl_we_n),
+        .o_ddr3_ba      (ctrl_ba),
+        .o_ddr3_addr    (ctrl_addr),
         .i_phy_rd_data   (288'd0),
         .i_phy_rd_valid  (1'b1),
         .o_phy_wr_data   (),
@@ -145,11 +145,53 @@ module tb_ddr3_init_top (
     );
 
 `ifdef WITH_MICRON
-    // Micron model needs a 16-bit addr; pad our 15-bit with a 0.
-    wire [ADDR_BITS-1:0] addr_padded = {1'b0, addr};
+    // Serialize each 100 MHz controller command to one CK-wide command on
+    // the 400 MHz DRAM clock, matching the board PHY's 1:4 command path.
+    reg [3:0]           ser_cmd = 4'b1111;
+    reg [BANK_BITS-1:0] ser_ba = {BANK_BITS{1'b0}};
+    reg [ROW_BITS-1:0]  ser_addr = {ROW_BITS{1'b0}};
+    reg                 ser_reset_n = 1'b0;
+    reg                 ser_cke = 1'b0;
+    reg                 ser_odt = 1'b0;
+    reg [1:0]           ser_phase = 2'd0;
 
-    // ck_n = inverted ck for differential clock.
-    wire ck_n = ~clk_phy;
+    reg [3:0]           shadow_cmd = 4'b1111;
+    reg [BANK_BITS-1:0] shadow_ba = {BANK_BITS{1'b0}};
+    reg [ROW_BITS-1:0]  shadow_addr = {ROW_BITS{1'b0}};
+    reg                 shadow_reset_n = 1'b0;
+    reg                 shadow_cke = 1'b0;
+    reg                 shadow_odt = 1'b0;
+
+    always @(posedge clk_sys) begin
+        shadow_cmd     <= {ctrl_cs_n, ctrl_ras_n, ctrl_cas_n, ctrl_we_n};
+        shadow_ba      <= ctrl_ba;
+        shadow_addr    <= ctrl_addr;
+        shadow_reset_n <= ctrl_reset_n;
+        shadow_cke     <= ctrl_cke;
+        shadow_odt     <= ctrl_odt;
+    end
+
+    always @(posedge ck_ser) begin
+        ser_phase   <= ser_phase + 2'd1;
+        ser_reset_n <= shadow_reset_n;
+        ser_cke     <= shadow_cke;
+        ser_odt     <= shadow_odt;
+        if (ser_phase == 2'd0) begin
+            ser_cmd  <= shadow_cmd;
+            ser_ba   <= shadow_ba;
+            ser_addr <= shadow_addr;
+        end else begin
+            ser_cmd  <= 4'b1111;
+            ser_ba   <= {BANK_BITS{1'b0}};
+            ser_addr <= {ROW_BITS{1'b0}};
+        end
+    end
+
+    // Delay the DRAM-visible clock relative to serialized command changes so
+    // Micron's setup/hold checks see a realistic command-launch phase.
+    wire ck_model;
+    assign #500 ck_model = ck_ser;
+    wire ck_n = ~ck_model;
 
     // DQ / DQS / DM unused during init (no read/write). Wire them as
     // dangling inout nets; Verilator will warn-but-not-error if we
@@ -167,22 +209,22 @@ module tb_ddr3_init_top (
     pullup p_dqs[DQS_BITS-1:0] (dqs);
 
     ddr3 u_micron (
-        .rst_n  (reset_n),
-        .ck     (clk_phy),
+        .rst_n  (ser_reset_n),
+        .ck     (ck_model),
         .ck_n   (ck_n),
-        .cke    (cke),
-        .cs_n   (cs_n),
-        .ras_n  (ras_n),
-        .cas_n  (cas_n),
-        .we_n   (we_n),
+        .cke    (ser_cke),
+        .cs_n   (ser_cmd[3]),
+        .ras_n  (ser_cmd[2]),
+        .cas_n  (ser_cmd[1]),
+        .we_n   (ser_cmd[0]),
         .dm_tdqs(dm_tdqs),
-        .ba     (ba),
-        .addr   (addr_padded),
+        .ba     (ser_ba),
+        .addr   (ser_addr),
         .dq     (dq),
         .dqs    (dqs),
         .dqs_n  (dqs_n),
         .tdqs_n (tdqs_n),
-        .odt    (odt)
+        .odt    (ser_odt)
     );
 `endif
 
@@ -204,7 +246,7 @@ module tb_ddr3_init_top (
     // Per-state debug print so we see init progress in stdout.
     reg [4:0] prev_state = 5'h1F;
     integer   tick = 0;
-    always @(posedge clk_phy) begin
+    always @(posedge clk_sys) begin
         if (init_state != prev_state) begin
             $display("[tb] t=%0t  state=%0d (tick=%0d)", $time, init_state, tick);
             prev_state <= init_state;

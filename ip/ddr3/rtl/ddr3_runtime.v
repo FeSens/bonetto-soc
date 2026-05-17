@@ -65,6 +65,7 @@ module ddr3_runtime #(
     output reg  [3:0]                 o_cmd,          // {cs_n, ras_n, cas_n, we_n}
     output reg  [BANK_BITS-1:0]       o_cmd_ba,
     output reg  [ROW_BITS-1:0]        o_cmd_addr,
+    output wire                       o_cmd_odt,
 
     // -------- DDR3 PHY data side --------
     input  wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] i_rd_data,
@@ -101,6 +102,37 @@ module ddr3_runtime #(
     wire [ROW_BITS-1:0]         wb_row  = i_wb_adr[ROW_BITS + (COL_BITS-3) - 1            -: ROW_BITS];
     wire [COL_BITS-1:0]         wb_col  = { i_wb_adr[(COL_BITS-3)-1:0], 3'b000 };
 
+    localparam integer WB_BYTES = WB_DATA_W / 8;
+    localparam integer PHY_DATA_W = NUM_BYTE_LANES * DQ_BITS * SERDES_RATIO;
+    localparam integer CK_PER_SYS = `DDR3_CK_PER_SYS;
+    function integer tck_to_sys;
+        input integer tck_cycles;
+        begin
+            tck_to_sys = (tck_cycles + CK_PER_SYS - 1) / CK_PER_SYS;
+            if (tck_to_sys < 1) tck_to_sys = 1;
+        end
+    endfunction
+    function integer wait_limit;
+        input integer sys_cycles;
+        begin
+            wait_limit = (sys_cycles > 1) ? (sys_cycles - 2) : 0;
+        end
+    endfunction
+
+    localparam integer CL_SYS  = tck_to_sys(`DDR3_CL);
+    localparam integer CWL_SYS = tck_to_sys(`DDR3_CWL);
+    localparam integer BURST_SYS_CYCLES = tck_to_sys(`DDR3_BL / 2);
+    localparam integer CWL_START_WAIT = (CWL_SYS > 2) ? (CWL_SYS - 3) : 0;
+    localparam integer READ_CAPTURE_SYS_CYCLES = BURST_SYS_CYCLES + 6;
+    localparam integer READ_SETTLE_SYS_CYCLES = 4;
+    localparam integer TREFI_SYS = tck_to_sys(`DDR3_TREFI);
+    localparam integer TRCD_WAIT = wait_limit(tck_to_sys(`DDR3_TRCD));
+    localparam integer TRP_WAIT  = wait_limit(tck_to_sys(`DDR3_TRP));
+    localparam integer TRFC_WAIT = wait_limit(tck_to_sys(`DDR3_TRFC));
+    localparam integer TCCD_WAIT = wait_limit(tck_to_sys(`DDR3_TCCD));
+    localparam integer TMOD_WAIT = wait_limit(tck_to_sys(`DDR3_TMOD));
+    localparam integer TWR_SYS   = tck_to_sys(`DDR3_TWR);
+
     // ---- Refresh scheduler ----
     // ref_pending is SET by the scheduler when tREFI elapses and
     // CLEARED by the main FSM when REF completes. Both updates live in
@@ -113,7 +145,7 @@ module ddr3_runtime #(
             ref_ctr     <= 16'd0;
             ref_pending <= 1'b0;
         end else begin
-            if (ref_ctr == `DDR3_TREFI - 1) begin
+            if (ref_ctr == TREFI_SYS - 1) begin
                 ref_ctr     <= 16'd0;
                 ref_pending <= 1'b1;
             end else begin
@@ -145,16 +177,6 @@ module ddr3_runtime #(
         S_MRS       = 5'd17,
         S_MRS_WAIT  = 5'd18,
         S_WR_RECOV  = 5'd19;
-
-    localparam integer WB_BYTES = WB_DATA_W / 8;
-    localparam integer PHY_DATA_W = NUM_BYTE_LANES * DQ_BITS * SERDES_RATIO;
-    localparam integer BURST_SYS_CYCLES = `DDR3_BL / SERDES_RATIO;
-    localparam integer CL_SYS  = (`DDR3_CL  + 1) / 2;
-    localparam integer CWL_SYS = (`DDR3_CWL + 1) / 2;
-    localparam integer CWL_START_WAIT = (CWL_SYS > 2) ? (CWL_SYS - 3) : 0;
-    localparam integer READ_CAPTURE_SYS_CYCLES = BURST_SYS_CYCLES + 6;
-    localparam integer READ_SETTLE_SYS_CYCLES = 4;
-    localparam integer TWR_SYS = (`DDR3_TWR + 1) / 2;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -213,6 +235,8 @@ module ddr3_runtime #(
     assign o_wb_err   = 1'b0;
     assign o_wr_valid = (state == S_DATA_WR);
     assign o_rd_capture = (state == S_DATA_RD) && (beat_ctr < READ_CAPTURE_SYS_CYCLES);
+    assign o_cmd_odt = (state == S_WR) || (state == S_WAIT_CWL) ||
+                       (state == S_DATA_WR) || (state == S_WR_RECOV);
 
     wire [WB_DATA_W-1:0] phy_rd_word;
 
@@ -292,7 +316,7 @@ module ddr3_runtime #(
                 end
 
                 S_WAIT_RCD: begin
-                    if (wait_ctr == `DDR3_TRCD - 2) begin
+                    if (wait_ctr == TRCD_WAIT) begin
                         wait_ctr <= 8'd0;
                         state    <= saved_we ? S_WR : S_RD;
                     end else begin
@@ -379,7 +403,7 @@ module ddr3_runtime #(
                 end
 
                 S_WAIT_RP: begin
-                    if (wait_ctr == `DDR3_TRP - 2) begin
+                    if (wait_ctr == TRP_WAIT) begin
                         wait_ctr <= 8'd0;
                         state    <= S_IDLE;
                     end else begin
@@ -399,7 +423,7 @@ module ddr3_runtime #(
                 end
 
                 S_REF_WAIT_RP: begin
-                    if (wait_ctr == `DDR3_TRP - 2) begin
+                    if (wait_ctr == TRP_WAIT) begin
                         wait_ctr <= 8'd0;
                         state    <= S_REF;
                     end else begin
@@ -417,7 +441,7 @@ module ddr3_runtime #(
                 end
 
                 S_REF_WAIT: begin
-                    if (wait_ctr == `DDR3_TRFC - 2) begin
+                    if (wait_ctr == TRFC_WAIT) begin
                         wait_ctr  <= 8'd0;
                         ref_clear <= 1'b1;          // pulse to refresh scheduler
                         state     <= S_IDLE;
@@ -448,7 +472,7 @@ module ddr3_runtime #(
                     // (BL8 occupies 4 tCK on the bus). After tCCD the
                     // next RD command can issue; rdlvl gates that by
                     // its own SETTLE_CYCLES + READ_LATENCY logic.
-                    if (wait_ctr == `DDR3_TCCD - 1) begin
+                    if (wait_ctr == TCCD_WAIT) begin
                         wait_ctr <= 8'd0;
                         state    <= S_IDLE;
                     end else begin
@@ -469,7 +493,7 @@ module ddr3_runtime #(
 
                 S_MRS_WAIT: begin
                     // tMOD before any non-MRS command may issue.
-                    if (wait_ctr == `DDR3_TMOD - 1) begin
+                    if (wait_ctr == TMOD_WAIT) begin
                         wait_ctr <= 8'd0;
                         state    <= S_IDLE;
                     end else begin

@@ -83,8 +83,7 @@ module ddr3_phy_dq #(
         WR_IDLE   = 3'd0,
         WR_PRE    = 3'd1,
         WR_BURST0 = 3'd2,
-        WR_BURST1 = 3'd3,
-        WR_POST   = 3'd4;
+        WR_POST   = 3'd3;
 
     reg [2:0] wr_phase = WR_IDLE;
     reg       wr_en_q  = 1'b0;
@@ -104,8 +103,7 @@ module ddr3_phy_dq #(
             end else begin
                 case (wr_phase)
                     WR_PRE:    wr_phase <= WR_BURST0;
-                    WR_BURST0: wr_phase <= WR_BURST1;
-                    WR_BURST1: wr_phase <= WR_POST;
+                    WR_BURST0: wr_phase <= WR_POST;
                     WR_POST:   wr_phase <= WR_IDLE;
                     default:   wr_phase <= WR_IDLE;
                 endcase
@@ -151,7 +149,7 @@ module ddr3_phy_dq #(
     // ===========================================================
     wire dqs_in_raw;
 
-    wire dqs_burst  = (wr_phase == WR_BURST0) || (wr_phase == WR_BURST1);
+    wire dqs_burst  = (wr_phase == WR_BURST0);
     wire dqs_drive  = dq_drive_en | i_cal_dqs_toggle_en;
     wire dqs_active = dqs_burst || i_cal_dqs_toggle_en;
     wire dqs_out;

@@ -17,9 +17,9 @@ from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
 
 
-INIT_DEADLINE = 1_000_000     # cycles; init takes ~560k @ 800 MHz tCK
+INIT_DEADLINE = 1_000_000     # cycles; init takes ~70k @ 100 MHz sys
 WB_DEADLINE   = 100           # cycles to wait for an ack
-TCK_PS        = 1250          # 1.25 ns @ DDR3-1600
+SYS_CLK_PS    = 10000         # controller fabric clock: 100 MHz
 
 
 def cmd_is(dut, cs, ras, cas, we):
@@ -53,8 +53,8 @@ async def reset(dut):
 @cocotb.test()
 async def init_completes(dut):
     """ddr3_ctrl raises init_done within INIT_DEADLINE cycles after reset."""
-    cocotb.start_soon(Clock(dut.i_clk,     TCK_PS, units="ps").start())
-    cocotb.start_soon(Clock(dut.i_clk_phy, TCK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk,     SYS_CLK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk_phy, SYS_CLK_PS, units="ps").start())
     await reset(dut)
 
     for cycle in range(INIT_DEADLINE):
@@ -77,8 +77,8 @@ async def init_completes(dut):
 @cocotb.test()
 async def wb_write_triggers_activate(dut):
     """After init_done, a WB write makes the runtime FSM issue ACT."""
-    cocotb.start_soon(Clock(dut.i_clk,     TCK_PS, units="ps").start())
-    cocotb.start_soon(Clock(dut.i_clk_phy, TCK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk,     SYS_CLK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk_phy, SYS_CLK_PS, units="ps").start())
     await reset(dut)
 
     # Wait for init_done.
@@ -133,8 +133,8 @@ async def wb_write_read_roundtrip(dut):
     (ack). Both transactions traverse the runtime FSM's ACT/CMD/PRE arc
     correctly — proves WB-side protocol survives the runtime path, even
     if the iter-2 PHY tristates DQ (read data is 0)."""
-    cocotb.start_soon(Clock(dut.i_clk,     TCK_PS, units="ps").start())
-    cocotb.start_soon(Clock(dut.i_clk_phy, TCK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk,     SYS_CLK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk_phy, SYS_CLK_PS, units="ps").start())
     await reset(dut)
 
     for _ in range(INIT_DEADLINE):
@@ -191,8 +191,8 @@ async def refresh_fires_after_trefi(dut):
     """After init_done, the runtime FSM's refresh scheduler issues a REF
     command (cs_n=0, ras_n=0, cas_n=0, we_n=1) within tREFI cycles of
     init_done with no WB traffic on the bus."""
-    cocotb.start_soon(Clock(dut.i_clk,     TCK_PS, units="ps").start())
-    cocotb.start_soon(Clock(dut.i_clk_phy, TCK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk,     SYS_CLK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk_phy, SYS_CLK_PS, units="ps").start())
     await reset(dut)
 
     for _ in range(INIT_DEADLINE):
@@ -204,10 +204,10 @@ async def refresh_fires_after_trefi(dut):
 
     dut._log.info("init_done; watching for REF post-tREFI")
 
-    # tREFI = 6240 cycles (DDR3-1600 @ 1.25 ns tCK = 7.8 us avg refresh).
+    # tREFI = 780 fabric cycles (DDR3-800 @ 2.5 ns tCK = 7.8 us avg refresh).
     # After init_done, the refresh scheduler should fire REF within
     # tREFI + a few PRE/wait cycles. Give a 2x margin.
-    TREFI = 6240
+    TREFI = 780
     saw_ref = False
     for cycle in range(TREFI * 2 + 200):
         await RisingEdge(dut.i_clk_phy)
@@ -229,8 +229,8 @@ async def mpr_req_emits_rd_with_a12_high(dut):
     the runtime FSM emit an RD command (cs_n=0, ras_n=1, cas_n=0, we_n=1)
     whose address bus has bit 12 set. Proves the iter-3c MPR-read path
     is wired from the PHY-side rdlvl request through to the DDR3 cmd bus."""
-    cocotb.start_soon(Clock(dut.i_clk,     TCK_PS, units="ps").start())
-    cocotb.start_soon(Clock(dut.i_clk_phy, TCK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk,     SYS_CLK_PS, units="ps").start())
+    cocotb.start_soon(Clock(dut.i_clk_phy, SYS_CLK_PS, units="ps").start())
     await reset(dut)
 
     for _ in range(INIT_DEADLINE):

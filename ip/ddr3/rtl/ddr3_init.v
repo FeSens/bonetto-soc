@@ -72,7 +72,7 @@ module ddr3_init #(
     assign o_state = state;
 
     // ---- Wait counter ----
-    // Widest deadline is tRESET_TCK = 160k cycles → fits in 24 bits with margin.
+    // Widest deadline is the converted power-on wait; 24 bits leaves margin.
     reg [23:0] wait_ctr;
 
     // Mode-register payloads — explicit constants from ddr3_params.vh.
@@ -80,6 +80,31 @@ module ddr3_init #(
     localparam [15:0] MR1_VAL = `DDR3_MR1_VAL;
     localparam [15:0] MR2_VAL = `DDR3_MR2_VAL;
     localparam [15:0] MR3_VAL = `DDR3_MR3_VAL;
+
+    localparam integer CK_PER_SYS = `DDR3_CK_PER_SYS;
+    function integer tck_to_sys;
+        input integer tck_cycles;
+        begin
+            tck_to_sys = (tck_cycles + CK_PER_SYS - 1) / CK_PER_SYS;
+            if (tck_to_sys < 1) tck_to_sys = 1;
+        end
+    endfunction
+    function integer wait_limit;
+        input integer sys_cycles;
+        begin
+            wait_limit = (sys_cycles > 1) ? (sys_cycles - 2) : 0;
+        end
+    endfunction
+
+    localparam integer TRESET_SYS   = tck_to_sys(`DDR3_TRESET_TCK);
+    localparam integer TCKE_LOW_SYS = tck_to_sys(`DDR3_TCKE_LOW_TCK);
+    localparam integer TXPR_SYS     = tck_to_sys(`DDR3_TXPR);
+    localparam integer TMRD_WAIT    = wait_limit(tck_to_sys(`DDR3_TMRD));
+    localparam integer TMOD_WAIT    = wait_limit(tck_to_sys(`DDR3_TMOD));
+    localparam integer TZQ_WAIT     = wait_limit(tck_to_sys(`DDR3_TZQINIT));
+    localparam integer TDLLK_SYS    = tck_to_sys(`DDR3_TDLLK);
+    localparam integer TRP_WAIT     = wait_limit(tck_to_sys(`DDR3_TRP));
+    localparam integer TRFC_WAIT    = wait_limit(tck_to_sys(`DDR3_TRFC));
 
     // ---- Helpers ----
     function automatic [ROW_BITS-1:0] mr_addr;
@@ -115,7 +140,7 @@ module ddr3_init #(
                     // Hold RESET# low for ≥200 µs after stable VDD.
                     o_ddr3_reset_n <= 1'b0;
                     o_ddr3_cke     <= 1'b0;
-                    if (wait_ctr == `DDR3_TRESET_TCK - 1) begin
+                    if (wait_ctr == TRESET_SYS - 1) begin
                         wait_ctr <= 24'd0;
                         state    <= S_RESET_HIGH;
                     end else begin
@@ -127,7 +152,7 @@ module ddr3_init #(
                     // RESET# released, CKE low for ≥500 µs.
                     o_ddr3_reset_n <= 1'b1;
                     o_ddr3_cke     <= 1'b0;
-                    if (wait_ctr == `DDR3_TCKE_LOW_TCK - 1) begin
+                    if (wait_ctr == TCKE_LOW_SYS - 1) begin
                         wait_ctr <= 24'd0;
                         state    <= S_CKE_HIGH_NOP;
                     end else begin
@@ -138,7 +163,7 @@ module ddr3_init #(
                 S_CKE_HIGH_NOP: begin
                     // CKE high, NOP only, wait tXPR before any other command.
                     o_ddr3_cke <= 1'b1;
-                    if (wait_ctr == `DDR3_TXPR - 1) begin
+                    if (wait_ctr == TXPR_SYS - 1) begin
                         wait_ctr <= 24'd0;
                         state    <= S_MR2;
                     end else begin
@@ -156,7 +181,7 @@ module ddr3_init #(
                     state       <= S_MR2_WAIT;
                 end
                 S_MR2_WAIT: begin
-                    if (wait_ctr == `DDR3_TMRD - 2) begin
+                    if (wait_ctr == TMRD_WAIT) begin
                         // -2 because we spent 1 cycle issuing MRS and 1 cycle
                         // for the first NOP — total tMRD cycles between MRSs.
                         wait_ctr <= 24'd0;
@@ -174,7 +199,7 @@ module ddr3_init #(
                     state       <= S_MR3_WAIT;
                 end
                 S_MR3_WAIT: begin
-                    if (wait_ctr == `DDR3_TMRD - 2) begin
+                    if (wait_ctr == TMRD_WAIT) begin
                         wait_ctr <= 24'd0;
                         state    <= S_MR1;
                     end else begin
@@ -190,7 +215,7 @@ module ddr3_init #(
                     state       <= S_MR1_WAIT;
                 end
                 S_MR1_WAIT: begin
-                    if (wait_ctr == `DDR3_TMRD - 2) begin
+                    if (wait_ctr == TMRD_WAIT) begin
                         wait_ctr <= 24'd0;
                         state    <= S_MR0;
                     end else begin
@@ -208,7 +233,7 @@ module ddr3_init #(
                 S_MR0_WAIT: begin
                     // tMOD after MR0 (because MR0 carries DLL_RST=1) — longer
                     // than the inter-MRS tMRD.
-                    if (wait_ctr == `DDR3_TMOD - 2) begin
+                    if (wait_ctr == TMOD_WAIT) begin
                         wait_ctr <= 24'd0;
                         state    <= S_ZQCL;
                     end else begin
@@ -226,7 +251,7 @@ module ddr3_init #(
                     state       <= S_ZQ_WAIT;
                 end
                 S_ZQ_WAIT: begin
-                    if (wait_ctr == `DDR3_TZQINIT - 2) begin
+                    if (wait_ctr == TZQ_WAIT) begin
                         wait_ctr <= 24'd0;
                         state    <= S_DLLK_WAIT;
                     end else begin
@@ -237,7 +262,7 @@ module ddr3_init #(
                 // tDLLK overlaps tZQinit in practice; we still wait the full
                 // tDLLK from MR0 issue to be conservative.
                 S_DLLK_WAIT: begin
-                    if (wait_ctr == `DDR3_TDLLK - 1) begin
+                    if (wait_ctr == TDLLK_SYS - 1) begin
                         wait_ctr <= 24'd0;
                         state    <= S_PRE_ALL;
                     end else begin
@@ -255,7 +280,7 @@ module ddr3_init #(
                     state       <= S_PRE_WAIT;
                 end
                 S_PRE_WAIT: begin
-                    if (wait_ctr == `DDR3_TRP - 2) begin
+                    if (wait_ctr == TRP_WAIT) begin
                         wait_ctr <= 24'd0;
                         state    <= S_FIRST_REF;
                     end else begin
@@ -271,7 +296,7 @@ module ddr3_init #(
                     state       <= S_REF_WAIT;
                 end
                 S_REF_WAIT: begin
-                    if (wait_ctr == `DDR3_TRFC - 2) begin
+                    if (wait_ctr == TRFC_WAIT) begin
                         wait_ctr    <= 24'd0;
                         state       <= S_DONE;
                         o_init_done <= 1'b1;

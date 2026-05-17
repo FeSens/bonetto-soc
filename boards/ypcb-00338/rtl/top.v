@@ -2,7 +2,7 @@
 //
 // Iter-5 (cal-gated DDR3 datapath + status mux):
 //   * memtest_lite + wb_memory (BRAM) + ddr3_ctrl now share clk_sys
-//     (200 MHz from the PHY MMCM). Before MMCM locks they are held
+//     (100 MHz from the PHY MMCM). Before MMCM locks they are held
 //     in reset by rst_sys.
 //   * wb_decode2 routes memtest's address space:
 //       adr[14]=0 → wb_memory (BRAM, 16K words = 64 KB)
@@ -42,7 +42,7 @@ module top (
     end
     wire por_rst_50 = (por_ctr_50 != 0);
 
-    // ---- DDR3 PHY clocks + reset (200 MHz controller clk_sys) ----
+    // ---- DDR3 PHY clocks + reset (100 MHz controller clk_sys) ----
     wire clk_sys;
     wire clk_phy_x4;
     wire clk_dq;

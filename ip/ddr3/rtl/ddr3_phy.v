@@ -8,8 +8,8 @@
 // Architecture (iter-3b):
 //
 //   clk_50 ──> PLL ───┬──> clk_sys (100 MHz)  -> controller logic
-//                     ├──> clk_phy_x4 (200 MHz) -> DDR3 CK
-//                     └──> clk_dq (= clk_phy_x4 with 90° phase) for DQS
+//                     ├──> clk_phy_x4 (400 MHz) -> DDR3 CK
+//                     └──> clk_dq (= clk_phy_x4 with 90 deg phase) for DQS
 //
 //   clk_sys ─→ fixed-phase fabric I/O path for YPCB-00338 bring-up
 //
@@ -46,8 +46,8 @@ module ddr3_phy #(
 
     // MMCM outputs to controller side.
     output wire                            o_clk_sys,       // 100 MHz controller
-    output wire                            o_clk_phy_x4,    // 200 MHz DDR CK
-    output wire                            o_clk_dq,        // 200 MHz +90°
+    output wire                            o_clk_phy_x4,    // 400 MHz DDR CK
+    output wire                            o_clk_dq,        // 400 MHz +90 deg
     output wire                            o_locked,
     output wire                            o_idelay_ready,  // from IDELAYCTRL
 
@@ -117,7 +117,7 @@ module ddr3_phy #(
     output wire [NUM_BYTE_LANES-1:0]       o_ddr3_dm
 );
     // ============================================================
-    // PLL — 50 MHz ref → 100 MHz sys + 200 MHz DDR CK + 200 MHz +90°.
+    // PLL - 50 MHz ref -> 100 MHz sys + 400 MHz DDR CK + 400 MHz +90 deg.
     //
     // The original bring-up used MMCME2_ADV for dynamic phase shifting, but
     // the current openXC7/prjxray Kintex-7 flow programs an MMCM that does
@@ -128,8 +128,8 @@ module ddr3_phy #(
     // ============================================================
     wire   clkfb;
     wire   mmcm_clkout_sys;       // 100 MHz
-    wire   mmcm_clkout_phy_x4;    // 200 MHz
-    wire   mmcm_clkout_dq;        // 200 MHz, +90°
+    wire   mmcm_clkout_phy_x4;    // 400 MHz
+    wire   mmcm_clkout_dq;        // 400 MHz, +90 deg
 
 `ifdef BONETTO_SOC_SIM
     assign mmcm_clkout_sys    = i_clk_ref;
@@ -180,8 +180,8 @@ module ddr3_phy #(
         .CLKFBOUT_MULT          (16),
         .DIVCLK_DIVIDE          (1),
         .CLKOUT0_DIVIDE         (8),
-        .CLKOUT1_DIVIDE         (4),
-        .CLKOUT2_DIVIDE         (4),
+        .CLKOUT1_DIVIDE         (2),
+        .CLKOUT2_DIVIDE         (2),
         .CLKOUT2_PHASE          (90.0),
         .COMPENSATION           ("INTERNAL"),
         .STARTUP_WAIT           ("FALSE")
@@ -244,11 +244,11 @@ module ddr3_phy #(
     // ============================================================
     // Command-bus output FFs (single-data-rate)
     //
-    // The controller runs at clk_sys (100 MHz) while DDR3 CK is 200 MHz.
+    // The controller runs at clk_sys (100 MHz) while DDR3 CK is 400 MHz.
     // Capture one command/address/control word per clk_sys cycle, then
     // launch it from the +90 degree clk_dq domain for one DDR3 CK cycle.
     // That keeps command pins away from the CK sampling edge and inserts
-    // NOPs on the second CK cycle within each clk_sys cycle.
+    // NOPs on the other three CK cycles within each clk_sys cycle.
     // ============================================================
     reg cke_shadow, reset_shadow, odt_shadow;
     reg [3:0] cmd_shadow;
@@ -282,11 +282,11 @@ module ddr3_phy #(
     reg cke_q, reset_q, cs_q, ras_q, cas_q, we_q, odt_q;
     reg [BANK_BITS-1:0]  ba_q;
     reg [ROW_BITS-1:0]   addr_q;
-    reg                  cmd_half;
+    reg [1:0]            cmd_phase;
 
     always @(posedge o_clk_dq or posedge phy_io_rst) begin
         if (phy_io_rst) begin
-            cmd_half <= 1'b0;
+            cmd_phase <= 2'd0;
             cke_q    <= 1'b0;
             reset_q  <= 1'b0;
             odt_q    <= 1'b0;
@@ -294,11 +294,11 @@ module ddr3_phy #(
             ba_q     <= {BANK_BITS{1'b0}};
             addr_q   <= {ROW_BITS{1'b0}};
         end else begin
-            cmd_half <= ~cmd_half;
+            cmd_phase <= cmd_phase + 2'd1;
             cke_q    <= cke_shadow;
             reset_q  <= reset_shadow;
             odt_q    <= odt_shadow;
-            if (!cmd_half) begin
+            if (cmd_phase == 2'd0) begin
                 {cs_q, ras_q, cas_q, we_q} <= cmd_shadow;
                 ba_q   <= ba_shadow;
                 addr_q <= addr_shadow;

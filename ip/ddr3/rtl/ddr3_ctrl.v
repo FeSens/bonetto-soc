@@ -33,7 +33,7 @@ module ddr3_ctrl #(
     parameter integer SERDES_RATIO   = 4
 ) (
     input  wire                     i_clk,               // SoC clock (50 MHz on YPCB-00338)
-    input  wire                     i_clk_phy,           // DDR3 clock — TODO: MMCM in iter-3
+    input  wire                     i_clk_phy,           // DDR3 command clock
     input  wire                     i_rst,
 
     // -------- Wishbone B4 pipelined slave (locked port set) --------
@@ -130,7 +130,7 @@ module ddr3_ctrl #(
     wire                  rt_cmd_valid;
     wire                  rt_reset_n   = 1'b1;
     wire                  rt_cke       = 1'b1;
-    wire                  rt_odt       = 1'b0;
+    wire                  rt_odt;
 
     wire                  rt_wb_stall;
     wire                  rt_wb_ack;
@@ -166,6 +166,7 @@ module ddr3_ctrl #(
         .o_cmd       (rt_cmd),
         .o_cmd_ba    (rt_ba),
         .o_cmd_addr  (rt_addr),
+        .o_cmd_odt   (rt_odt),
 
         .i_rd_data   (i_phy_rd_data),
         .i_rd_valid  (i_phy_rd_valid),
