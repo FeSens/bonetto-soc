@@ -31,9 +31,9 @@ module top (
     output wire        ddr3_reset_n,
     output wire        ddr3_ck_p,
     output wire        ddr3_ck_n,
-    inout  wire [71:0] ddr3_dq,
-    inout  wire [8:0]  ddr3_dqs_p,
-    inout  wire [8:0]  ddr3_dqs_n
+    inout  wire [31:0] ddr3_dq,
+    inout  wire [3:0]  ddr3_dqs_p,
+    inout  wire [3:0]  ddr3_dqs_n
 );
     // ---- Power-on reset on clk_50 (16K cycles ≈ 320 µs @ 50 MHz) ----
     reg [13:0] por_ctr_50 = 14'h3FFF;
@@ -141,24 +141,45 @@ module top (
     );
 
     // -----------------------------------------------------------------
-    // CDC: host_to_fpga + valid pulse from clk_50 → clk_sys.
-    // The bus is stable for many clk_sys cycles between writes (JTAG is
-    // slow); per-bit 2-FF sync is safe. The valid pulse is wider than one
-    // clk_sys period (host_to_fpga_valid_50 holds for one clk_50 = 20 ns,
-    // which is 4 clk_sys cycles), so 3-stage flop captures the rising edge.
+    // CDC: host_to_fpga + write event from clk_50 to clk_sys.
+    // Hold each host word in clk_50 and transfer an event toggle into clk_sys.
+    // The JTAG write cadence is much slower than either clock, so by the time
+    // the toggle edge arrives the held word has crossed the data synchronizer.
     // -----------------------------------------------------------------
     wire [31:0] host_to_fpga;
     wire        host_to_fpga_valid_50;
-    reg  [31:0] h2f_sync_q1, h2f_sync_q2;
-    reg         h2f_valid_q1, h2f_valid_q2, h2f_valid_q3;
-    always @(posedge clk_sys) begin
-        h2f_sync_q1  <= host_to_fpga;
-        h2f_sync_q2  <= h2f_sync_q1;
-        h2f_valid_q1 <= host_to_fpga_valid_50;
-        h2f_valid_q2 <= h2f_valid_q1;
-        h2f_valid_q3 <= h2f_valid_q2;
+    reg  [31:0] h2f_hold_50 = 32'd0;
+    reg         h2f_toggle_50 = 1'b0;
+    always @(posedge clk_50) begin
+        if (por_rst_50) begin
+            h2f_hold_50   <= 32'd0;
+            h2f_toggle_50 <= 1'b0;
+        end else if (host_to_fpga_valid_50) begin
+            h2f_hold_50   <= host_to_fpga;
+            h2f_toggle_50 <= ~h2f_toggle_50;
+        end
     end
-    wire h2f_valid_edge_sys = h2f_valid_q2 && !h2f_valid_q3;
+
+    reg  [31:0] h2f_data_q1, h2f_data_q2;
+    reg  [2:0]  h2f_toggle_sync;
+    reg  [31:0] h2f_cmd_sys;
+    reg         h2f_cmd_valid_sys;
+    always @(posedge clk_sys) begin
+        if (rst_sys) begin
+            h2f_data_q1      <= 32'd0;
+            h2f_data_q2      <= 32'd0;
+            h2f_toggle_sync  <= 3'b000;
+            h2f_cmd_sys      <= 32'd0;
+            h2f_cmd_valid_sys <= 1'b0;
+        end else begin
+            h2f_data_q1      <= h2f_hold_50;
+            h2f_data_q2      <= h2f_data_q1;
+            h2f_toggle_sync  <= {h2f_toggle_sync[1:0], h2f_toggle_50};
+            h2f_cmd_valid_sys <= h2f_toggle_sync[2] ^ h2f_toggle_sync[1];
+            if (h2f_toggle_sync[2] ^ h2f_toggle_sync[1])
+                h2f_cmd_sys <= h2f_data_q2;
+        end
+    end
 
     wire [8:0] jwb_cal_load_lane;
     wire [4:0] jwb_cal_tap;
@@ -170,8 +191,8 @@ module top (
     jtag_wb_master #(.WB_ADDR_W(15), .WB_DATA_W(32), .NUM_BYTE_LANES(9)) u_jwb (
         .i_clk         (clk_sys),
         .i_rst         (rst_sys),
-        .i_cmd_word    (h2f_sync_q2),
-        .i_cmd_valid   (h2f_valid_edge_sys),
+        .i_cmd_word    (h2f_cmd_sys),
+        .i_cmd_valid   (h2f_cmd_valid_sys),
         .o_wb_cyc      (jwb_cyc),
         .o_wb_stb      (jwb_stb),
         .o_wb_we       (jwb_we),
@@ -312,17 +333,24 @@ module top (
 
     wire        cal_wlvl_start, cal_wlvl_done, cal_wlvl_error;
     wire        cal_rdlvl_start, cal_rdlvl_done, cal_rdlvl_error;
+    localparam integer DDR3_ACTIVE_BYTE_LANES = 4;
+    localparam integer DDR3_DQ_BITS = 8;
+    localparam integer DDR3_SERDES_RATIO = 4;
+    localparam integer DDR3_PHY_DATA_W =
+        DDR3_ACTIVE_BYTE_LANES * DDR3_DQ_BITS * DDR3_SERDES_RATIO;
+
     wire        phy_wr_valid;
-    wire [9*8*4-1:0] phy_wr_data;
+    wire [DDR3_PHY_DATA_W-1:0] phy_wr_data;
+    wire        phy_rd_capture;
     wire        phy_rd_valid;
-    wire [9*8*4-1:0] phy_rd_data;
+    wire [DDR3_PHY_DATA_W-1:0] phy_rd_data;
 
     ddr3_ctrl #(
         .WB_DATA_W(32),
         .WB_ADDR_W(28),
-        .DQ_BITS(8),
-        .NUM_BYTE_LANES(9),
-        .SERDES_RATIO(4)
+        .DQ_BITS(DDR3_DQ_BITS),
+        .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
+        .SERDES_RATIO(DDR3_SERDES_RATIO)
     ) u_ddr3_ctrl (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),
@@ -350,6 +378,7 @@ module top (
         .i_phy_rd_valid  (phy_rd_valid),
         .o_phy_wr_data   (phy_wr_data),
         .o_phy_wr_valid  (phy_wr_valid),
+        .o_phy_rd_capture(phy_rd_capture),
         .i_mpr_req      (phy_mpr_req),
         .i_mpr_addr     (phy_mpr_addr),
         .o_mpr_busy     (ctrl_mpr_busy),
@@ -383,7 +412,11 @@ module top (
         .o_state          (cal_seq_state)
     );
 
-    ddr3_phy #(.DQ_BITS(8), .NUM_BYTE_LANES(9), .SERDES_RATIO(4)) u_ddr3_phy (
+    ddr3_phy #(
+        .DQ_BITS(DDR3_DQ_BITS),
+        .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
+        .SERDES_RATIO(DDR3_SERDES_RATIO)
+    ) u_ddr3_phy (
         .i_clk_ref      (clk_50),
         .i_rst_ref      (por_rst_50),
         .o_clk_sys      (clk_sys),
@@ -402,7 +435,8 @@ module top (
 
         .i_wr_valid     (phy_wr_valid),
         .i_wr_data      (phy_wr_data),
-        .i_wr_mask      (9'b0),
+        .i_wr_mask      ({DDR3_ACTIVE_BYTE_LANES{1'b0}}),
+        .i_rd_capture   (phy_rd_capture),
 
         .o_rd_valid     (phy_rd_valid),
         .o_rd_data      (phy_rd_data),
@@ -418,7 +452,7 @@ module top (
         .o_mpr_read_req    (phy_mpr_req),
         .o_mpr_read_addr   (phy_mpr_addr),
 
-        .i_cal_jwb_load_lane (jwb_cal_load_lane),
+        .i_cal_jwb_load_lane (jwb_cal_load_lane[DDR3_ACTIVE_BYTE_LANES-1:0]),
         .i_cal_jwb_tap       (jwb_cal_tap),
 
         .i_phase_req     (jwb_phase_req),
@@ -437,9 +471,9 @@ module top (
         .o_ddr3_odt     (ddr3_odt),
         .o_ddr3_ba      (ddr3_ba),
         .o_ddr3_addr    (ddr3_addr),
-        .io_ddr3_dq     (ddr3_dq),
-        .io_ddr3_dqs_p  (ddr3_dqs_p),
-        .io_ddr3_dqs_n  (ddr3_dqs_n),
+        .io_ddr3_dq     (ddr3_dq[DDR3_ACTIVE_BYTE_LANES*DDR3_DQ_BITS-1:0]),
+        .io_ddr3_dqs_p  (ddr3_dqs_p[DDR3_ACTIVE_BYTE_LANES-1:0]),
+        .io_ddr3_dqs_n  (ddr3_dqs_n[DDR3_ACTIVE_BYTE_LANES-1:0]),
         .o_ddr3_dm      ()
     );
 
@@ -588,6 +622,7 @@ module top (
     reg [14:0] jwb_addr_echo_sync   [1:0];
     reg [31:0] jwb_data_echo_sync   [1:0];
     reg [31:0] jwb_rd_data_sync     [1:0];
+    reg [7:0]  d3_ctrl_sync             [1:0];
     always @(posedge clk_50) begin
         jwb_busy_sync        <= {jwb_busy_sync[0],        jwb_busy};
         jwb_last_ack_sync    <= {jwb_last_ack_sync[0],    jwb_last_ack};
@@ -602,6 +637,9 @@ module top (
         jwb_data_echo_sync[1] <= jwb_data_echo_sync[0];
         jwb_rd_data_sync[0]   <= jwb_rd_data;
         jwb_rd_data_sync[1]   <= jwb_rd_data_sync[0];
+        d3_ctrl_sync[0]  <= {d3_cyc, d3_stb, d3_we, d3_ack, d3_stall,
+                             d3_err, phy_wr_valid, phy_rd_valid};
+        d3_ctrl_sync[1]  <= d3_ctrl_sync[0];
     end
 
     wire mmcm_locked_d   = mmcm_locked_sync[1];
@@ -693,6 +731,11 @@ module top (
                                     8'd0, phy_x4_ticks_lo};
             8'h17:   status_word = {16'hAB17, dq_alive, dq_synced_bit,
                                     8'd0, dq_ticks_lo};
+            8'h18:   status_word = {16'hAB18, 15'd0, phy_rd_capture};
+            8'h19:   status_word = {16'hAB19, 16'd0};
+            8'h1A:   status_word = {16'hAB1A, 16'd0};
+            8'h1B:   status_word = {16'hAB1B, 16'd0};
+            8'h1C:   status_word = {24'hAB1C00, d3_ctrl_sync[1]};
             8'hFE:   status_word = {16'hB07E, 16'h0010};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};

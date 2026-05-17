@@ -91,6 +91,7 @@
               pkgs.python312Packages.textx
               pkgs.python312Packages.simplejson
               pkgs.python312Packages.intervaltree
+              pkgs.python312Packages.click
             ];
 
             # Heavier verification tools (verilator, z3, cocotb, symbiyosys)
@@ -103,7 +104,7 @@
               export NEXTPNR_XILINX_PYTHON_DIR=${ox.nextpnr-xilinx}/share/nextpnr/python/
               export PRJXRAY_DB_DIR=${ox.nextpnr-xilinx}/share/nextpnr/external/prjxray-db
               export PRJXRAY_PYTHON_DIR=${ox.prjxray}/usr/share/python3/
-              export PYTHONPATH=$PYTHONPATH:$PRJXRAY_PYTHON_DIR:${pyPkg ox.fasm}${pyPkg pkgs.python312Packages.textx}${pyPkg pkgs.python312Packages.arpeggio}${pyPkg pkgs.python312Packages.pyyaml}${pyPkg pkgs.python312Packages.simplejson}${pyPkg pkgs.python312Packages.intervaltree}${pyPkg pkgs.python312Packages.sortedcontainers}
+              export PYTHONPATH=$PYTHONPATH:$PRJXRAY_PYTHON_DIR:${pyPkg ox.fasm}${pyPkg pkgs.python312Packages.textx}${pyPkg pkgs.python312Packages.arpeggio}${pyPkg pkgs.python312Packages.pyyaml}${pyPkg pkgs.python312Packages.simplejson}${pyPkg pkgs.python312Packages.intervaltree}${pyPkg pkgs.python312Packages.sortedcontainers}${pyPkg pkgs.python312Packages.click}
               export PYPY3=${pkgs.pypy310}/bin/pypy3.10
               echo "bonetto-soc dev shell ready — \`make help\` for targets."
             '';

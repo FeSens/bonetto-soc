@@ -107,6 +107,7 @@ module tb_ddr3_init_top (
         .i_phy_rd_valid  (1'b1),
         .o_phy_wr_data   (),
         .o_phy_wr_valid  (),
+        .o_phy_rd_capture(),
         // MPR-req tied off — we don't drive MPR reads from this tb.
         .i_mpr_req   (1'b0),
         .i_mpr_addr  (13'd0),

@@ -42,12 +42,15 @@ CHIPDB := $(BUILD)/chipdb
 # nextpnr-xilinx takes a single XDC file, so we cat them at build time.
 XDC_FILES := constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc
 XDC       := $(BUILD)/$(PROJECT).xdc
+DDR3_ACTIVE_DQ_MAX  ?= 31
+DDR3_ACTIVE_DQS_MAX ?= 3
 
 # Shared-header include dirs are wired into read_verilog inside the
 # yosys script (yosys's CLI has no -I flag — includes go via `read_verilog -I`).
 INCDIRS := -I ../../verification/common -I ../../ip/wishbone/rtl -I ../../ip/ddr3/rtl
 
 PYPY3  ?= pypy3
+NEXTPNR_FREQ ?= 100
 
 .PHONY: bitstream program detect memtest clean help
 .DEFAULT_GOAL := bitstream
@@ -66,11 +69,11 @@ $(CHIPDB)/$(DBPART).bin: | $(CHIPDB)
 	bbasm -l $(BUILD)/$(DBPART).bba $@
 	rm -f $(BUILD)/$(DBPART).bba
 
-$(XDC): $(XDC_FILES) | $(BUILD)
-	cat $(XDC_FILES) > $@
+$(XDC): $(XDC_FILES) Makefile | $(BUILD)
+	perl -ne 'next if /ddr3_dq\[(\d+)\]/ && $$1 > $(DDR3_ACTIVE_DQ_MAX); next if /ddr3_dqs_[pn]\[(\d+)\]/ && $$1 > $(DDR3_ACTIVE_DQS_MAX); print' $(XDC_FILES) > $@
 
-$(BUILD)/$(PROJECT).fasm: $(BUILD)/$(PROJECT).json $(CHIPDB)/$(DBPART).bin $(XDC)
-	nextpnr-xilinx --chipdb $(CHIPDB)/$(DBPART).bin --xdc $(XDC) --json $(BUILD)/$(PROJECT).json --fasm $@
+$(BUILD)/$(PROJECT).fasm: $(BUILD)/$(PROJECT).json $(CHIPDB)/$(DBPART).bin $(XDC) Makefile
+	nextpnr-xilinx --chipdb $(CHIPDB)/$(DBPART).bin --xdc $(XDC) --json $(BUILD)/$(PROJECT).json --freq $(NEXTPNR_FREQ) --fasm $@
 
 $(BUILD)/$(PROJECT).frames: $(BUILD)/$(PROJECT).fasm
 	# Strip ~14 FASM lines that prjxray's kintex7 DB doesn't document:

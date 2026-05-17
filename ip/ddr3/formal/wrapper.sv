@@ -75,6 +75,7 @@ module ddr3_ctrl_wrapper (
         .i_phy_rd_valid (1'b1),
         .o_phy_wr_data  (),
         .o_phy_wr_valid (),
+        .o_phy_rd_capture(),
         .o_init_done   (init_done),
         .o_init_error  (init_error),
         .o_init_error_code(init_error_code),

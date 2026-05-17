@@ -7,11 +7,11 @@
 //
 // Architecture (iter-3b):
 //
-//   clk_50 ──> PLL ───┬──> clk_sys (200 MHz)  -> controller logic
-//                     ├──> clk_phy_x4 (400 MHz) -> OSERDESE2 IO
+//   clk_50 ──> PLL ───┬──> clk_sys (100 MHz)  -> controller logic
+//                     ├──> clk_phy_x4 (200 MHz) -> DDR3 CK
 //                     └──> clk_dq (= clk_phy_x4 with 90° phase) for DQS
 //
-//   clk_sys ─→ IDELAYCTRL (REFCLK=200 MHz) ─→ all IDELAYE2 ref taps
+//   clk_sys ─→ fixed-phase fabric I/O path for YPCB-00338 bring-up
 //
 //   Controller wdat ─→ OSERDESE2 (DDR) ─→ IOBUFDS_DCIEN ─→ DDR3 DQ
 //   Controller DQS ─→ OSERDESE2 (clk_dq, +90°) ─→ IOBUFDS_DCIEN ─→ DQS pair
@@ -45,9 +45,9 @@ module ddr3_phy #(
     input  wire                            i_rst_ref,
 
     // MMCM outputs to controller side.
-    output wire                            o_clk_sys,       // 200 MHz controller
-    output wire                            o_clk_phy_x4,    // 400 MHz SERDES
-    output wire                            o_clk_dq,        // 400 MHz +90°
+    output wire                            o_clk_sys,       // 100 MHz controller
+    output wire                            o_clk_phy_x4,    // 200 MHz DDR CK
+    output wire                            o_clk_dq,        // 200 MHz +90°
     output wire                            o_locked,
     output wire                            o_idelay_ready,  // from IDELAYCTRL
 
@@ -66,6 +66,7 @@ module ddr3_phy #(
     input  wire [NUM_BYTE_LANES-1:0]       i_wr_mask,
 
     // Controller-side read data.
+    input  wire                            i_rd_capture,
     output wire                            o_rd_valid,
     output wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] o_rd_data,
 
@@ -116,7 +117,7 @@ module ddr3_phy #(
     output wire [NUM_BYTE_LANES-1:0]       o_ddr3_dm
 );
     // ============================================================
-    // PLL — 50 MHz ref → 200 MHz sys + 400 MHz x4 SERDES + 400 +90°.
+    // PLL — 50 MHz ref → 100 MHz sys + 200 MHz DDR CK + 200 MHz +90°.
     //
     // The original bring-up used MMCME2_ADV for dynamic phase shifting, but
     // the current openXC7/prjxray Kintex-7 flow programs an MMCM that does
@@ -126,9 +127,9 @@ module ddr3_phy #(
     // below, but they do not affect the PLL output phase.
     // ============================================================
     wire   clkfb;
-    wire   mmcm_clkout_sys;       // 200 MHz
-    wire   mmcm_clkout_phy_x4;    // 400 MHz
-    wire   mmcm_clkout_dq;        // 400 MHz, +90°
+    wire   mmcm_clkout_sys;       // 100 MHz
+    wire   mmcm_clkout_phy_x4;    // 200 MHz
+    wire   mmcm_clkout_dq;        // 200 MHz, +90°
 
 `ifdef BONETTO_SOC_SIM
     assign mmcm_clkout_sys    = i_clk_ref;
@@ -178,9 +179,9 @@ module ddr3_phy #(
         .CLKIN1_PERIOD          (20.0),
         .CLKFBOUT_MULT          (16),
         .DIVCLK_DIVIDE          (1),
-        .CLKOUT0_DIVIDE         (4),
-        .CLKOUT1_DIVIDE         (2),
-        .CLKOUT2_DIVIDE         (2),
+        .CLKOUT0_DIVIDE         (8),
+        .CLKOUT1_DIVIDE         (4),
+        .CLKOUT2_DIVIDE         (4),
         .CLKOUT2_PHASE          (90.0),
         .COMPENSATION           ("INTERNAL"),
         .STARTUP_WAIT           ("FALSE")
@@ -208,6 +209,8 @@ module ddr3_phy #(
     BUFG u_bufg_dq     (.I(mmcm_clkout_dq),     .O(o_clk_dq));
 `endif
 
+    wire phy_io_rst = i_rst_ref | ~o_locked;
+
     // ============================================================
     // Differential DDR3 clock output (OBUFDS_DIFF_OUT)
     // ============================================================
@@ -215,8 +218,24 @@ module ddr3_phy #(
     assign o_ddr3_ck_p =  mmcm_clkout_dq;
     assign o_ddr3_ck_n = ~mmcm_clkout_dq;
 `else
+    wire ck_out;
+
+    ODDR #(
+        .DDR_CLK_EDGE("SAME_EDGE"),
+        .INIT(1'b0),
+        .SRTYPE("SYNC")
+    ) u_oddr_ck (
+        .Q  (ck_out),
+        .C  (o_clk_phy_x4),
+        .CE (1'b1),
+        .D1 (1'b1),
+        .D2 (1'b0),
+        .R  (phy_io_rst),
+        .S  (1'b0)
+    );
+
     OBUFDS u_obufds_ck (
-        .I  (mmcm_clkout_phy_x4),
+        .I  (ck_out),
         .O  (o_ddr3_ck_p),
         .OB (o_ddr3_ck_n)
     );
@@ -224,21 +243,70 @@ module ddr3_phy #(
 
     // ============================================================
     // Command-bus output FFs (single-data-rate)
+    //
+    // The controller runs at clk_sys (100 MHz) while DDR3 CK is 200 MHz.
+    // Capture one command/address/control word per clk_sys cycle, then
+    // launch it from the +90 degree clk_dq domain for one DDR3 CK cycle.
+    // That keeps command pins away from the CK sampling edge and inserts
+    // NOPs on the second CK cycle within each clk_sys cycle.
     // ============================================================
+    reg cke_shadow, reset_shadow, odt_shadow;
+    reg [3:0] cmd_shadow;
+    reg [BANK_BITS-1:0] ba_shadow;
+    reg [ROW_BITS-1:0] addr_shadow;
+
+    always @(posedge o_clk_sys or posedge phy_io_rst) begin
+        if (phy_io_rst) begin
+            cke_shadow   <= 1'b0;
+            reset_shadow <= 1'b0;
+            odt_shadow   <= 1'b0;
+            cmd_shadow   <= 4'b1111;
+            ba_shadow    <= {BANK_BITS{1'b0}};
+            addr_shadow  <= {ROW_BITS{1'b0}};
+        end else begin
+            cke_shadow   <= i_cmd_cke;
+            reset_shadow <= i_cmd_reset_n;
+            odt_shadow   <= i_cmd_odt;
+            if (i_cmd_valid) begin
+                cmd_shadow  <= i_cmd;
+                ba_shadow   <= i_cmd_ba;
+                addr_shadow <= i_cmd_addr;
+            end else begin
+                cmd_shadow  <= 4'b1111;
+                ba_shadow   <= {BANK_BITS{1'b0}};
+                addr_shadow <= {ROW_BITS{1'b0}};
+            end
+        end
+    end
+
     reg cke_q, reset_q, cs_q, ras_q, cas_q, we_q, odt_q;
     reg [BANK_BITS-1:0]  ba_q;
     reg [ROW_BITS-1:0]   addr_q;
+    reg                  cmd_half;
 
-    always @(posedge o_clk_sys) begin
-        cke_q   <= i_cmd_cke;
-        reset_q <= i_cmd_reset_n;
-        odt_q   <= i_cmd_odt;
-        if (i_cmd_valid) begin
-            {cs_q, ras_q, cas_q, we_q} <= i_cmd;
-            ba_q   <= i_cmd_ba;
-            addr_q <= i_cmd_addr;
-        end else begin
+    always @(posedge o_clk_dq or posedge phy_io_rst) begin
+        if (phy_io_rst) begin
+            cmd_half <= 1'b0;
+            cke_q    <= 1'b0;
+            reset_q  <= 1'b0;
+            odt_q    <= 1'b0;
             {cs_q, ras_q, cas_q, we_q} <= 4'b1111;
+            ba_q     <= {BANK_BITS{1'b0}};
+            addr_q   <= {ROW_BITS{1'b0}};
+        end else begin
+            cmd_half <= ~cmd_half;
+            cke_q    <= cke_shadow;
+            reset_q  <= reset_shadow;
+            odt_q    <= odt_shadow;
+            if (!cmd_half) begin
+                {cs_q, ras_q, cas_q, we_q} <= cmd_shadow;
+                ba_q   <= ba_shadow;
+                addr_q <= addr_shadow;
+            end else begin
+                {cs_q, ras_q, cas_q, we_q} <= 4'b1111;
+                ba_q   <= {BANK_BITS{1'b0}};
+                addr_q <= {ROW_BITS{1'b0}};
+            end
         end
     end
 
@@ -255,8 +323,6 @@ module ddr3_phy #(
     // ============================================================
     // Lane array — multi-byte-lane data path + IDELAYCTRL
     // ============================================================
-    wire phy_io_rst = i_rst_ref | ~o_locked;
-
     wire [NUM_BYTE_LANES-1:0]    cal_dq_load_lane = {NUM_BYTE_LANES{1'b0}}; // per-bit deskew TBD
     wire [DQ_BITS-1:0]           cal_dq_sel       = {DQ_BITS{1'b0}};
     wire [4:0]                   cal_dq_tap       = 5'd0;
@@ -287,12 +353,13 @@ module ddr3_phy #(
         .i_clk_sys                (o_clk_sys),
         .i_clk_phy_x4             (o_clk_phy_x4),
         .i_clk_dq                 (o_clk_dq),
-        .i_clk_ref_200            (o_clk_sys),       // 200 MHz sys clock doubles as IDELAYCTRL ref
+        .i_clk_ref_200            (o_clk_sys),
         .i_rst                    (phy_io_rst),
 
         .i_wr_en                  (i_wr_valid),
         .i_wr_data                (i_wr_data),
         .i_wr_dqs_en              (i_wr_valid),      // normal-write DQS strobe
+        .i_rd_capture             (i_rd_capture),
 
         .o_rd_data                (lane_rd_data),
         .o_rd_valid_lane          (lane_rd_valid),

@@ -71,6 +71,7 @@ module ddr3_runtime #(
     input  wire                       i_rd_valid,
     output wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] o_wr_data,
     output wire                       o_wr_valid,
+    output wire                       o_rd_capture,
 
     // -------- MPR-read request port (iter-3c, for read-leveling) --------
     // When `i_mpr_req` pulses, the FSM emits an RD command with
@@ -150,6 +151,9 @@ module ddr3_runtime #(
     localparam integer BURST_SYS_CYCLES = `DDR3_BL / SERDES_RATIO;
     localparam integer CL_SYS  = (`DDR3_CL  + 1) / 2;
     localparam integer CWL_SYS = (`DDR3_CWL + 1) / 2;
+    localparam integer CWL_START_WAIT = (CWL_SYS > 2) ? (CWL_SYS - 3) : 0;
+    localparam integer READ_CAPTURE_SYS_CYCLES = BURST_SYS_CYCLES + 6;
+    localparam integer READ_SETTLE_SYS_CYCLES = 4;
     localparam integer TWR_SYS = (`DDR3_TWR + 1) / 2;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
@@ -208,6 +212,7 @@ module ddr3_runtime #(
     assign o_wb_stall = ~wb_accept_ok;
     assign o_wb_err   = 1'b0;
     assign o_wr_valid = (state == S_DATA_WR);
+    assign o_rd_capture = (state == S_DATA_RD) && (beat_ctr < READ_CAPTURE_SYS_CYCLES);
 
     wire [WB_DATA_W-1:0] phy_rd_word;
 
@@ -315,8 +320,8 @@ module ddr3_runtime #(
                 end
 
                 S_DATA_RD: begin
-                    if (beat_ctr == 0) o_wb_dat <= phy_rd_word;
-                    if (beat_ctr == BURST_SYS_CYCLES - 1) begin
+                    if (beat_ctr == READ_CAPTURE_SYS_CYCLES + READ_SETTLE_SYS_CYCLES - 1) begin
+                        o_wb_dat <= i_rd_valid ? phy_rd_word : 32'hBAD0_BAD0;
                         o_wb_ack <= 1'b1;
                         beat_ctr <= 8'd0;
                         state    <= S_PRE;
@@ -335,7 +340,7 @@ module ddr3_runtime #(
                 end
 
                 S_WAIT_CWL: begin
-                    if (wait_ctr == CWL_SYS - 2) begin
+                    if (wait_ctr == CWL_START_WAIT) begin
                         wait_ctr <= 8'd0;
                         beat_ctr <= 8'd0;
                         state    <= S_DATA_WR;
@@ -478,6 +483,6 @@ module ddr3_runtime #(
     end
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, i_wb_sel, i_rd_valid, ref_pending, 1'b0};
+    wire _u = &{1'b0, i_wb_sel, ref_pending, 1'b0};
     /* verilator lint_on UNUSED */
 endmodule

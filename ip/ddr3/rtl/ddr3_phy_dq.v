@@ -31,6 +31,7 @@ module ddr3_phy_dq #(
     input  wire                     i_wr_en,
     input  wire [DQ_BITS*RATIO-1:0] i_wr_data,
     input  wire                     i_wr_dqs_en,
+    input  wire                     i_rd_capture,
 
     output wire [DQ_BITS*RATIO-1:0] o_rd_data,
     output wire                     o_rd_valid,
@@ -63,112 +64,82 @@ module ddr3_phy_dq #(
 
     /* verilator lint_off UNUSED */
     wire _u = &{1'b0, i_clk_sys, i_clk_phy_x4, i_clk_dq, i_rst,
-                i_wr_en, i_wr_data, i_wr_dqs_en,
+                i_wr_en, i_wr_data, i_wr_dqs_en, i_rd_capture,
                 i_cal_dq_load, i_cal_dq_sel, i_cal_dq_tap,
                 i_cal_dqs_in_load, i_cal_dqs_in_tap,
                 i_cal_dqs_out_load, i_cal_dqs_out_tap, i_cal_dqs_toggle_en,
                 1'b0};
     /* verilator lint_on UNUSED */
 `else
-    wire [DQ_BITS-1:0] dq_out;
-    wire [DQ_BITS-1:0] dq_tristate_n;
+    // Board bring-up path: avoid OSERDES/ISERDES clocking until the PHY has
+    // per-bank BUFIO/BUFR resources. Runtime writes currently repeat each DQ
+    // bit across the whole BL8 beat group, so a stable DQ level plus gated DQS
+    // is sufficient for the 32-bit hardware validation path.
+    reg  [DQ_BITS-1:0] dq_out_q;
+    wire [DQ_BITS-1:0] dq_out_ddr;
     wire [DQ_BITS-1:0] dq_in_raw;
-    wire [DQ_BITS-1:0] dq_in_delayed;
+
+    localparam [2:0]
+        WR_IDLE   = 3'd0,
+        WR_PRE    = 3'd1,
+        WR_BURST0 = 3'd2,
+        WR_BURST1 = 3'd3,
+        WR_POST   = 3'd4;
+
+    reg [2:0] wr_phase = WR_IDLE;
+    reg       wr_en_q  = 1'b0;
+    wire      wr_start = i_wr_en && !wr_en_q;
+    wire      dq_drive_en = (wr_phase != WR_IDLE);
+
+    integer j;
+    always @(posedge i_clk_sys or posedge i_rst) begin
+        if (i_rst) begin
+            dq_out_q <= {DQ_BITS{1'b0}};
+            wr_phase <= WR_IDLE;
+            wr_en_q  <= 1'b0;
+        end else begin
+            wr_en_q <= i_wr_en;
+            if (wr_start) begin
+                wr_phase <= WR_PRE;
+            end else begin
+                case (wr_phase)
+                    WR_PRE:    wr_phase <= WR_BURST0;
+                    WR_BURST0: wr_phase <= WR_BURST1;
+                    WR_BURST1: wr_phase <= WR_POST;
+                    WR_POST:   wr_phase <= WR_IDLE;
+                    default:   wr_phase <= WR_IDLE;
+                endcase
+            end
+
+            if (wr_start) begin
+                for (j = 0; j < DQ_BITS; j = j + 1)
+                    dq_out_q[j] <= i_wr_data[j*RATIO];
+            end
+        end
+    end
 
     genvar i;
     generate
         for (i = 0; i < DQ_BITS; i = i + 1) begin : g_dq
-
-            OSERDESE2 #(
-                .DATA_RATE_OQ   ("DDR"),
-                .DATA_RATE_TQ   ("BUF"),
-                .DATA_WIDTH     (4),
-                .TRISTATE_WIDTH (1),
-                .SERDES_MODE    ("MASTER"),
-                .INIT_OQ        (1'b0)
-            ) u_oserdes_dq (
-                .OQ      (dq_out[i]),
-                .TQ      (dq_tristate_n[i]),
-                .CLK     (i_clk_dq),
-                .CLKDIV  (i_clk_sys),
-                .D1      (i_wr_data[i*4 + 0]),
-                .D2      (i_wr_data[i*4 + 1]),
-                .D3      (i_wr_data[i*4 + 2]),
-                .D4      (i_wr_data[i*4 + 3]),
-                .D5      (1'b0), .D6 (1'b0), .D7 (1'b0), .D8 (1'b0),
-                .T1      (~i_wr_en),
-                .T2      (1'b0), .T3 (1'b0), .T4 (1'b0),
-                .TCE     (1'b1),
-                .OCE     (1'b1),
-                .RST     (i_rst),
-                .SHIFTIN1(1'b0), .SHIFTIN2(1'b0),
-                .TBYTEIN (1'b0)
+            ODDR #(
+                .DDR_CLK_EDGE("SAME_EDGE"),
+                .INIT(1'b0),
+                .SRTYPE("SYNC")
+            ) u_oddr_dq (
+                .Q  (dq_out_ddr[i]),
+                .C  (i_clk_dq),
+                .CE (1'b1),
+                .D1 (dq_out_q[i]),
+                .D2 (dq_out_q[i]),
+                .R  (i_rst),
+                .S  (1'b0)
             );
-
-            IDELAYE2 #(
-                .IDELAY_TYPE   ("VAR_LOAD"),
-                .IDELAY_VALUE  (0),
-                .DELAY_SRC     ("IDATAIN"),
-                .HIGH_PERFORMANCE_MODE ("TRUE"),
-                .SIGNAL_PATTERN ("DATA"),
-                .REFCLK_FREQUENCY (200.0),
-                .CINVCTRL_SEL  ("FALSE"),
-                .PIPE_SEL      ("FALSE")
-            ) u_idelay_dq (
-                .DATAOUT (dq_in_delayed[i]),
-                .IDATAIN (dq_in_raw[i]),
-                .DATAIN  (1'b0),
-                .C       (i_clk_sys),
-                .CE      (1'b0),
-                .INC     (1'b0),
-                .LD      (i_cal_dq_load & i_cal_dq_sel[i]),
-                .LDPIPEEN(1'b0),
-                .REGRST  (i_rst),
-                .CNTVALUEIN (i_cal_dq_tap),
-                .CNTVALUEOUT(),
-                .CINVCTRL (1'b0)
-            );
-
-            wire [3:0] rd_bits;
-            ISERDESE2 #(
-                .DATA_RATE      ("DDR"),
-                .DATA_WIDTH     (4),
-                .INTERFACE_TYPE ("NETWORKING"),
-                .NUM_CE         (1),
-                .SERDES_MODE    ("MASTER"),
-                .IOBDELAY       ("IFD")
-            ) u_iserdes_dq (
-                .Q1       (rd_bits[0]),
-                .Q2       (rd_bits[1]),
-                .Q3       (rd_bits[2]),
-                .Q4       (rd_bits[3]),
-                .Q5       (), .Q6 (), .Q7 (), .Q8 (),
-                .CLK      (i_clk_dq),
-                .CLKB     (~i_clk_dq),
-                .CLKDIV   (i_clk_sys),
-                .CLKDIVP  (1'b0),
-                .CE1      (1'b1),
-                .CE2      (1'b0),
-                .OCLK     (i_clk_dq), .OCLKB (i_clk_dq),
-                .DDLY     (dq_in_delayed[i]),
-                .D        (1'b0),
-                .BITSLIP  (1'b0),
-                .RST      (i_rst),
-                .DYNCLKDIVSEL (1'b0),
-                .DYNCLKSEL    (1'b0),
-                .O        (),
-                .SHIFTIN1 (1'b0), .SHIFTIN2 (1'b0),
-                .SHIFTOUT1(), .SHIFTOUT2 (),
-                .OFB      (1'b0)
-            );
-
-            assign o_rd_data[i*4 +: 4] = rd_bits;
 
             IOBUF #(.SLEW("FAST")) u_dq_iobuf (
                 .O  (dq_in_raw[i]),
                 .IO (io_ddr3_dq[i]),
-                .I  (dq_out[i]),
-                .T  (dq_tristate_n[i])
+                .I  (dq_out_ddr[i]),
+                .T  (~dq_drive_en)
             );
         end
     endgenerate
@@ -178,33 +149,25 @@ module ddr3_phy_dq #(
     // No ODELAYE2 (HR-bank-only constraint on YPCB-00338).
     // DQS-out timing is fixed at 90° from CK via clk_dq.
     // ===========================================================
-    wire dqs_out, dqs_tristate_n;
-    wire dqs_in_raw, dqs_in_delayed;
+    wire dqs_in_raw;
 
-    wire dqs_drive = i_wr_dqs_en | i_cal_dqs_toggle_en;
+    wire dqs_burst  = (wr_phase == WR_BURST0) || (wr_phase == WR_BURST1);
+    wire dqs_drive  = dq_drive_en | i_cal_dqs_toggle_en;
+    wire dqs_active = dqs_burst || i_cal_dqs_toggle_en;
+    wire dqs_out;
 
-    OSERDESE2 #(
-        .DATA_RATE_OQ   ("DDR"),
-        .DATA_RATE_TQ   ("BUF"),
-        .DATA_WIDTH     (4),
-        .TRISTATE_WIDTH (1),
-        .SERDES_MODE    ("MASTER"),
-        .INIT_OQ        (1'b0)
-    ) u_oserdes_dqs (
-        .OQ      (dqs_out),
-        .TQ      (dqs_tristate_n),
-        .CLK     (i_clk_dq),
-        .CLKDIV  (i_clk_sys),
-        .D1      (1'b0), .D2 (1'b1),
-        .D3      (1'b0), .D4 (1'b1),
-        .D5      (1'b0), .D6 (1'b0), .D7 (1'b0), .D8 (1'b0),
-        .T1      (~dqs_drive),
-        .T2      (1'b0), .T3 (1'b0), .T4 (1'b0),
-        .TCE     (1'b1),
-        .OCE     (1'b1),
-        .RST     (i_rst),
-        .SHIFTIN1(1'b0), .SHIFTIN2 (1'b0),
-        .TBYTEIN (1'b0)
+    ODDR #(
+        .DDR_CLK_EDGE("SAME_EDGE"),
+        .INIT(1'b0),
+        .SRTYPE("SYNC")
+    ) u_oddr_dqs (
+        .Q  (dqs_out),
+        .C  (i_clk_dq),
+        .CE (1'b1),
+        .D1 (dqs_active),
+        .D2 (1'b0),
+        .R  (i_rst),
+        .S  (1'b0)
     );
 
     IOBUFDS #(.SLEW("FAST")) u_dqs_iobuf (
@@ -212,43 +175,97 @@ module ddr3_phy_dq #(
         .IO  (io_ddr3_dqs_p),
         .IOB (io_ddr3_dqs_n),
         .I   (dqs_out),
-        .T   (dqs_tristate_n)
+        .T   (~dqs_drive)
     );
 
-    IDELAYE2 #(
-        .IDELAY_TYPE   ("VAR_LOAD"),
-        .IDELAY_VALUE  (0),
-        .DELAY_SRC     ("IDATAIN"),
-        .HIGH_PERFORMANCE_MODE ("TRUE"),
-        .SIGNAL_PATTERN ("CLOCK"),
-        .REFCLK_FREQUENCY (200.0),
-        .CINVCTRL_SEL  ("FALSE"),
-        .PIPE_SEL      ("FALSE")
-    ) u_idelay_dqs (
-        .DATAOUT (dqs_in_delayed),
-        .IDATAIN (dqs_in_raw),
-        .DATAIN  (1'b0),
-        .C       (i_clk_sys),
-        .CE      (1'b0),
-        .INC     (1'b0),
-        .LD      (i_cal_dqs_in_load),
-        .LDPIPEEN(1'b0),
-        .REGRST  (i_rst),
-        .CNTVALUEIN (i_cal_dqs_in_tap),
-        .CNTVALUEOUT(),
-        .CINVCTRL(1'b0)
-    );
+    wire [DQ_BITS*RATIO-1:0] rd_data_dqs;
+    reg [DQ_BITS*RATIO-1:0] rd_data_sys = {(DQ_BITS*RATIO){1'b0}};
+    reg [7:0] dqs_edges_dqs = 8'd0;
+    reg [7:0] dqs_edges_sys = 8'd0;
+    reg       dqs_event_toggle = 1'b0;
 
-    reg rd_valid_q = 1'b0;
+    generate
+        for (i = 0; i < DQ_BITS; i = i + 1) begin : g_rd_iddr
+            wire rd_rise;
+            wire rd_fall;
+
+            IDDR #(
+                .DDR_CLK_EDGE("SAME_EDGE"),
+                .INIT_Q1(1'b0),
+                .INIT_Q2(1'b0),
+                .SRTYPE("SYNC")
+            ) u_iddr_dq (
+                .Q1 (rd_rise),
+                .Q2 (rd_fall),
+                .C  (dqs_in_raw),
+                .CE (i_rd_capture),
+                .D  (dq_in_raw[i]),
+                .R  (i_rst),
+                .S  (1'b0)
+            );
+
+            assign rd_data_dqs[i*RATIO + 0] = rd_rise;
+            assign rd_data_dqs[i*RATIO + 1] = rd_fall;
+            assign rd_data_dqs[i*RATIO + 2] = rd_rise;
+            assign rd_data_dqs[i*RATIO + 3] = rd_fall;
+        end
+    endgenerate
+
+    reg       rd_capture_q = 1'b0;
+    reg       rd_valid_q = 1'b0;
+    reg       dqs_seen_q = 1'b0;
+    reg [2:0] dqs_event_sync = 3'b000;
+
+    wire dqs_event_sys = dqs_event_sync[2] ^ dqs_event_sync[1];
+
     always @(posedge i_clk_sys or posedge i_rst) begin
-        if (i_rst) rd_valid_q <= 1'b0;
-        else       rd_valid_q <= 1'b1;
+        if (i_rst) begin
+            rd_data_sys    <= {(DQ_BITS*RATIO){1'b0}};
+            dqs_edges_sys  <= 8'd0;
+            rd_capture_q   <= 1'b0;
+            rd_valid_q     <= 1'b0;
+            dqs_seen_q     <= 1'b0;
+            dqs_event_sync <= 3'b000;
+        end else begin
+            rd_capture_q   <= i_rd_capture;
+            dqs_event_sync <= {dqs_event_sync[1:0], dqs_event_toggle};
+            dqs_edges_sys  <= dqs_edges_dqs;
+
+            if (i_rd_capture && !rd_capture_q) begin
+                rd_data_sys <= {(DQ_BITS*RATIO){1'b0}};
+                rd_valid_q  <= 1'b0;
+                dqs_seen_q  <= 1'b0;
+            end else begin
+                if (i_rd_capture || rd_capture_q || dqs_event_sys)
+                    rd_data_sys <= rd_data_dqs;
+
+                if (dqs_event_sys)
+                    dqs_seen_q <= 1'b1;
+
+                if (!i_rd_capture && (dqs_seen_q || dqs_event_sys))
+                    rd_valid_q <= 1'b1;
+            end
+        end
     end
 
+    always @(posedge dqs_in_raw or posedge i_rst) begin
+        if (i_rst) begin
+            dqs_edges_dqs    <= 8'd0;
+            dqs_event_toggle <= 1'b0;
+        end else if (i_rd_capture && !dqs_drive) begin
+            dqs_edges_dqs    <= dqs_edges_dqs + 8'd1;
+            dqs_event_toggle <= ~dqs_event_toggle;
+        end
+    end
+
+    assign o_rd_data  = rd_data_sys;
     assign o_rd_valid = rd_valid_q;
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, dqs_in_delayed,
+    wire _u = &{1'b0, i_clk_phy_x4,
+                i_wr_dqs_en, dqs_edges_sys,
+                i_cal_dq_load, i_cal_dq_sel, i_cal_dq_tap,
+                i_cal_dqs_in_load, i_cal_dqs_in_tap,
                 i_cal_dqs_out_load, i_cal_dqs_out_tap, 1'b0};
     /* verilator lint_on UNUSED */
 `endif

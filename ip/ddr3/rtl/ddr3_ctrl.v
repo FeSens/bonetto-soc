@@ -64,6 +64,7 @@ module ddr3_ctrl #(
     input  wire                     i_phy_rd_valid,
     output wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] o_phy_wr_data,
     output wire                     o_phy_wr_valid,
+    output wire                     o_phy_rd_capture,
 
     // -------- MPR-read interface (for ddr3_phy_rdlvl, board-level wiring) -----
     // The PHY's read-leveling FSM pulses i_mpr_req with the desired
@@ -170,6 +171,7 @@ module ddr3_ctrl #(
         .i_rd_valid  (i_phy_rd_valid),
         .o_wr_data   (o_phy_wr_data),
         .o_wr_valid  (o_phy_wr_valid),
+        .o_rd_capture(o_phy_rd_capture),
 
         .i_mpr_req   (i_mpr_req),
         .i_mpr_addr  (i_mpr_addr),
