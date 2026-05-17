@@ -9,7 +9,8 @@
 `default_nettype none
 
 module clk_liveness #(
-    parameter integer DIV_BIT = 7  // probe bit DIV_BIT of a free-running ctr
+    parameter integer DIV_BIT      = 7,  // probe bit DIV_BIT of free-running ctr
+    parameter integer FRESHNESS_W  = 16  // observer cycles before declaring dead
 ) (
     input  wire        i_clk,        // domain under test
     input  wire        i_clk_obs,    // observer (clk_50)
@@ -17,25 +18,27 @@ module clk_liveness #(
     output wire        o_synced_bit, // raw CDC bit
     output wire [5:0]  o_ticks_lo    // low 6 bits of the toggle counter
 );
+    localparam [FRESHNESS_W-1:0] FRESH_MAX = {FRESHNESS_W{1'b1}};
+
     reg [DIV_BIT:0] hb_q = {(DIV_BIT+1){1'b0}};
     always @(posedge i_clk) hb_q <= hb_q + 1'b1;
 
-    reg [1:0]  sync = 2'b00;
-    reg        prev = 1'b0;
-    reg [15:0] freshness = 16'hFFFF;
-    reg [15:0] ticks = 16'd0;
+    reg [1:0]              sync = 2'b00;
+    reg                    prev = 1'b0;
+    reg [FRESHNESS_W-1:0]  freshness = FRESH_MAX;
+    reg [15:0]             ticks = 16'd0;
     always @(posedge i_clk_obs) begin
         sync <= {sync[0], hb_q[DIV_BIT]};
         prev <= sync[1];
         if (sync[1] != prev) begin
             ticks     <= ticks + 1'b1;
-            freshness <= 16'd0;
-        end else if (freshness != 16'hFFFF) begin
+            freshness <= {FRESHNESS_W{1'b0}};
+        end else if (freshness != FRESH_MAX) begin
             freshness <= freshness + 1'b1;
         end
     end
 
-    assign o_alive      = (freshness != 16'hFFFF);
+    assign o_alive      = (freshness != FRESH_MAX);
     assign o_synced_bit = sync[1];
     assign o_ticks_lo   = ticks[5:0];
 endmodule

@@ -1,0 +1,12 @@
+SIM           ?= icarus
+TOPLEVEL_LANG ?= verilog
+TOPLEVEL      ?= clk_liveness
+MODULE        ?= test_clk_liveness
+
+VERILOG_SOURCES = ../rtl/clk_liveness.v
+
+# Small bit positions so test runs in tens of cycles.
+COMPILE_ARGS  += -g2012 -Pclk_liveness.DIV_BIT=2 -Pclk_liveness.FRESHNESS_W=4
+SIM_BUILD     ?= sim_build_clkliv
+
+include $(shell cocotb-config --makefiles)/Makefile.sim
