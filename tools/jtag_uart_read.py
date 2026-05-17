@@ -366,6 +366,10 @@ REG_DECODERS = {
         f"magic=0x{w>>16:04x} busy={(w>>8)&1} count={w & 0xFF} "
         f"(signed={(w & 0xFF) if (w & 0xFF) < 0x80 else (w & 0xFF) - 0x100})"
     )),
+    0x15: ("CLK_SYS_PROBE", lambda w: (
+        f"magic=0x{w>>16:04x} clk_sys_alive={(w>>15)&1} "
+        f"sys_hb_bit={(w>>14)&1} sys_hb_ticks_lo={w & 0x3F}"
+    )),
     0xFE: ("VERSION",    lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
     0xFF: ("ECHO",       lambda w: f"{w:#010x}"),
 }

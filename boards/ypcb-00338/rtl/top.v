@@ -449,6 +449,11 @@ module top (
     // 0x12  | JWB_DATA     (host-written write data)
     // 0x13  | JWB_RD_DATA  (last successful read)
     // 0x14  | PHASE_STATUS {magic=0xAB14, busy, count8b} (iter-11)
+    // 0x15  | CLK_SYS_PROBE {magic=0xAB15, alive, sys_hb_count[15:0], synced_bit}
+    //         (iter-13 — detects MMCM-locks-but-clocks-dead, the prjxray
+    //         CMT_R_LOWER_B_MMCM_CLKOUT* segbit-gap symptom). If host
+    //         polls this twice and `sys_hb_count` doesn't change AND
+    //         `alive=0`, clk_sys is not ticking despite mmcm_locked=1.
     // 0xFE  | VERSION (magic + iter)
     // 0xFF  | ECHO (returns last host-written word)
     // other | 0xDEADBA<idx>
@@ -457,6 +462,32 @@ module top (
     // Heartbeat on clk_50.
     reg [23:0] heartbeat = 24'd0;
     always @(posedge clk_50) heartbeat <= heartbeat + 1'b1;
+
+    // clk_sys liveness probe — increments a 4-bit gray-like counter on
+    // clk_sys, syncs MSB into clk_50, and counts observed toggles. If
+    // the MMCM locks but the CLKOUT routing is broken (open-source-flow
+    // segbit gap), the toggle count stays 0 and we can detect it.
+    reg [7:0] sys_hb_q = 8'd0;
+    always @(posedge clk_sys) sys_hb_q <= sys_hb_q + 1'b1;
+
+    reg [1:0] sys_hb_sync = 2'b00;
+    reg       sys_hb_prev = 1'b0;
+    reg [15:0] sys_hb_ticks = 16'd0;
+    reg [15:0] sys_hb_freshness = 16'hFFFF;
+    always @(posedge clk_50) begin
+        sys_hb_sync <= {sys_hb_sync[0], sys_hb_q[7]};
+        sys_hb_prev <= sys_hb_sync[1];
+        if (sys_hb_sync[1] != sys_hb_prev) begin
+            sys_hb_ticks    <= sys_hb_ticks + 1'b1;
+            sys_hb_freshness <= 16'd0;
+        end else if (sys_hb_freshness != 16'hFFFF) begin
+            sys_hb_freshness <= sys_hb_freshness + 1'b1;
+        end
+    end
+    // alive = at least one toggle seen in the last ~1 ms (16'hFFFF clk_50
+    // cycles = 65535 / 50e6 ≈ 1.31 ms; clk_sys=200 MHz so sys_hb_q[7]
+    // toggles every 2^7 / 200e6 = 640 ns — ~2000 toggles per ms).
+    wire sys_clk_alive = (sys_hb_freshness != 16'hFFFF);
 
     // CDC sync: clk_sys → clk_50 for status bits.
     reg [1:0] mmcm_locked_sync     = 2'b00;
@@ -569,16 +600,17 @@ module top (
     // directly on clk_50 — that means LEDs work even before the DDR3
     // MMCM locks, which is exactly the state we most need to diagnose.
     bringup_status_led u_blu (
-        .i_clk_50      (clk_50),
-        .i_por_active  (por_rst_50),
-        .i_mmcm_locked (mmcm_locked_d),
-        .i_init_done   (init_done_d),
-        .i_init_error  (init_error_d),
-        .i_cal_done    (cal_done_d),
-        .i_cal_error   (cal_error_d),
+        .i_clk_50        (clk_50),
+        .i_por_active    (por_rst_50),
+        .i_mmcm_locked   (mmcm_locked_d),
+        .i_clk_sys_alive (sys_clk_alive),
+        .i_init_done     (init_done_d),
+        .i_init_error    (init_error_d),
+        .i_cal_done      (cal_done_d),
+        .i_cal_error     (cal_error_d),
         .i_mtest_any_err (mtest_any_err_d),
         .i_mtest_target  (mtest_target_d),
-        .o_led         (led)
+        .o_led           (led)
     );
 
     wire [31:0] status_flags = {
@@ -628,7 +660,9 @@ module top (
             8'h12:   status_word = jwb_data_echo_sync[1];
             8'h13:   status_word = jwb_rd_data_sync[1];
             8'h14:   status_word = {16'hAB14, 7'd0, phase_busy_sync[1], phase_count_sync[1]};
-            8'hFE:   status_word = {16'hB07E, 16'h000C};
+            8'h15:   status_word = {16'hAB15, sys_clk_alive, sys_hb_sync[1],
+                                    7'd0, sys_hb_ticks[5:0]};
+            8'hFE:   status_word = {16'hB07E, 16'h000D};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase

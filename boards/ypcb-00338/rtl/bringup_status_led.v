@@ -9,6 +9,9 @@
 // Priority-encoded state display (highest priority first):
 //   POR active       : all off
 //   !mmcm_locked     : red fast blink                  ("clocks not up")
+//   !clk_sys_alive   : red+green fast alternating      ("MMCM locked but
+//                                                       CLKOUT dead —
+//                                                       prjxray-db gap")
 //   init_error       : red solid + yellow fast blink   ("init FSM trapped")
 //   cal_error        : yellow solid + green fast blink ("cal FSM trapped")
 //   !init_done       : yellow slow blink               ("init in progress")
@@ -28,6 +31,7 @@ module bringup_status_led (
     input  wire        i_clk_50,
     input  wire        i_por_active,
     input  wire        i_mmcm_locked,
+    input  wire        i_clk_sys_alive,
     input  wire        i_init_done,
     input  wire        i_init_error,
     input  wire        i_cal_done,
@@ -54,6 +58,9 @@ module bringup_status_led (
             // All off.
         end else if (!i_mmcm_locked) begin
             r_red    = fast_blink;
+        end else if (!i_clk_sys_alive) begin
+            r_red    = fast_blink;
+            r_green  = ~fast_blink;
         end else if (i_init_error) begin
             r_red    = 1'b1;
             r_yellow = fast_blink;
