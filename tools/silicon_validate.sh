@@ -65,5 +65,27 @@ for i in $(seq 1 6); do
     python3 tools/jtag_uart_read.py --tck-ns 2000 --reg 0x08 2>&1 | tee -a "$LOG"
 done
 
+# iter-7: direct WB probe via JTAG-WB master. Halts memtest, performs a
+# write+read on a known BRAM address and a known DDR3 address, prints
+# pass/fail. After probing, resumes memtest so the watch counters can
+# tick again.
+echo
+echo "== iter-7 JTAG-WB probe: BRAM write+read ==" | tee -a "$LOG"
+BRAM_ADDR=0x0010
+BRAM_PAT=0xABCD1234
+python3 tools/jtag_uart_read.py --tck-ns 2000 --wb-write $BRAM_ADDR $BRAM_PAT 2>&1 | tee -a "$LOG"
+python3 tools/jtag_uart_read.py --tck-ns 2000 --wb-read $BRAM_ADDR 2>&1 | tee -a "$LOG"
+
+echo
+echo "== iter-7 JTAG-WB probe: DDR3 window write+read (only meaningful post-cal) ==" | tee -a "$LOG"
+DDR_ADDR=0x4010   # adr[14]=1 -> wb_decode2 routes to ddr3_ctrl
+DDR_PAT=0xDEADBEEF
+python3 tools/jtag_uart_read.py --tck-ns 2000 --wb-write $DDR_ADDR $DDR_PAT 2>&1 | tee -a "$LOG"
+python3 tools/jtag_uart_read.py --tck-ns 2000 --wb-read $DDR_ADDR 2>&1 | tee -a "$LOG"
+
+echo
+echo "== resume memtest_lite ==" | tee -a "$LOG"
+python3 tools/jtag_uart_read.py --tck-ns 2000 --wb-resume 2>&1 | tee -a "$LOG"
+
 echo
 echo "== validation complete — see $LOG ==" | tee -a "$LOG"

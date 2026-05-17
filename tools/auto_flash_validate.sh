@@ -37,6 +37,10 @@ LAST_REG00=$(grep -E '\[0x00\].*STATUS_FLAGS' /tmp/silicon_validate.log | tail -
 LAST_REG01=$(grep -E '\[0x01\].*STATE_BITS' /tmp/silicon_validate.log | tail -1)
 LAST_REG03=$(grep -E '\[0x03\].*MTEST_PASS_CTR' /tmp/silicon_validate.log | tail -1)
 LAST_REG08=$(grep -E '\[0x08\].*MTEST_DDR3' /tmp/silicon_validate.log | tail -1)
+JWB_BRAM_WRITE=$(grep -A0 'WB write addr=0x0010' /tmp/silicon_validate.log | tail -1)
+JWB_BRAM_READ=$(grep -A0 'WB read addr=0x0010'  /tmp/silicon_validate.log | tail -1)
+JWB_DDR_WRITE=$(grep -A0 'WB write addr=0x4010' /tmp/silicon_validate.log | tail -1)
+JWB_DDR_READ=$(grep -A0 'WB read addr=0x4010'   /tmp/silicon_validate.log | tail -1)
 
 {
   echo "== silicon validation summary $(date) =="
@@ -44,6 +48,11 @@ LAST_REG08=$(grep -E '\[0x08\].*MTEST_DDR3' /tmp/silicon_validate.log | tail -1)
   echo "$LAST_REG01"
   echo "$LAST_REG03"
   echo "$LAST_REG08"
+  echo "== iter-7 JTAG-WB probe results =="
+  echo "$JWB_BRAM_WRITE"
+  echo "$JWB_BRAM_READ"
+  echo "$JWB_DDR_WRITE"
+  echo "$JWB_DDR_READ"
   echo
   echo "== recommended next iteration =="
   if echo "$LAST_REG00" | grep -q "magic=0x0000"; then
@@ -55,8 +64,20 @@ LAST_REG08=$(grep -E '\[0x08\].*MTEST_DDR3' /tmp/silicon_validate.log | tail -1)
   elif echo "$LAST_REG00" | grep -q "cal_done=0"; then
       echo "  Cal didn't complete. With SKIP_WLVL=SKIP_RDLVL=1 this should be instant."
       echo "  Check cal_seq_state in REG 0x01."
+  elif echo "$JWB_BRAM_READ" | grep -q "data=0xabcd1234"; then
+      if echo "$JWB_DDR_READ" | grep -q "data=0xdeadbeef"; then
+          echo "  BRAM ok + DDR3 round-trip ok via JWB. Resume memtest, watch counters."
+      elif echo "$JWB_DDR_READ" | grep -q "data=0x00000000"; then
+          echo "  BRAM works; DDR3 reads return 0. Likely WB never acks DDR3 — check"
+          echo "  ddr3_ctrl WB front-end + runtime FSM stalling on init_done gate."
+      elif echo "$JWB_DDR_READ" | grep -q "data=0xaaaaaaaa"; then
+          echo "  BRAM works; DDR3 reads return 0xAAAAAAAA = MPR predefined pattern."
+          echo "  Chip is stuck in MR3[2]=1 mode. Need MR3-rewrite path (iter-8)."
+      else
+          echo "  BRAM works; DDR3 returns wrong data. Likely DQ phase / rdlvl needed."
+      fi
   elif echo "$LAST_REG03" | grep -q "0x00000000"; then
-      echo "  Memtest pass_ctr is zero. Either reset stuck or WB ack never fires."
+      echo "  Memtest pass_ctr is zero AND JWB BRAM probe failed — bus/WB issue."
       echo "  Check rst_sys path and wb_decode2 wiring."
   elif echo "$LAST_REG00" | grep -q "mtest_any_err=1"; then
       echo "  Memtest detected mismatch. Read REG 0x05 (addr), 0x06 (expected), 0x07 (got)."
