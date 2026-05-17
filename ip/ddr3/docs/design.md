@@ -1,5 +1,10 @@
 # ddr3_ctrl — design
 
+> Historical blueprint. The validated YPCB-00338 integration is now documented
+> in `../README.md`, `interface.md`, `porting.md`, and
+> `../../../boards/ypcb-00338/DDR3_VALIDATION.md`. Keep this file as design
+> rationale, but use the validation notes for current signoff status.
+
 A parameterisable DDR3 controller targeting JEDEC DDR3-{1066, 1333, 1600, 1866} chips. First target: **Micron MT41K256M8DA-125** (2 Gb, x8, DDR3-1600) — eight of them in 64-bit configuration on the Inspur YPCB-00338. The same RTL must serve other 7-series boards by reparameterising.
 
 This document is the **engineering blueprint**: every RTL change is justified against the timing parameters, FSM, and verification plan below. Per `INVARIANTS.md` #6, all JEDEC timings declared here are enforced by formal cover properties in `ip/ddr3/formal/`.

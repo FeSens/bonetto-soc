@@ -1,11 +1,11 @@
 // ddr3_phy — Xilinx 7-series PHY layer for the DDR3 controller.
 //
 // Generates DDR3-side clocks, serializes/deserializes DQ around DQS,
-// and provides per-bit IDELAY for read-eye tuning. Targets DDR3-800
-// (2.5 ns tCK) in iter-3a; DDR3-1600 (1.25 ns tCK) follows once read/
-// write levelling is in.
+// and provides per-bit IDELAY for read-eye tuning. Validated on YPCB-00338
+// at DDR3-800 (2.5 ns tCK). Faster operating points need renewed timing and
+// hardware validation.
 //
-// Architecture (iter-3b):
+// Architecture:
 //
 //   clk_50 ──> PLL ───┬──> clk_sys (100 MHz)  -> controller logic
 //                     ├──> clk_phy_x4 (400 MHz) -> DDR3 CK

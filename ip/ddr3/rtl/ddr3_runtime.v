@@ -1,16 +1,14 @@
 // ddr3_runtime — DDR3 runtime read/write FSM (post-init).
 //
-// Production-quality target. Iter-2.5 skeleton: ACT → RD/WR → PRE per
-// transaction (no row caching), single-bank-at-a-time, hard-coded
-// burst length 8. Refresh scheduler interleaved.
+// Current runtime: ACT -> RD/WR -> PRE per transaction (no row caching),
+// single-bank-at-a-time, hard-coded burst length 8. Refresh scheduler
+// interleaved.
 //
 // Iter-3 refinements (TODO, marked in code):
 //   * Per-bank state tracking with row caching (avoid ACT/PRE on the
 //     same row twice).
 //   * Command queue with bank-interleaved arbitration.
-//   * Real BL8 data unpacking on a wide WB interface; right now the
-//     skeleton just acks a single WB word per BL8 burst (wastes 7/8 of
-//     each burst — fine for correctness, not for throughput).
+//   * Wide WB burst buffering to use every word in each BL8 transaction.
 //   * Auto-precharge variant (A10=1 on RD/WR) to skip the explicit PRE.
 //
 // State machine (single-bank simple variant):
@@ -259,9 +257,8 @@ module ddr3_runtime #(
         end
     endgenerate
 
-    // For iter-2.5, we ack EACH WB write/read after the BL8 completes. This
-    // wastes 7/8 of each burst; iter-3 widens the WB interface or buffers
-    // multi-word transactions.
+    // Ack each WB write/read after the BL8 command completes. This uses one
+    // 32-bit word per BL8 burst, which is correct but throughput-limited.
     always @(posedge i_clk_phy) begin
         if (i_rst || !i_init_done) begin
             state       <= S_IDLE;
