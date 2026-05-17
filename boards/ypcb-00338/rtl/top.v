@@ -161,6 +161,10 @@ module top (
 
     wire [8:0] jwb_cal_load_lane;
     wire [4:0] jwb_cal_tap;
+    wire       jwb_phase_req;
+    wire       jwb_phase_inc;
+    wire       phy_phase_busy;
+    wire [7:0] phy_phase_count;
 
     jtag_wb_master #(.WB_ADDR_W(15), .WB_DATA_W(32), .NUM_BYTE_LANES(9)) u_jwb (
         .i_clk         (clk_sys),
@@ -185,7 +189,9 @@ module top (
         .o_rd_data     (jwb_rd_data),
         .o_halt_others (jwb_halt_others),
         .o_cal_load_lane (jwb_cal_load_lane),
-        .o_cal_tap       (jwb_cal_tap)
+        .o_cal_tap       (jwb_cal_tap),
+        .o_phase_req     (jwb_phase_req),
+        .o_phase_inc     (jwb_phase_inc)
     );
 
     // Priority-grant arbiter. jwb_grant flips when jwb wants the bus and
@@ -400,6 +406,11 @@ module top (
         .i_cal_jwb_load_lane (jwb_cal_load_lane),
         .i_cal_jwb_tap       (jwb_cal_tap),
 
+        .i_phase_req     (jwb_phase_req),
+        .i_phase_inc     (jwb_phase_inc),
+        .o_phase_busy    (phy_phase_busy),
+        .o_phase_count   (phy_phase_count),
+
         .o_ddr3_ck_p    (ddr3_ck_p),
         .o_ddr3_ck_n    (ddr3_ck_n),
         .o_ddr3_cke     (ddr3_cke),
@@ -436,6 +447,7 @@ module top (
     // 0x11  | JWB_ADDR     (15-bit, zero-extended)
     // 0x12  | JWB_DATA     (host-written write data)
     // 0x13  | JWB_RD_DATA  (last successful read)
+    // 0x14  | PHASE_STATUS {magic=0xAB14, busy, count8b} (iter-11)
     // 0xFE  | VERSION (magic + iter)
     // 0xFF  | ECHO (returns last host-written word)
     // other | 0xDEADBA<idx>
@@ -512,6 +524,8 @@ module top (
 
     // CDC for JTAG-WB master status (clk_sys → clk_50).
     reg [1:0]  jwb_busy_sync, jwb_last_ack_sync, jwb_last_err_sync, jwb_halt_others_sync;
+    reg [1:0]  phase_busy_sync;
+    reg [7:0]  phase_count_sync [1:0];
     reg [14:0] jwb_addr_echo_sync   [1:0];
     reg [31:0] jwb_data_echo_sync   [1:0];
     reg [31:0] jwb_rd_data_sync     [1:0];
@@ -520,6 +534,9 @@ module top (
         jwb_last_ack_sync    <= {jwb_last_ack_sync[0],    jwb_last_ack};
         jwb_last_err_sync    <= {jwb_last_err_sync[0],    jwb_last_err};
         jwb_halt_others_sync <= {jwb_halt_others_sync[0], jwb_halt_others};
+        phase_busy_sync      <= {phase_busy_sync[0], phy_phase_busy};
+        phase_count_sync[0]  <= phy_phase_count;
+        phase_count_sync[1]  <= phase_count_sync[0];
         jwb_addr_echo_sync[0] <= jwb_addr_echo;
         jwb_addr_echo_sync[1] <= jwb_addr_echo_sync[0];
         jwb_data_echo_sync[0] <= jwb_data_echo;
@@ -592,7 +609,8 @@ module top (
             8'h11:   status_word = {17'd0, jwb_addr_echo_sync[1]};
             8'h12:   status_word = jwb_data_echo_sync[1];
             8'h13:   status_word = jwb_rd_data_sync[1];
-            8'hFE:   status_word = {16'hB07E, 16'h000A};
+            8'h14:   status_word = {16'hAB14, 7'd0, phase_busy_sync[1], phase_count_sync[1]};
+            8'hFE:   status_word = {16'hB07E, 16'h000B};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase

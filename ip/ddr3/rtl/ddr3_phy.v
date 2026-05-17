@@ -89,6 +89,15 @@ module ddr3_phy #(
     input  wire [NUM_BYTE_LANES-1:0]       i_cal_jwb_load_lane,
     input  wire [4:0]                      i_cal_jwb_tap,
 
+    // iter-11: MMCM fine-phase shift on CLKOUT2 (clk_dq), the
+    // HR-bank-compatible write-leveling alternative to ODELAYE2 on
+    // the DQS output. Each pulse on i_phase_req shifts clk_dq phase
+    // by 1/56 of the VCO period (22.3ps with our 800 MHz VCO).
+    input  wire                            i_phase_req,
+    input  wire                            i_phase_inc,
+    output wire                            o_phase_busy,
+    output wire [7:0]                      o_phase_count,
+
     // DDR3 chip pins.
     output wire                            o_ddr3_ck_p,
     output wire                            o_ddr3_ck_n,
@@ -122,16 +131,64 @@ module ddr3_phy #(
     assign o_clk_sys          = mmcm_clkout_sys;
     assign o_clk_phy_x4       = mmcm_clkout_phy_x4;
     assign o_clk_dq           = mmcm_clkout_dq;
+    // iter-11 stubs for sim: track phase count, never go busy.
+    reg [7:0] sim_phase_count = 8'd0;
+    always @(posedge i_clk_ref) begin
+        if (i_phase_req) sim_phase_count <= i_phase_inc ? (sim_phase_count + 8'd1)
+                                                        : (sim_phase_count - 8'd1);
+    end
+    assign o_phase_busy  = 1'b0;
+    assign o_phase_count = sim_phase_count;
 `else
+    // ----------------------------------------------------------------
+    // iter-11: phase-shift request CDC clk_sys -> i_clk_ref domain.
+    // ----------------------------------------------------------------
+    reg [2:0] ps_req_sync;
+    always @(posedge i_clk_ref or posedge i_rst_ref) begin
+        if (i_rst_ref)
+            ps_req_sync <= 3'b000;
+        else
+            ps_req_sync <= {ps_req_sync[1:0], i_phase_req};
+    end
+    wire ps_req_edge = ps_req_sync[1] && !ps_req_sync[2];
+
+    reg ps_en_r;
+    reg ps_incdec_r;
+    wire ps_done_w;
+    reg  ps_inflight;
+    reg [7:0] ps_count;     // running phase-step count, observable via status
+    always @(posedge i_clk_ref or posedge i_rst_ref) begin
+        if (i_rst_ref) begin
+            ps_en_r     <= 1'b0;
+            ps_incdec_r <= 1'b0;
+            ps_inflight <= 1'b0;
+            ps_count    <= 8'd0;
+        end else begin
+            ps_en_r <= 1'b0;     // default; one-cycle pulse below.
+            if (ps_req_edge && !ps_inflight) begin
+                ps_en_r     <= 1'b1;
+                ps_incdec_r <= i_phase_inc;
+                ps_inflight <= 1'b1;
+                ps_count    <= i_phase_inc ? (ps_count + 8'd1) : (ps_count - 8'd1);
+            end else if (ps_done_w) begin
+                ps_inflight <= 1'b0;
+            end
+        end
+    end
+
+    assign o_phase_busy  = ps_inflight;
+    assign o_phase_count = ps_count;
+
     MMCME2_ADV #(
-        .CLKIN1_PERIOD       (20.0),
-        .CLKFBOUT_MULT_F     (16.0),
-        .DIVCLK_DIVIDE       (1),
-        .CLKOUT0_DIVIDE_F    (4.0),
-        .CLKOUT1_DIVIDE      (2),
-        .CLKOUT2_DIVIDE      (2),
-        .CLKOUT2_PHASE       (90.0),
-        .STARTUP_WAIT        ("FALSE")
+        .CLKIN1_PERIOD          (20.0),
+        .CLKFBOUT_MULT_F        (16.0),
+        .DIVCLK_DIVIDE          (1),
+        .CLKOUT0_DIVIDE_F       (4.0),
+        .CLKOUT1_DIVIDE         (2),
+        .CLKOUT2_DIVIDE         (2),
+        .CLKOUT2_PHASE          (90.0),
+        .CLKOUT2_USE_FINE_PS    ("TRUE"),
+        .STARTUP_WAIT           ("FALSE")
     ) u_mmcm (
         .CLKIN1     (i_clk_ref),
         .CLKIN2     (1'b0),
@@ -154,7 +211,7 @@ module ddr3_phy #(
         .LOCKED     (o_locked),
         .DADDR      (7'b0), .DCLK (1'b0), .DEN (1'b0), .DI (16'b0), .DWE (1'b0),
         .DO         (), .DRDY (),
-        .PSCLK      (1'b0), .PSEN (1'b0), .PSINCDEC (1'b0), .PSDONE (),
+        .PSCLK      (i_clk_ref), .PSEN (ps_en_r), .PSINCDEC (ps_incdec_r), .PSDONE (ps_done_w),
         .CLKINSTOPPED (), .CLKFBSTOPPED ()
     );
 

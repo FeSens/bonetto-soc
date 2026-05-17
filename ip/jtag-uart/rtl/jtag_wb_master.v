@@ -63,7 +63,14 @@ module jtag_wb_master #(
     // FSM so the host can sweep DQS input delay via normal reads (no MPR
     // mode required). Useful when MPR-based rdlvl can't converge.
     output reg  [NUM_BYTE_LANES-1:0] o_cal_load_lane,
-    output reg  [4:0]                o_cal_tap
+    output reg  [4:0]                o_cal_tap,
+
+    // iter-11: MMCM fine-phase shift on clk_dq (DQS-out). Level signals;
+    // ddr3_phy edge-detects o_phase_req in its clk_ref domain and pulses
+    // MMCM PSEN. Used as the HR-bank write-leveling workaround when no
+    // ODELAYE2 is available on the DQS output.
+    output reg                       o_phase_req,
+    output reg                       o_phase_inc
 );
     assign o_wb_sel = {(WB_DATA_W/8){1'b1}};
 
@@ -73,6 +80,7 @@ module jtag_wb_master #(
         S_WB_WAIT = 2'd2;
 
     reg [1:0] state;
+    reg [3:0] phase_req_hold;
 
     wire [7:0] cmd = i_cmd_word[31:24];
     wire       cmd_set_addr = i_cmd_valid && (cmd == 8'hE0);
@@ -84,6 +92,9 @@ module jtag_wb_master #(
     wire       cmd_resume   = i_cmd_valid && (cmd == 8'hE7);
     // iter-10: 0xE8 = SET_IDELAY_TAP (payload[3:0]=lane, payload[12:8]=tap)
     wire       cmd_set_cal  = i_cmd_valid && (cmd == 8'hE8);
+    // iter-11: 0xE9 = MMCM phase INC, 0xEA = MMCM phase DEC (no payload)
+    wire       cmd_phase_inc = i_cmd_valid && (cmd == 8'hE9);
+    wire       cmd_phase_dec = i_cmd_valid && (cmd == 8'hEA);
 
     always @(posedge i_clk) begin
         if (i_rst) begin
@@ -102,6 +113,9 @@ module jtag_wb_master #(
             o_halt_others <= 1'b0;
             o_cal_load_lane <= {NUM_BYTE_LANES{1'b0}};
             o_cal_tap       <= 5'd0;
+            o_phase_req     <= 1'b0;
+            o_phase_inc     <= 1'b0;
+            phase_req_hold  <= 4'd0;
         end else begin
             // o_cal_load_lane is a single-cycle pulse — default to 0 then
             // assert the requested lane bit only when cmd_set_cal fires.
@@ -110,6 +124,17 @@ module jtag_wb_master #(
                 if (i_cmd_word[3:0] < NUM_BYTE_LANES)
                     o_cal_load_lane <= ({{(NUM_BYTE_LANES-1){1'b0}}, 1'b1} << i_cmd_word[3:0]);
                 o_cal_tap <= i_cmd_word[12:8];
+            end
+            // CDC to clk_ref (50 MHz) needs the level to be at least 1
+            // clk_ref period (= 4 clk_sys cycles) wide. Hold for 8 cycles
+            // so the 2-FF sync + edge-detect in ddr3_phy reliably fires.
+            if (cmd_phase_inc || cmd_phase_dec) begin
+                o_phase_req       <= 1'b1;
+                o_phase_inc       <= cmd_phase_inc;
+                phase_req_hold    <= 4'd8;
+            end else if (phase_req_hold != 4'd0) begin
+                phase_req_hold <= phase_req_hold - 4'd1;
+                if (phase_req_hold == 4'd1) o_phase_req <= 1'b0;
             end
             // Idle-time scratch updates from host commands.
             if (state == S_IDLE) begin

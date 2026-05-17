@@ -215,12 +215,29 @@ JWB_CMD_HALT     = 0xE6
 JWB_CMD_RESUME   = 0xE7
 # iter-10: payload[3:0]=lane, payload[12:8]=tap
 JWB_CMD_SET_CAL  = 0xE8
+# iter-11: MMCM clk_dq phase shift on CLKOUT2 (DQS-out launch clock).
+JWB_CMD_PHASE_INC = 0xE9
+JWB_CMD_PHASE_DEC = 0xEA
 
 
 def jwb_set_idelay(xvc, lane: int, tap: int):
     """Pulse the FPGA's IDELAYE2 load on `lane` with `tap`. lane: 0-8."""
     payload = ((tap & 0x1F) << 8) | (lane & 0xF)
     jwb_cmd(xvc, JWB_CMD_SET_CAL, payload)
+
+
+def jwb_phase_shift(xvc, n_steps: int):
+    """Shift clk_dq's phase by n_steps. Positive = increment (delay DQS),
+    negative = decrement (advance DQS). Each step = VCO_period/56 = 22.3ps
+    @ 800 MHz VCO. Each pulse waits for the FPGA to drop busy."""
+    cmd = JWB_CMD_PHASE_INC if n_steps > 0 else JWB_CMD_PHASE_DEC
+    for _ in range(abs(n_steps)):
+        jwb_cmd(xvc, cmd, 0)
+        # Poll status reg 0x14 until busy=0.
+        for _ in range(20):
+            st = read_status_reg(xvc, 0x14)
+            if ((st >> 8) & 1) == 0:
+                break
 
 
 def jwb_cmd(xvc, cmd_code: int, payload: int = 0):
@@ -345,6 +362,10 @@ REG_DECODERS = {
     0x11: ("JWB_ADDR",   lambda w: f"{w:#06x}"),
     0x12: ("JWB_DATA",   lambda w: f"{w:#010x}"),
     0x13: ("JWB_RD_DATA",lambda w: f"{w:#010x}"),
+    0x14: ("PHASE_STATUS", lambda w: (
+        f"magic=0x{w>>16:04x} busy={(w>>8)&1} count={w & 0xFF} "
+        f"(signed={(w & 0xFF) if (w & 0xFF) < 0x80 else (w & 0xFF) - 0x100})"
+    )),
     0xFE: ("VERSION",    lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
     0xFF: ("ECHO",       lambda w: f"{w:#010x}"),
 }
