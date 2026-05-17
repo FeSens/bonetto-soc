@@ -99,6 +99,7 @@ module top (
     wire        mtest_any_err;
     wire        mtest_target;
     wire [1:0]  mtest_pattern_idx;
+    wire [2:0]  mt_led_unused;
 
     // Cal done signal lives in clk_sys (cal_seq runs there).
     wire ctrl_init_done;
@@ -127,7 +128,7 @@ module top (
         .i_wb_ack             (mt_ack),
         .i_wb_dat             (m_dat_r),
         .i_wb_err             (mt_err),
-        .o_led                (led),
+        .o_led                (mt_led_unused),
         .o_pass_ctr           (mtest_pass_ctr),
         .o_ddr3_pass_ctr      (mtest_ddr3_pass_ctr),
         .o_err_ctr            (mtest_err_ctr),
@@ -562,6 +563,23 @@ module top (
     wire [3:0] cal_seq_state_d   = cal_seq_state_sync[1];
     wire [3:0] cal_wlvl_state_d  = cal_wlvl_state_sync[1];
     wire [3:0] cal_rdlvl_state_d = cal_rdlvl_state_sync[1];
+
+    // Cable-less silicon health indicator. All inputs are already
+    // clk_50-domain (synced above or native), so the LED encoder runs
+    // directly on clk_50 — that means LEDs work even before the DDR3
+    // MMCM locks, which is exactly the state we most need to diagnose.
+    bringup_status_led u_blu (
+        .i_clk_50      (clk_50),
+        .i_por_active  (por_rst_50),
+        .i_mmcm_locked (mmcm_locked_d),
+        .i_init_done   (init_done_d),
+        .i_init_error  (init_error_d),
+        .i_cal_done    (cal_done_d),
+        .i_cal_error   (cal_error_d),
+        .i_mtest_any_err (mtest_any_err_d),
+        .i_mtest_target  (mtest_target_d),
+        .o_led         (led)
+    );
 
     wire [31:0] status_flags = {
         16'hB07E,            // [31:16]
