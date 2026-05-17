@@ -15,6 +15,8 @@
 
 `default_nettype none
 
+`include "soc_params.vh"
+
 module top (
     input  wire        clk_50,
 
@@ -67,8 +69,11 @@ module top (
     // request, jwb wins (memtest is paused via i_pause anyway when host wants
     // direct control).
     // =================================================================
-    localparam integer FABRIC_ADDR_W = 28;
+    localparam integer FABRIC_ADDR_W = `WB_ADDR_W;
     localparam integer DDR3_MEMTEST_ADDR_W = 25;
+    localparam integer JWB_LOCAL_ADDR_W = 15;
+    localparam integer JWB_DDR3_LOCAL_W = 14;
+    localparam integer JWB_DDR3_HI_W = FABRIC_ADDR_W - JWB_DDR3_LOCAL_W;
 
     wire        m_cyc, m_stb, m_we;
     wire [FABRIC_ADDR_W-1:0] m_adr;
@@ -91,8 +96,8 @@ module top (
     wire        jwb_stall, jwb_ack, jwb_err;
     wire        jwb_busy, jwb_last_ack, jwb_last_err, jwb_halt_others;
     wire [31:0] jwb_data_echo, jwb_rd_data;
-    wire [14:0] jwb_addr_echo;
-    wire [13:0] jwb_addr_hi_echo;
+    wire [JWB_LOCAL_ADDR_W-1:0] jwb_addr_echo;
+    wire [JWB_DDR3_HI_W-1:0] jwb_addr_hi_echo;
 
     wire [31:0] mtest_pass_ctr;
     wire [31:0] mtest_ddr3_pass_ctr;
@@ -204,7 +209,11 @@ module top (
     wire       phy_phase_busy;
     wire [7:0] phy_phase_count;
 
-    jtag_wb_master #(.WB_ADDR_W(15), .WB_DATA_W(32), .NUM_BYTE_LANES(9)) u_jwb (
+    jtag_wb_master #(
+        .WB_ADDR_W(JWB_LOCAL_ADDR_W),
+        .WB_DATA_W(32),
+        .NUM_BYTE_LANES(9)
+    ) u_jwb (
         .i_clk         (clk_sys),
         .i_rst         (rst_sys),
         .i_cmd_word    (h2f_cmd_sys),
@@ -274,9 +283,11 @@ module top (
     wire [3:0]  d3_sel;
     wire        d3_stall, d3_ack, d3_err;
     wire [31:0] d3_dat_r;
-    wire [27:0] d3_ctrl_adr = (jwb_grant && m_adr[14]) ?
-                              {jwb_addr_hi_echo, d3_adr[13:0]} :
-                              {3'b000, d3_adr[25:15], d3_adr[13:0]};
+    wire [FABRIC_ADDR_W-1:0] d3_ctrl_adr = (jwb_grant && m_adr[14]) ?
+        {jwb_addr_hi_echo, d3_adr[JWB_DDR3_LOCAL_W-1:0]} :
+        {{(FABRIC_ADDR_W-DDR3_MEMTEST_ADDR_W){1'b0}},
+         d3_adr[DDR3_MEMTEST_ADDR_W:JWB_LOCAL_ADDR_W],
+         d3_adr[JWB_DDR3_LOCAL_W-1:0]};
 
     wb_decode2 #(
         .WB_DATA_W(32),
@@ -368,7 +379,7 @@ module top (
 
     ddr3_ctrl #(
         .WB_DATA_W(32),
-        .WB_ADDR_W(28),
+        .WB_ADDR_W(FABRIC_ADDR_W),
         .DQ_BITS(DDR3_DQ_BITS),
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO)
@@ -661,8 +672,8 @@ module top (
     reg [1:0]  phase_busy_sync;
     reg [1:0]  phy_rd_capture_sync;
     reg [7:0]  phase_count_sync [1:0];
-    reg [14:0] jwb_addr_echo_sync   [1:0];
-    reg [13:0] jwb_addr_hi_echo_sync [1:0];
+    reg [JWB_LOCAL_ADDR_W-1:0] jwb_addr_echo_sync   [1:0];
+    reg [JWB_DDR3_HI_W-1:0] jwb_addr_hi_echo_sync [1:0];
     reg [31:0] jwb_data_echo_sync   [1:0];
     reg [31:0] jwb_rd_data_sync     [1:0];
     reg [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_sync [1:0];
@@ -786,7 +797,7 @@ module top (
                                     8'd0, dq_ticks_lo};
             8'h18:   status_word = {16'hAB18, 15'd0, phy_rd_capture_sync[1]};
             8'h19:   status_word = {16'hAB19, 12'd0, phy_rd_valid_lane_sync[1]};
-            8'h1A:   status_word = {16'hAB1A, 2'd0, jwb_addr_hi_echo_sync[1]};
+            8'h1A:   status_word = {16'hAB1A, jwb_addr_hi_echo_sync[1]};
             8'h1B:   status_word = {16'hAB1B, 16'd0};
             8'h1C:   status_word = {24'hAB1C00, d3_ctrl_sync[1]};
             8'hFE:   status_word = {16'hB07E, 16'h0011};

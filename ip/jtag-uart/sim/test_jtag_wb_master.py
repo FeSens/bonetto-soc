@@ -72,12 +72,12 @@ async def set_then_write(dut):
     cocotb.start_soon(slave_responder(dut, read_data=0xAAAA5555))
 
     await fire_cmd(dut, CMD_SET_ADDR, 0x1234)
-    await fire_cmd(dut, CMD_SET_AHI, 0x2A5A)
+    await fire_cmd(dut, CMD_SET_AHI, 0xCA5A)
     await fire_cmd(dut, CMD_SET_DLO, 0xDEAD)
     await fire_cmd(dut, CMD_SET_DHI, 0xBEEF)
     await ReadOnly()
     assert int(dut.o_addr.value) == 0x1234
-    assert int(dut.o_addr_hi.value) == 0x2A5A
+    assert int(dut.o_addr_hi.value) == 0xCA5A
     assert int(dut.o_data.value) == 0xBEEFDEAD, \
         f"o_data want 0xBEEFDEAD got 0x{int(dut.o_data.value):08X}"
     await RisingEdge(dut.i_clk)

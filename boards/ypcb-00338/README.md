@@ -21,6 +21,13 @@ Top-level integration for the Inspur YPCB-00338
 | Reason for lane map | Physical lane 3 read as stuck zero on this board |
 | Calibration | Write/read leveling bypassed; fixed route/timing/lane map validated |
 | Controller address span | 25 word-address bits, 128 MiB through the 32-bit WB aperture |
+| Debug address path | 30-bit board fabric, with 16 high DDR3 address bits exposed through JTAG-WB |
+
+The board/debug fabric is now wide enough to carry the SoC's 30-bit
+word-address contract. The current DDR3 runtime still exposes only the validated
+25-bit controller-visible CH0 slice; full installed capacity requires the BL8
+burst-word offset, 64-bit data lanes, and channel select to be consumed by the
+DDR3 runtime/PHY before the extra address bits map to unique DRAM cells.
 
 See `DDR3_VALIDATION.md` for the current hardware evidence.
 

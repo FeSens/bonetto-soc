@@ -9,7 +9,7 @@
 // Command codes (i_cmd_word[31:24]) — gated by i_cmd_valid pulse:
 //   0x00     reserved for status-mux select (handled by top.v, no-op here)
 //   0xE0     SET_ADDR    - addr[14:0] <= i_cmd_word[14:0]
-//   0xE1     SET_ADDR_HI - addr_hi[13:0] <= i_cmd_word[13:0] (board debug path)
+//   0xE1     SET_ADDR_HI - addr_hi[15:0] <= i_cmd_word[15:0] (board debug path)
 //   0xE2     SET_DATA_LO - data[15:0] <= i_cmd_word[15:0]
 //   0xE3     SET_DATA_HI - data[31:16] <= i_cmd_word[15:0]
 //   0xE4     GO_WRITE    - issue WB write of stored data to stored addr
@@ -56,7 +56,7 @@ module jtag_wb_master #(
     output reg                      o_last_ack,
     output reg                      o_last_err,
     output reg  [WB_ADDR_W-1:0]     o_addr,
-    output reg  [13:0]              o_addr_hi,
+    output reg  [15:0]              o_addr_hi,
     output reg  [WB_DATA_W-1:0]     o_data,
     output reg  [WB_DATA_W-1:0]     o_rd_data,
     output reg                      o_halt_others,
@@ -99,7 +99,7 @@ module jtag_wb_master #(
         o_last_err = 1'b0;
         o_halt_others = 1'b0;
         o_addr   = {WB_ADDR_W{1'b0}};
-        o_addr_hi = 14'd0;
+        o_addr_hi = 16'd0;
         o_data   = {WB_DATA_W{1'b0}};
         o_rd_data = {WB_DATA_W{1'b0}};
         o_cal_load_lane = {9{1'b0}};
@@ -136,7 +136,7 @@ module jtag_wb_master #(
             o_last_ack    <= 1'b0;
             o_last_err    <= 1'b0;
             o_addr        <= {WB_ADDR_W{1'b0}};
-            o_addr_hi     <= 14'd0;
+            o_addr_hi     <= 16'd0;
             o_data        <= {WB_DATA_W{1'b0}};
             o_rd_data     <= {WB_DATA_W{1'b0}};
             o_halt_others <= 1'b0;
@@ -168,7 +168,7 @@ module jtag_wb_master #(
             // Idle-time scratch updates from host commands.
             if (state == S_IDLE) begin
                 if (cmd_set_addr)    o_addr    <= i_cmd_word[WB_ADDR_W-1:0];
-                if (cmd_set_addr_hi) o_addr_hi <= i_cmd_word[13:0];
+                if (cmd_set_addr_hi) o_addr_hi <= i_cmd_word[15:0];
                 if (cmd_set_dlo)  o_data[15:0]  <= i_cmd_word[15:0];
                 if (cmd_set_dhi)  o_data[31:16] <= i_cmd_word[15:0];
                 if (cmd_halt)     o_halt_others <= 1'b1;

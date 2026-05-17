@@ -34,6 +34,7 @@ plumbing in the board top instead of baking those choices into the controller.
 | `formal/` | WB slave and calibration-sequencer formal harnesses. |
 | `docs/interface.md` | Current integration contract and parameter notes. |
 | `docs/porting.md` | Checklist for moving the IP into a new board or project. |
+| `docs/full-capacity-bringup.md` | Gap list and validation gates for the 2-channel DDR3-1600 target. |
 
 ## Verification
 

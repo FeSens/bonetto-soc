@@ -243,7 +243,7 @@ def jwb_cmd(xvc, cmd_code: int, payload: int = 0):
 
 def jwb_set_addr(xvc, addr: int, addr_hi: int = 0):
     """Set the board-local WB address and optional DDR3 high-address debug bits."""
-    jwb_cmd(xvc, JWB_CMD_SET_AHI, addr_hi & 0x3FFF)
+    jwb_cmd(xvc, JWB_CMD_SET_AHI, addr_hi & 0xFFFF)
     jwb_cmd(xvc, JWB_CMD_SET_ADDR, addr & 0x7FFF)
 
 
@@ -390,7 +390,7 @@ REG_DECODERS = {
         f"magic=0x{w>>16:04x} clk_dq_alive={(w>>15)&1} "
         f"dq_hb_bit={(w>>14)&1} dq_ticks_lo={w & 0x3F}"
     )),
-    0x1A: ("JWB_ADDR_HI", lambda w: f"magic=0x{w>>16:04x} addr_hi=0x{w & 0x3fff:04x}"),
+    0x1A: ("JWB_ADDR_HI", lambda w: f"magic=0x{w>>16:04x} addr_hi=0x{w & 0xffff:04x}"),
     0xFE: ("VERSION",    lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
     0xFF: ("ECHO",       lambda w: f"{w:#010x}"),
 }

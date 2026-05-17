@@ -8,7 +8,7 @@ reads through the controller, then resumes memtest_lite for a timed soak.
 
 Addressing:
   - Board-local WB address bit 14 still selects DDR3.
-  - Command 0xE1 supplies DDR3 controller address bits [27:14] for JTAG-only
+  - Command 0xE1 supplies DDR3 controller address bits [29:14] for JTAG-only
     debug accesses.
   - The tested DDR3 controller address space is 25 bits:
       {bank[2:0], row[14:0], col[9:3]}
@@ -49,7 +49,7 @@ DDR3_WORDS = DDR3_ADDR_MASK + 1
 
 def ddr3_addr_parts(addr):
     addr &= DDR3_ADDR_MASK
-    return DDR3_SELECT | (addr & DDR3_LOCAL_MASK), (addr >> 14) & 0x3FFF
+    return DDR3_SELECT | (addr & DDR3_LOCAL_MASK), (addr >> 14) & 0xFFFF
 
 
 def mix32(x):
