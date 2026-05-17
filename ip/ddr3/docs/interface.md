@@ -21,7 +21,7 @@ wires the PHY data/control ports to the physical pins.
 | `DQ_BITS` | `8` | Per-byte-lane DQ width. |
 | `NUM_BYTE_LANES` | `9` | PHY-facing byte lanes. YPCB-00338 top uses 4 active lanes. |
 | `SERDES_RATIO` | `4` | Fabric-to-DDR serialization ratio. |
-| `WB_BURST_WORD_BITS` | `0` | Low Wishbone word-address bits inside one BL8 burst. Keep `0` for the current validated CH0 image; use `4` for a 64-bit channel exposed as 32-bit words once the full BL8 data/RMW path exists. |
+| `WB_BURST_WORD_BITS` | `0` | Low Wishbone word-address bits inside one BL8 burst. Keep `0` for the current validated CH0 image; use `4` for a 64-bit channel exposed as 32-bit words with the full burst-capable PHY path. |
 
 Adding a new memory part means adding one timing/geometry block to
 `rtl/ddr3_params.vh` and selecting it at compile time. Do not edit runtime
@@ -120,8 +120,13 @@ BL8 burst. With the current validated YPCB-00338 image,
 25 word-address bits, or 128 MiB, through the 32-bit Wishbone aperture.
 
 For a full 64-bit channel, one BL8 transfer carries 64 bytes, or sixteen
-32-bit Wishbone words. That mode needs `WB_BURST_WORD_BITS=4`, plus a real BL8
-read buffer and read-modify-write path before hardware writes are safe. If
-`WB_ADDR_W` is wider than the consumed channel-local address, the runtime
+32-bit Wishbone words. That mode uses `WB_BURST_WORD_BITS=4`. In offset mode,
+reads select the requested 32-bit word out of the captured BL8 payload. Writes
+perform a runtime read-modify-write cycle: read the BL8 payload, merge
+`i_wb_dat` according to `i_wb_sel`, and write the full payload back.
+
+The current YPCB-00338 hardware image still uses `WB_BURST_WORD_BITS=0`
+because the board PHY path is not yet a true 8-edge BL8 serializer/deserializer.
+If `WB_ADDR_W` is wider than the consumed channel-local address, the runtime
 deliberately ignores the high bits; board-level dual-channel integration should
 decode channel select outside each per-channel `ddr3_ctrl` instance.

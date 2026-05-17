@@ -99,6 +99,7 @@ module ddr3_runtime #(
     localparam integer BURST_ADDR_W = BANK_BITS + ROW_BITS + (COL_BITS - 3);
     localparam integer WB_BURST_LOCAL_W = BURST_ADDR_W + WB_BURST_WORD_BITS;
     localparam integer WB_BURST_WORD_W = (WB_BURST_WORD_BITS > 0) ? WB_BURST_WORD_BITS : 1;
+    localparam integer USE_BURST_WORD_OFFSET = (WB_BURST_WORD_BITS > 0);
 
     // ---- WB address split ----
     // Default validated CH0 mode consumes one WB word per BL8 command:
@@ -257,7 +258,9 @@ module ddr3_runtime #(
     reg [COL_BITS-1:0]   saved_col;
     reg                  saved_we;
     reg [WB_DATA_W-1:0]  saved_wdat;
+    reg [WB_BYTES-1:0]   saved_sel;
     reg [WB_BURST_WORD_W-1:0] saved_burst_word_offset;
+    reg [PHY_DATA_W-1:0] rmw_wr_data;
 
     // Accept WB only in IDLE with no pending refresh.
     wire wb_accept_ok = i_init_done && (state == S_IDLE) && !ref_pending;
@@ -267,7 +270,66 @@ module ddr3_runtime #(
     assign o_cmd_odt = (state == S_WR) || (state == S_WAIT_CWL) ||
                        (state == S_DATA_WR) || (state == S_WR_RECOV);
 
-    wire [WB_DATA_W-1:0] phy_rd_word;
+    function [WB_DATA_W-1:0] burst_get_word;
+        input [PHY_DATA_W-1:0] burst_data;
+        input [WB_BURST_WORD_W-1:0] word_offset;
+        integer byte_idx;
+        integer bit_idx;
+        integer burst_byte;
+        integer lane_idx;
+        integer sample_idx;
+        begin
+            burst_get_word = {WB_DATA_W{1'b0}};
+            for (byte_idx = 0; byte_idx < WB_BYTES; byte_idx = byte_idx + 1) begin
+                burst_byte = (word_offset * WB_BYTES) + byte_idx;
+                lane_idx   = burst_byte % NUM_BYTE_LANES;
+                sample_idx = burst_byte / NUM_BYTE_LANES;
+                for (bit_idx = 0; bit_idx < 8; bit_idx = bit_idx + 1) begin
+                    if (sample_idx < SERDES_RATIO) begin
+                        burst_get_word[byte_idx*8 + bit_idx] =
+                            burst_data[lane_idx*DQ_BITS*SERDES_RATIO +
+                                       bit_idx*SERDES_RATIO +
+                                       sample_idx];
+                    end
+                end
+            end
+        end
+    endfunction
+
+    function [PHY_DATA_W-1:0] burst_put_word;
+        input [PHY_DATA_W-1:0] burst_data;
+        input [WB_BURST_WORD_W-1:0] word_offset;
+        input [WB_DATA_W-1:0] word_data;
+        input [WB_BYTES-1:0] word_sel;
+        integer byte_idx;
+        integer bit_idx;
+        integer burst_byte;
+        integer lane_idx;
+        integer sample_idx;
+        begin
+            burst_put_word = burst_data;
+            for (byte_idx = 0; byte_idx < WB_BYTES; byte_idx = byte_idx + 1) begin
+                if (word_sel[byte_idx]) begin
+                    burst_byte = (word_offset * WB_BYTES) + byte_idx;
+                    lane_idx   = burst_byte % NUM_BYTE_LANES;
+                    sample_idx = burst_byte / NUM_BYTE_LANES;
+                    for (bit_idx = 0; bit_idx < 8; bit_idx = bit_idx + 1) begin
+                        if (sample_idx < SERDES_RATIO) begin
+                            burst_put_word[lane_idx*DQ_BITS*SERDES_RATIO +
+                                           bit_idx*SERDES_RATIO +
+                                           sample_idx] =
+                                word_data[byte_idx*8 + bit_idx];
+                        end
+                    end
+                end
+            end
+        end
+    endfunction
+
+    wire [WB_DATA_W-1:0] phy_rd_word =
+        USE_BURST_WORD_OFFSET ? burst_get_word(i_rd_data, saved_burst_word_offset) :
+                                burst_get_word(i_rd_data, {WB_BURST_WORD_W{1'b0}});
+    wire [PHY_DATA_W-1:0] legacy_wr_data;
 
     genvar gl, gb, gs;
     generate
@@ -275,22 +337,17 @@ module ddr3_runtime #(
             wire [7:0] lane_byte = (gl < WB_BYTES) ? saved_wdat[gl*8 +: 8] : 8'h00;
             for (gb = 0; gb < DQ_BITS; gb = gb + 1) begin : g_bit_pack
                 for (gs = 0; gs < SERDES_RATIO; gs = gs + 1) begin : g_ser_pack
-                    assign o_wr_data[gl*DQ_BITS*SERDES_RATIO + gb*SERDES_RATIO + gs]
+                    assign legacy_wr_data[gl*DQ_BITS*SERDES_RATIO + gb*SERDES_RATIO + gs]
                         = lane_byte[gb];
                 end
             end
         end
-
-        for (gl = 0; gl < WB_BYTES; gl = gl + 1) begin : g_lane_unpack
-            for (gb = 0; gb < 8; gb = gb + 1) begin : g_bit_unpack
-                assign phy_rd_word[gl*8 + gb]
-                    = i_rd_data[gl*DQ_BITS*SERDES_RATIO + gb*SERDES_RATIO];
-            end
-        end
     endgenerate
+    assign o_wr_data = USE_BURST_WORD_OFFSET ? rmw_wr_data : legacy_wr_data;
 
-    // Ack each WB write/read after the BL8 command completes. This uses one
-    // 32-bit word per BL8 burst, which is correct but throughput-limited.
+    // Default mode acks each WB write/read after one BL8 command. Offset mode
+    // first reads the whole BL8 payload for writes, merges the selected WB
+    // bytes into the requested word offset, then writes the full burst back.
     always @(posedge i_clk_phy) begin
         if (i_rst || !i_init_done) begin
             state       <= S_IDLE;
@@ -304,6 +361,8 @@ module ddr3_runtime #(
             beat_ctr    <= 8'd0;
             wait_ctr    <= 8'd0;
             saved_burst_word_offset <= {WB_BURST_WORD_W{1'b0}};
+            saved_sel   <= {WB_BYTES{1'b0}};
+            rmw_wr_data <= {PHY_DATA_W{1'b0}};
             ref_clear   <= 1'b0;
             mpr_clear   <= 1'b0;
             mrs_clear   <= 1'b0;
@@ -333,6 +392,7 @@ module ddr3_runtime #(
                         saved_col  <= wb_col;
                         saved_we   <= i_wb_we;
                         saved_wdat <= i_wb_dat;
+                        saved_sel  <= i_wb_sel;
                         saved_burst_word_offset <= wb_burst_word_offset;
                         state      <= S_ACT;
                     end
@@ -350,7 +410,7 @@ module ddr3_runtime #(
                 S_WAIT_RCD: begin
                     if (wait_ctr == TRCD_WAIT) begin
                         wait_ctr <= 8'd0;
-                        state    <= saved_we ? S_WR : S_RD;
+                        state    <= (saved_we && !USE_BURST_WORD_OFFSET) ? S_WR : S_RD;
                     end else begin
                         wait_ctr <= wait_ctr + 1'b1;
                     end
@@ -377,10 +437,21 @@ module ddr3_runtime #(
 
                 S_DATA_RD: begin
                     if (beat_ctr == READ_CAPTURE_SYS_CYCLES + READ_SETTLE_SYS_CYCLES - 1) begin
-                        o_wb_dat <= i_rd_valid ? phy_rd_word : 32'hBAD0_BAD0;
-                        o_wb_ack <= 1'b1;
                         beat_ctr <= 8'd0;
-                        state    <= S_PRE;
+                        if (saved_we && USE_BURST_WORD_OFFSET) begin
+                            rmw_wr_data <= burst_put_word(
+                                i_rd_valid ? i_rd_data : {PHY_DATA_W{1'b0}},
+                                saved_burst_word_offset,
+                                saved_wdat,
+                                saved_sel
+                            );
+                            wait_ctr <= 8'd0;
+                            state    <= S_WR;
+                        end else begin
+                            o_wb_dat <= i_rd_valid ? phy_rd_word : 32'hBAD0_BAD0;
+                            o_wb_ack <= 1'b1;
+                            state    <= S_PRE;
+                        end
                     end else begin
                         beat_ctr <= beat_ctr + 1'b1;
                     end
@@ -540,6 +611,6 @@ module ddr3_runtime #(
     end
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, i_wb_sel, ref_pending, saved_burst_word_offset, 1'b0};
+    wire _u = &{1'b0, ref_pending, saved_burst_word_offset, 1'b0};
     /* verilator lint_on UNUSED */
 endmodule
