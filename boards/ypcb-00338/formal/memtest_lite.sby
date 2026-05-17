@@ -1,0 +1,24 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc:   mode bmc
+cover: mode cover
+depth 30
+multiclock off
+
+[engines]
+bmc:   smtbmc bitwuzla
+cover: smtbmc bitwuzla
+
+[script]
+read -formal memtest_lite.v
+read -formal fwb_master.v
+read -formal memtest_lite_wrapper.sv
+prep -top memtest_lite_wrapper
+
+[files]
+../rtl/memtest_lite.v
+../../../formal/vendor/fwb_master.v
+memtest_lite_wrapper.sv

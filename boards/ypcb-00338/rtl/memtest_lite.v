@@ -73,6 +73,16 @@ module memtest_lite #(
     reg        target             = 1'b0;
     reg        bram_validated     = 1'b0;
 
+    // Power-up values for the WB output regs. FPGA flops respect these
+    // via the bitstream so power-up matches sim/formal: cyc/stb/we=0.
+    initial begin
+        o_wb_cyc = 1'b0;
+        o_wb_stb = 1'b0;
+        o_wb_we  = 1'b0;
+        o_wb_adr = {WB_ADDR_W{1'b0}};
+        o_wb_dat = 32'd0;
+    end
+
     always @(posedge i_clk) heartbeat <= heartbeat + 1'b1;
 
     // Pattern generator — picks one of 4 patterns per pattern_idx.
@@ -126,7 +136,17 @@ module memtest_lite #(
                     end
                 end
                 S_WAIT_WACK: begin
-                    if (i_wb_ack) begin
+                    // WB B4 pipelined: drop stb as soon as the slave has
+                    // accepted (i.e., !stall on the previous cycle). This
+                    // prevents fwb_master from counting multiple
+                    // outstanding requests for the single transaction.
+                    if (!i_wb_stall) o_wb_stb <= 1'b0;
+                    // On err, abort: drop cyc/stb and return to S_WRITE.
+                    if (i_wb_err) begin
+                        o_wb_cyc <= 1'b0;
+                        o_wb_stb <= 1'b0;
+                        state    <= S_WRITE;
+                    end else if (i_wb_ack) begin
                         o_wb_cyc <= 1'b0;
                         o_wb_stb <= 1'b0;
                         state    <= S_READ;
@@ -140,7 +160,12 @@ module memtest_lite #(
                     state    <= S_WAIT_RACK;
                 end
                 S_WAIT_RACK: begin
-                    if (i_wb_ack) begin
+                    if (!i_wb_stall) o_wb_stb <= 1'b0;
+                    if (i_wb_err) begin
+                        o_wb_cyc <= 1'b0;
+                        o_wb_stb <= 1'b0;
+                        state    <= S_WRITE;
+                    end else if (i_wb_ack) begin
                         o_wb_cyc <= 1'b0;
                         o_wb_stb <= 1'b0;
                         last_ok  <= (i_wb_dat == pattern);
