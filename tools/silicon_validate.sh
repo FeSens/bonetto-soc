@@ -88,4 +88,8 @@ echo "== resume memtest_lite ==" | tee -a "$LOG"
 python3 tools/jtag_uart_read.py --tck-ns 2000 --wb-resume 2>&1 | tee -a "$LOG"
 
 echo
+echo "== comprehensive silicon_probe (7 patterns x BRAM + DDR3) ==" | tee -a "$LOG"
+python3 tools/silicon_probe.py --tck-ns 2000 --n-words 8 2>&1 | tee -a "$LOG"
+
+echo
 echo "== validation complete — see $LOG ==" | tee -a "$LOG"

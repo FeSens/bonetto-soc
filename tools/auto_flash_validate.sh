@@ -41,6 +41,7 @@ JWB_BRAM_WRITE=$(grep -A0 'WB write addr=0x0010' /tmp/silicon_validate.log | tai
 JWB_BRAM_READ=$(grep -A0 'WB read addr=0x0010'  /tmp/silicon_validate.log | tail -1)
 JWB_DDR_WRITE=$(grep -A0 'WB write addr=0x4010' /tmp/silicon_validate.log | tail -1)
 JWB_DDR_READ=$(grep -A0 'WB read addr=0x4010'   /tmp/silicon_validate.log | tail -1)
+PROBE_SUMMARY=$(grep -E 'SILICON_PROBE_SUMMARY' /tmp/silicon_validate.log | tail -1)
 
 {
   echo "== silicon validation summary $(date) =="
@@ -53,8 +54,29 @@ JWB_DDR_READ=$(grep -A0 'WB read addr=0x4010'   /tmp/silicon_validate.log | tail
   echo "$JWB_BRAM_READ"
   echo "$JWB_DDR_WRITE"
   echo "$JWB_DDR_READ"
+  echo "== iter-7c silicon_probe summary =="
+  echo "$PROBE_SUMMARY"
   echo
   echo "== recommended next iteration =="
+  # First branch on the comprehensive silicon_probe summary if present.
+  if [ -n "$PROBE_SUMMARY" ]; then
+      if echo "$PROBE_SUMMARY" | grep -q 'bram_ok=1 ddr3_ok=1'; then
+          echo "  silicon_probe: BRAM + DDR3 both clean across all 7 patterns. Iteration done."
+          echo "  Continue monitoring DDR3_PASS_CTR (0x08) for sustained increments."
+          exit 0
+      elif echo "$PROBE_SUMMARY" | grep -q 'bram_ok=1 ddr3_ok=0'; then
+          echo "  silicon_probe: BRAM clean, DDR3 failing. Check per-pattern fail lines"
+          echo "  above for stuck-bit / lane-swap / phase-skew signature. If patterns"
+          echo "  fail uniformly, try iter-9 (SKIP_RDLVL=0): build via"
+          echo "  tools/build_iter9_rdlvl.sh, then flash bonetto_soc_iter9_rdlvl.bit."
+          exit 0
+      elif echo "$PROBE_SUMMARY" | grep -q 'bram_ok=0'; then
+          echo "  silicon_probe: BRAM probe failed. WB bus / decoder / clock issue."
+          echo "  Check wb_decode2 wiring, rst_sys propagation."
+          exit 0
+      fi
+  fi
+  # Fallback to the older shell-grep heuristics if silicon_probe wasn't run.
   if echo "$LAST_REG00" | grep -q "magic=0x0000"; then
       echo "  STATUS MUX NOT RESPONDING. Re-check jtag_uart CAPTURE wiring."
   elif echo "$LAST_REG00" | grep -q "mmcm_locked=0"; then
