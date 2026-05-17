@@ -100,7 +100,14 @@ class Validator:
         local, hi = ddr3_addr_parts(addr)
         return jwb_wb_read(self.xvc, local, hi)
 
+    def normalize_cases(self, cases):
+        by_addr = {}
+        for addr, data in cases:
+            by_addr[addr & DDR3_ADDR_MASK] = data & 0xFFFFFFFF
+        return list(by_addr.items())
+
     def check(self, name, cases):
+        cases = self.normalize_cases(cases)
         start = time.monotonic()
         first_fail = None
         for addr, data in cases:
