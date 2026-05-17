@@ -38,11 +38,18 @@ Build-only full-width gates are available for the next bring-up stages:
 ```sh
 make -C boards/ypcb-00338 full-ch0-json
 make -C boards/ypcb-00338 full-2ch-json
+make -C boards/ypcb-00338 full-2ch-ddr800-bitstream
 ```
 
 The dual-channel target uses the online CH0 and CH1 memory pin maps and selects
 the DDR3-1600 timing/clocking profile. It is synthesis evidence only, not a
 replacement for routed timing or hardware validation.
+
+The `full-2ch-ddr800-bitstream` staging target keeps DDR3-800 timing while
+using both online memory-channel pin maps. With the BL8 word-offset fast path,
+seed 1 routes at 103.44 MHz `clk_sys`, 136.89 MHz `clk_dq`, and 1557.63 MHz
+`clk_phy_x4` against the 100 MHz target. It is still a bring-up image until it
+is programmed and validated on hardware.
 
 For pin work, use the public board reference archive rather than deriving pins
 from the current reduced top:

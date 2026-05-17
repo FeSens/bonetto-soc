@@ -79,6 +79,15 @@ lane 3 bypassed and the ECC byte lane used as data lane 7. This target has
 passed synthesis only; it still needs route timing, programming, per-channel
 debug visibility, and hardware memory validation.
 
+`make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` is the current
+dual-channel staging gate. It uses both online CH0/CH1 DDR3 pin maps and the
+same 30-bit global address decode, but keeps the DDR3-800 timing profile.
+After replacing the generic BL8 word-offset muxing with a registered one-hot
+fast path, seed 1 routes this image at 103.44 MHz `clk_sys`, 136.89 MHz
+`clk_dq`, and 1557.63 MHz `clk_phy_x4` against a 100 MHz target. This is route
+evidence only until the bitstream is programmed and the hardware validator
+passes across both channels.
+
 ## Required RTL Deltas
 
 1. Replace the current constant-DQ write/read shortcut with a true BL8 data
@@ -115,6 +124,7 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | PHY BL8 lane synthesis | `make -C ip/ddr3 synth-phy-dq-ratio8` passes |
 | CH0 full-width synthesis | `make -C boards/ypcb-00338 full-ch0-json` passes |
 | Dual-channel full-speed synthesis | `make -C boards/ypcb-00338 full-2ch-json` passes |
+| Dual-channel DDR3-800 staging route | `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` passes with seed 1 |
 | CH0 64-bit DDR3-800 | deterministic, walking address/data, per-byte lane, checksum, and soak over unique BL8 offsets |
 | CH1 64-bit DDR3-800 | same checks on the second channel |
 | Dual-channel address map | boundary tests across the channel-select bit and top-of-memory |

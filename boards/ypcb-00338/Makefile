@@ -51,10 +51,11 @@ INCDIRS := -I ../../verification/common -I ../../ip/wishbone/rtl -I ../../ip/ddr
 
 PYPY3  ?= pypy3
 NEXTPNR_FREQ ?= 100
+NEXTPNR_ARGS ?=
 DDR3_DEFINES ?=
 DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
-.PHONY: bitstream program detect memtest xvc validate-ddr3 full-ch0-json full-2ch-json clean help
+.PHONY: bitstream program detect memtest xvc validate-ddr3 full-ch0-json full-2ch-json full-2ch-ddr800-bitstream clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -88,6 +89,16 @@ full-2ch-json:
 	  DDR3_ACTIVE_DQS_MAX=8 \
 	  build/bonetto_soc_ypcb00338_full_2ch.json
 
+full-2ch-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr800 \
+	  DDR3_DEFINES="-DDDR3_FULL_2CH" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=100 \
+	  NEXTPNR_ARGS="--seed 1 --log build/full_2ch_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_full_2ch_ddr800.bit
+
 $(CHIPDB)/$(DBPART).bin: | $(CHIPDB)
 	@echo ">> generating chipdb for $(PART) (one-time, ~5-15 min)"
 	$(PYPY3) $(NEXTPNR_XILINX_PYTHON_DIR)/bbaexport.py --device $(PART) --bba $(BUILD)/$(DBPART).bba
@@ -98,7 +109,7 @@ $(XDC): $(XDC_FILES) Makefile | $(BUILD)
 	perl -ne 'next if /ddr3_dq\[(\d+)\]/ && $$1 > $(DDR3_ACTIVE_DQ_MAX); next if /ddr3_dqs_[pn]\[(\d+)\]/ && $$1 > $(DDR3_ACTIVE_DQS_MAX); print' $(XDC_FILES) > $@
 
 $(BUILD)/$(PROJECT).fasm: $(BUILD)/$(PROJECT).json $(CHIPDB)/$(DBPART).bin $(XDC) Makefile
-	nextpnr-xilinx --chipdb $(CHIPDB)/$(DBPART).bin --xdc $(XDC) --json $(BUILD)/$(PROJECT).json --freq $(NEXTPNR_FREQ) --fasm $@
+	nextpnr-xilinx $(NEXTPNR_ARGS) --chipdb $(CHIPDB)/$(DBPART).bin --xdc $(XDC) --json $(BUILD)/$(PROJECT).json --freq $(NEXTPNR_FREQ) --fasm $@
 
 $(BUILD)/$(PROJECT).frames: $(BUILD)/$(PROJECT).fasm
 	# Strip ~14 FASM lines that prjxray's kintex7 DB doesn't document:
@@ -176,5 +187,6 @@ help:
 	@echo "  make validate-ddr3   run hardware DDR3 validation against XVC"
 	@echo "  make full-ch0-json   synth build-only 64-bit CH0 / BL8 image"
 	@echo "  make full-2ch-json   synth build-only 2-channel 4 GiB DDR3-1600 image"
+	@echo "  make full-2ch-ddr800-bitstream  route seeded 2-channel DDR3-800 staging image"
 	@echo "  make detect          probe JTAG chain"
 	@echo "  make clean           remove build artifacts"

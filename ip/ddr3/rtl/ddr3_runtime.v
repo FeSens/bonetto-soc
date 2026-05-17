@@ -100,6 +100,9 @@ module ddr3_runtime #(
     localparam integer WB_BURST_LOCAL_W = BURST_ADDR_W + WB_BURST_WORD_BITS;
     localparam integer WB_BURST_WORD_W = (WB_BURST_WORD_BITS > 0) ? WB_BURST_WORD_BITS : 1;
     localparam integer USE_BURST_WORD_OFFSET = (WB_BURST_WORD_BITS > 0);
+    localparam integer USE_FAST_BURST_WORD =
+        (WB_BURST_WORD_BITS == 4) && (NUM_BYTE_LANES == 8) &&
+        (SERDES_RATIO == 8) && (WB_DATA_W == 32) && (DQ_BITS == 8);
 
     // ---- WB address split ----
     // Default validated CH0 mode consumes one WB word per BL8 command:
@@ -260,6 +263,7 @@ module ddr3_runtime #(
     reg [WB_DATA_W-1:0]  saved_wdat;
     reg [WB_BYTES-1:0]   saved_sel;
     reg [WB_BURST_WORD_W-1:0] saved_burst_word_offset;
+    reg [15:0]           saved_burst_word_onehot;
     reg [PHY_DATA_W-1:0] rmw_wr_data;
 
     // Accept WB only in IDLE with no pending refresh.
@@ -326,9 +330,76 @@ module ddr3_runtime #(
         end
     endfunction
 
-    wire [WB_DATA_W-1:0] phy_rd_word =
-        USE_BURST_WORD_OFFSET ? burst_get_word(i_rd_data, saved_burst_word_offset) :
-                                burst_get_word(i_rd_data, {WB_BURST_WORD_W{1'b0}});
+    function [15:0] burst_word_onehot;
+        input [WB_BURST_WORD_W-1:0] word_offset;
+        integer idx;
+        begin
+            burst_word_onehot = 16'd0;
+            for (idx = 0; idx < 16; idx = idx + 1) begin
+                if (word_offset == idx[WB_BURST_WORD_W-1:0])
+                    burst_word_onehot[idx] = 1'b1;
+            end
+        end
+    endfunction
+
+    wire [WB_DATA_W-1:0] phy_rd_word;
+    wire [PHY_DATA_W-1:0] rmw_wr_data_next;
+
+    generate
+        if (USE_FAST_BURST_WORD) begin : g_fast_burst_word
+            genvar fb, fbit, fw, fl, fs;
+
+            // For an 8-lane x8 BL8 burst exposed as 32-bit WB words:
+            //   word_offset[0] selects lane group 0..3 vs 4..7,
+            //   word_offset[3:1] selects the BL8 sample.
+            // A registered one-hot avoids fanning four offset bits into every
+            // byte-lane mux in both duplicated full-channel controllers.
+            for (fb = 0; fb < WB_BYTES; fb = fb + 1) begin : g_fast_rd_byte
+                for (fbit = 0; fbit < 8; fbit = fbit + 1) begin : g_fast_rd_bit
+                    wire [15:0] rd_sel_bits;
+                    for (fw = 0; fw < 16; fw = fw + 1) begin : g_fast_rd_word
+                        localparam integer RD_LANE = ((fw % 2) * 4) + fb;
+                        localparam integer RD_SAMPLE = fw / 2;
+                        localparam integer RD_BIT =
+                            RD_LANE*DQ_BITS*SERDES_RATIO +
+                            fbit*SERDES_RATIO + RD_SAMPLE;
+                        assign rd_sel_bits[fw] =
+                            saved_burst_word_onehot[fw] & i_rd_data[RD_BIT];
+                    end
+                    assign phy_rd_word[fb*8 + fbit] = |rd_sel_bits;
+                end
+            end
+
+            for (fl = 0; fl < NUM_BYTE_LANES; fl = fl + 1) begin : g_fast_wr_lane
+                for (fbit = 0; fbit < DQ_BITS; fbit = fbit + 1) begin : g_fast_wr_bit
+                    for (fs = 0; fs < SERDES_RATIO; fs = fs + 1) begin : g_fast_wr_sample
+                        localparam integer WORD_INDEX = (fs * 2) + (fl / 4);
+                        localparam integer BYTE_INDEX = fl % 4;
+                        localparam integer WR_BIT =
+                            fl*DQ_BITS*SERDES_RATIO +
+                            fbit*SERDES_RATIO + fs;
+                        wire replace_bit =
+                            saved_burst_word_onehot[WORD_INDEX] &
+                            saved_sel[BYTE_INDEX];
+                        assign rmw_wr_data_next[WR_BIT] = replace_bit ?
+                            saved_wdat[BYTE_INDEX*8 + fbit] :
+                            (i_rd_valid ? i_rd_data[WR_BIT] : 1'b0);
+                    end
+                end
+            end
+        end else begin : g_generic_burst_word
+            assign phy_rd_word =
+                USE_BURST_WORD_OFFSET ? burst_get_word(i_rd_data, saved_burst_word_offset) :
+                                        burst_get_word(i_rd_data, {WB_BURST_WORD_W{1'b0}});
+            assign rmw_wr_data_next = burst_put_word(
+                i_rd_valid ? i_rd_data : {PHY_DATA_W{1'b0}},
+                saved_burst_word_offset,
+                saved_wdat,
+                saved_sel
+            );
+        end
+    endgenerate
+
     wire [PHY_DATA_W-1:0] legacy_wr_data;
 
     genvar gl, gb, gs;
@@ -361,6 +432,7 @@ module ddr3_runtime #(
             beat_ctr    <= 8'd0;
             wait_ctr    <= 8'd0;
             saved_burst_word_offset <= {WB_BURST_WORD_W{1'b0}};
+            saved_burst_word_onehot <= 16'd1;
             saved_sel   <= {WB_BYTES{1'b0}};
             rmw_wr_data <= {PHY_DATA_W{1'b0}};
             ref_clear   <= 1'b0;
@@ -394,6 +466,7 @@ module ddr3_runtime #(
                         saved_wdat <= i_wb_dat;
                         saved_sel  <= i_wb_sel;
                         saved_burst_word_offset <= wb_burst_word_offset;
+                        saved_burst_word_onehot <= burst_word_onehot(wb_burst_word_offset);
                         state      <= S_ACT;
                     end
                 end
@@ -439,12 +512,7 @@ module ddr3_runtime #(
                     if (beat_ctr == READ_CAPTURE_SYS_CYCLES + READ_SETTLE_SYS_CYCLES - 1) begin
                         beat_ctr <= 8'd0;
                         if (saved_we && USE_BURST_WORD_OFFSET) begin
-                            rmw_wr_data <= burst_put_word(
-                                i_rd_valid ? i_rd_data : {PHY_DATA_W{1'b0}},
-                                saved_burst_word_offset,
-                                saved_wdat,
-                                saved_sel
-                            );
+                            rmw_wr_data <= rmw_wr_data_next;
                             wait_ctr <= 8'd0;
                             state    <= S_WR;
                         end else begin
@@ -611,6 +679,7 @@ module ddr3_runtime #(
     end
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, ref_pending, saved_burst_word_offset, 1'b0};
+    wire _u = &{1'b0, ref_pending, saved_burst_word_offset,
+                saved_burst_word_onehot, 1'b0};
     /* verilator lint_on UNUSED */
 endmodule
