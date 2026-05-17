@@ -42,8 +42,8 @@ CHIPDB := $(BUILD)/chipdb
 # nextpnr-xilinx takes a single XDC file, so we cat them at build time.
 XDC_FILES := constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc
 XDC       := $(BUILD)/$(PROJECT).xdc
-DDR3_ACTIVE_DQ_MAX  ?= 31
-DDR3_ACTIVE_DQS_MAX ?= 3
+DDR3_ACTIVE_DQ_MAX  ?= 39
+DDR3_ACTIVE_DQS_MAX ?= 4
 
 # Shared-header include dirs are wired into read_verilog inside the
 # yosys script (yosys's CLI has no -I flag — includes go via `read_verilog -I`).

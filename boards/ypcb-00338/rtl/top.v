@@ -31,9 +31,9 @@ module top (
     output wire        ddr3_reset_n,
     output wire        ddr3_ck_p,
     output wire        ddr3_ck_n,
-    inout  wire [31:0] ddr3_dq,
-    inout  wire [3:0]  ddr3_dqs_p,
-    inout  wire [3:0]  ddr3_dqs_n
+    inout  wire [39:0] ddr3_dq,
+    inout  wire [4:0]  ddr3_dqs_p,
+    inout  wire [4:0]  ddr3_dqs_n
 );
     // ---- Power-on reset on clk_50 (16K cycles ≈ 320 µs @ 50 MHz) ----
     reg [13:0] por_ctr_50 = 14'h3FFF;
@@ -473,9 +473,12 @@ module top (
         .o_ddr3_odt     (ddr3_odt),
         .o_ddr3_ba      (ddr3_ba),
         .o_ddr3_addr    (ddr3_addr),
-        .io_ddr3_dq     (ddr3_dq[DDR3_ACTIVE_BYTE_LANES*DDR3_DQ_BITS-1:0]),
-        .io_ddr3_dqs_p  (ddr3_dqs_p[DDR3_ACTIVE_BYTE_LANES-1:0]),
-        .io_ddr3_dqs_n  (ddr3_dqs_n[DDR3_ACTIVE_BYTE_LANES-1:0]),
+        // Physical lane 3 currently reads as a stuck-zero byte on YPCB-00338.
+        // Use lanes 0,1,2,4 as the active 32-bit slice while keeping the
+        // controller-facing byte order contiguous.
+        .io_ddr3_dq     ({ddr3_dq[39:32], ddr3_dq[23:0]}),
+        .io_ddr3_dqs_p  ({ddr3_dqs_p[4],  ddr3_dqs_p[2:0]}),
+        .io_ddr3_dqs_n  ({ddr3_dqs_n[4],  ddr3_dqs_n[2:0]}),
         .o_ddr3_dm      ()
     );
 
