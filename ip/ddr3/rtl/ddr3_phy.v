@@ -32,6 +32,7 @@
 `default_nettype none
 
 `include "ddr3_params.vh"
+`include "ddr3_cmd.vh"
 
 module ddr3_phy #(
     parameter integer DQ_BITS        = 8,           // per byte lane
@@ -68,6 +69,7 @@ module ddr3_phy #(
     // Controller-side read data.
     input  wire                            i_rd_capture,
     output wire                            o_rd_valid,
+    output wire [NUM_BYTE_LANES-1:0]       o_rd_valid_lane,
     output wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] o_rd_data,
 
     // -------- Calibration control --------
@@ -94,6 +96,8 @@ module ddr3_phy #(
     // HR-bank-compatible write-leveling alternative to ODELAYE2 on
     // the DQS output. Each pulse on i_phase_req shifts clk_dq phase
     // by 1/56 of the VCO period (22.3ps with our 800 MHz VCO).
+    // With the PLLE2 bring-up clocking this cannot physically shift clk_dq,
+    // so the counter is visibility-only until the MMCM path is restored.
     input  wire                            i_phase_req,
     input  wire                            i_phase_inc,
     output wire                            o_phase_busy,
@@ -251,6 +255,7 @@ module ddr3_phy #(
     // NOPs on the other three CK cycles within each clk_sys cycle.
     // ============================================================
     reg cke_shadow, reset_shadow, odt_shadow;
+    reg wr_shadow;
     reg [3:0] cmd_shadow;
     reg [BANK_BITS-1:0] ba_shadow;
     reg [ROW_BITS-1:0] addr_shadow;
@@ -260,6 +265,7 @@ module ddr3_phy #(
             cke_shadow   <= 1'b0;
             reset_shadow <= 1'b0;
             odt_shadow   <= 1'b0;
+            wr_shadow    <= 1'b0;
             cmd_shadow   <= 4'b1111;
             ba_shadow    <= {BANK_BITS{1'b0}};
             addr_shadow  <= {ROW_BITS{1'b0}};
@@ -268,10 +274,12 @@ module ddr3_phy #(
             reset_shadow <= i_cmd_reset_n;
             odt_shadow   <= i_cmd_odt;
             if (i_cmd_valid) begin
+                wr_shadow   <= (i_cmd == `DDR3_CMD_WRITE);
                 cmd_shadow  <= i_cmd;
                 ba_shadow   <= i_cmd_ba;
                 addr_shadow <= i_cmd_addr;
             end else begin
+                wr_shadow   <= 1'b0;
                 cmd_shadow  <= 4'b1111;
                 ba_shadow   <= {BANK_BITS{1'b0}};
                 addr_shadow <= {ROW_BITS{1'b0}};
@@ -283,6 +291,8 @@ module ddr3_phy #(
     reg [BANK_BITS-1:0]  ba_q;
     reg [ROW_BITS-1:0]   addr_q;
     reg [1:0]            cmd_phase;
+    reg                  wr_cmd_launch_q;
+    localparam integer WR_DQS_DELAY_CK = 3;
 
     always @(posedge o_clk_dq or posedge phy_io_rst) begin
         if (phy_io_rst) begin
@@ -293,15 +303,18 @@ module ddr3_phy #(
             {cs_q, ras_q, cas_q, we_q} <= 4'b1111;
             ba_q     <= {BANK_BITS{1'b0}};
             addr_q   <= {ROW_BITS{1'b0}};
+            wr_cmd_launch_q <= 1'b0;
         end else begin
             cmd_phase <= cmd_phase + 2'd1;
             cke_q    <= cke_shadow;
             reset_q  <= reset_shadow;
             odt_q    <= odt_shadow;
+            wr_cmd_launch_q <= 1'b0;
             if (cmd_phase == 2'd0) begin
                 {cs_q, ras_q, cas_q, we_q} <= cmd_shadow;
                 ba_q   <= ba_shadow;
                 addr_q <= addr_shadow;
+                wr_cmd_launch_q <= wr_shadow;
             end else begin
                 {cs_q, ras_q, cas_q, we_q} <= 4'b1111;
                 ba_q   <= {BANK_BITS{1'b0}};
@@ -348,7 +361,11 @@ module ddr3_phy #(
     ddr3_phy_lane_array #(
         .NUM_BYTE_LANES (NUM_BYTE_LANES),
         .DQ_BITS        (DQ_BITS),
-        .RATIO          (SERDES_RATIO)
+        .RATIO          (SERDES_RATIO),
+        .WR_DQS_DELAY_CK(WR_DQS_DELAY_CK),
+        // Bring-up diagnostic mode: return the captured word if any byte
+        // lane saw DQS, while exposing the exact lane mask separately.
+        .RD_VALID_REQUIRE_ALL(0)
     ) u_lanes (
         .i_clk_sys                (o_clk_sys),
         .i_clk_phy_x4             (o_clk_phy_x4),
@@ -356,9 +373,9 @@ module ddr3_phy #(
         .i_clk_ref_200            (o_clk_sys),
         .i_rst                    (phy_io_rst),
 
-        .i_wr_en                  (i_wr_valid),
+        .i_wr_en                  (wr_cmd_launch_q),
         .i_wr_data                (i_wr_data),
-        .i_wr_dqs_en              (i_wr_valid),      // normal-write DQS strobe
+        .i_wr_dqs_en              (wr_cmd_launch_q), // normal-write DQS strobe
         .i_rd_capture             (i_rd_capture),
 
         .o_rd_data                (lane_rd_data),
@@ -385,6 +402,7 @@ module ddr3_phy #(
     );
 
     assign o_rd_data = lane_rd_data;
+    assign o_rd_valid_lane = lane_rd_valid;
 
     // ============================================================
     // Write-leveling FSM

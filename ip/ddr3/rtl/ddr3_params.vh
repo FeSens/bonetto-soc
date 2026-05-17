@@ -91,10 +91,12 @@
 
   // MR1 (BA=001) — DLL enabled, RZQ/6 ODS, RTT_NOM=RZQ/4 so the DRAM
   // can terminate FPGA writes while ODT is asserted, no levelling, no AL,
-  // no TDQS, output buffer enabled. Reserved bits programmed to zero.
+  // TDQS enabled (disables DM), output buffer enabled. Reserved bits
+  // programmed to zero.
   //   A[0]     DLL      = 0      (DLL enabled)
   //   A[2]     RTT_NOM  = 1      (RZQ/4)
-  `define DDR3_MR1_VAL    16'h0004
+  //   A[11]    TDQS     = 1      (enabled; no external DM pins on board)
+  `define DDR3_MR1_VAL    16'h0804
 
   // MR2 (BA=010):
   //   A[2:0]   PASR     = 000    (full array, normal temp range)

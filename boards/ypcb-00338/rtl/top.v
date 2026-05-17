@@ -343,6 +343,7 @@ module top (
     wire [DDR3_PHY_DATA_W-1:0] phy_wr_data;
     wire        phy_rd_capture;
     wire        phy_rd_valid;
+    wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane;
     wire [DDR3_PHY_DATA_W-1:0] phy_rd_data;
 
     ddr3_ctrl #(
@@ -439,6 +440,7 @@ module top (
         .i_rd_capture   (phy_rd_capture),
 
         .o_rd_valid     (phy_rd_valid),
+        .o_rd_valid_lane(phy_rd_valid_lane),
         .o_rd_data      (phy_rd_data),
 
         .i_cal_start_wlvl  (cal_wlvl_start),
@@ -500,6 +502,7 @@ module top (
     // 0x15  | CLK_SYS_PROBE    {magic=0xAB15, alive, synced_bit, _, ticks_lo[5:0]}
     // 0x16  | CLK_PHY_X4_PROBE {magic=0xAB16, alive, synced_bit, _, ticks_lo[5:0]}
     // 0x17  | CLK_DQ_PROBE     {magic=0xAB17, alive, synced_bit, _, ticks_lo[5:0]}
+    // 0x19  | PHY_RD_VALID_LANES
     //         (iter-13 — detect prjxray-gap CLKOUT routing failures.
     //         Each CLKOUT can fail independently because per-output
     //         CMT_LR_LOWER_B_MMCM_CLKOUT segbits are independently missing
@@ -618,10 +621,12 @@ module top (
     // CDC for JTAG-WB master status (clk_sys → clk_50).
     reg [1:0]  jwb_busy_sync, jwb_last_ack_sync, jwb_last_err_sync, jwb_halt_others_sync;
     reg [1:0]  phase_busy_sync;
+    reg [1:0]  phy_rd_capture_sync;
     reg [7:0]  phase_count_sync [1:0];
     reg [14:0] jwb_addr_echo_sync   [1:0];
     reg [31:0] jwb_data_echo_sync   [1:0];
     reg [31:0] jwb_rd_data_sync     [1:0];
+    reg [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_sync [1:0];
     reg [7:0]  d3_ctrl_sync             [1:0];
     always @(posedge clk_50) begin
         jwb_busy_sync        <= {jwb_busy_sync[0],        jwb_busy};
@@ -629,6 +634,7 @@ module top (
         jwb_last_err_sync    <= {jwb_last_err_sync[0],    jwb_last_err};
         jwb_halt_others_sync <= {jwb_halt_others_sync[0], jwb_halt_others};
         phase_busy_sync      <= {phase_busy_sync[0], phy_phase_busy};
+        phy_rd_capture_sync  <= {phy_rd_capture_sync[0], phy_rd_capture};
         phase_count_sync[0]  <= phy_phase_count;
         phase_count_sync[1]  <= phase_count_sync[0];
         jwb_addr_echo_sync[0] <= jwb_addr_echo;
@@ -637,6 +643,8 @@ module top (
         jwb_data_echo_sync[1] <= jwb_data_echo_sync[0];
         jwb_rd_data_sync[0]   <= jwb_rd_data;
         jwb_rd_data_sync[1]   <= jwb_rd_data_sync[0];
+        phy_rd_valid_lane_sync[0] <= phy_rd_valid_lane;
+        phy_rd_valid_lane_sync[1] <= phy_rd_valid_lane_sync[0];
         d3_ctrl_sync[0]  <= {d3_cyc, d3_stb, d3_we, d3_ack, d3_stall,
                              d3_err, phy_wr_valid, phy_rd_valid};
         d3_ctrl_sync[1]  <= d3_ctrl_sync[0];
@@ -731,8 +739,8 @@ module top (
                                     8'd0, phy_x4_ticks_lo};
             8'h17:   status_word = {16'hAB17, dq_alive, dq_synced_bit,
                                     8'd0, dq_ticks_lo};
-            8'h18:   status_word = {16'hAB18, 15'd0, phy_rd_capture};
-            8'h19:   status_word = {16'hAB19, 16'd0};
+            8'h18:   status_word = {16'hAB18, 15'd0, phy_rd_capture_sync[1]};
+            8'h19:   status_word = {16'hAB19, 12'd0, phy_rd_valid_lane_sync[1]};
             8'h1A:   status_word = {16'hAB1A, 16'd0};
             8'h1B:   status_word = {16'hAB1B, 16'd0};
             8'h1C:   status_word = {24'hAB1C00, d3_ctrl_sync[1]};

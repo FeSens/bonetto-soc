@@ -9,7 +9,9 @@
 module ddr3_phy_lane_array #(
     parameter integer NUM_BYTE_LANES = 9,
     parameter integer DQ_BITS        = 8,
-    parameter integer RATIO          = 4
+    parameter integer RATIO          = 4,
+    parameter integer WR_DQS_DELAY_CK = 4,
+    parameter integer RD_VALID_REQUIRE_ALL = 1
 ) (
     // -------- Clocks --------
     input  wire                              i_clk_sys,
@@ -82,7 +84,8 @@ module ddr3_phy_lane_array #(
         for (bl = 0; bl < NUM_BYTE_LANES; bl = bl + 1) begin : g_lane
             ddr3_phy_dq #(
                 .DQ_BITS (DQ_BITS),
-                .RATIO   (RATIO)
+                .RATIO   (RATIO),
+                .WR_DQS_DELAY_CK (WR_DQS_DELAY_CK)
             ) u_lane (
                 .i_clk_sys           (i_clk_sys),
                 .i_clk_phy_x4        (i_clk_phy_x4),
@@ -116,7 +119,7 @@ module ddr3_phy_lane_array #(
         end
     endgenerate
 
-    assign o_rd_valid_all = &o_rd_valid_lane;
+    assign o_rd_valid_all = RD_VALID_REQUIRE_ALL ? (&o_rd_valid_lane) : (|o_rd_valid_lane);
 
     /* verilator lint_off UNUSED */
     wire _u_lane_array = &{1'b0, i_clk_ref_200,

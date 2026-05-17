@@ -71,7 +71,7 @@ module ddr3_runtime #(
     input  wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] i_rd_data,
     input  wire                       i_rd_valid,
     output wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] o_wr_data,
-    output wire                       o_wr_valid,
+    output reg                        o_wr_valid,
     output wire                       o_rd_capture,
 
     // -------- MPR-read request port (iter-3c, for read-leveling) --------
@@ -233,7 +233,6 @@ module ddr3_runtime #(
     wire wb_accept_ok = i_init_done && (state == S_IDLE) && !ref_pending;
     assign o_wb_stall = ~wb_accept_ok;
     assign o_wb_err   = 1'b0;
-    assign o_wr_valid = (state == S_DATA_WR);
     assign o_rd_capture = (state == S_DATA_RD) && (beat_ctr < READ_CAPTURE_SYS_CYCLES);
     assign o_cmd_odt = (state == S_WR) || (state == S_WAIT_CWL) ||
                        (state == S_DATA_WR) || (state == S_WR_RECOV);
@@ -272,6 +271,7 @@ module ddr3_runtime #(
             o_cmd_addr  <= {ROW_BITS{1'b0}};
             o_wb_ack    <= 1'b0;
             o_wb_dat    <= {WB_DATA_W{1'b0}};
+            o_wr_valid  <= 1'b0;
             beat_ctr    <= 8'd0;
             wait_ctr    <= 8'd0;
             ref_clear   <= 1'b0;
@@ -281,6 +281,7 @@ module ddr3_runtime #(
             o_cmd_valid <= 1'b0;
             o_cmd       <= `DDR3_CMD_NOP;
             o_wb_ack    <= 1'b0;
+            o_wr_valid  <= 1'b0;
             ref_clear   <= 1'b0;
             mpr_clear   <= 1'b0;
             mrs_clear   <= 1'b0;
@@ -359,6 +360,7 @@ module ddr3_runtime #(
                     o_cmd       <= `DDR3_CMD_WRITE;
                     o_cmd_ba    <= saved_bank;
                     o_cmd_addr  <= { {(ROW_BITS-COL_BITS-1){1'b0}}, 1'b0, saved_col };
+                    o_wr_valid  <= 1'b1;
                     wait_ctr    <= 8'd0;
                     state       <= S_WAIT_CWL;
                 end

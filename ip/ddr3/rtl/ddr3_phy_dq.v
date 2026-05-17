@@ -21,7 +21,8 @@
 
 module ddr3_phy_dq #(
     parameter integer DQ_BITS = 8,
-    parameter integer RATIO   = 4
+    parameter integer RATIO   = 4,
+    parameter integer WR_DQS_DELAY_CK = 4
 ) (
     input  wire                     i_clk_sys,
     input  wire                     i_clk_phy_x4,
@@ -79,40 +80,42 @@ module ddr3_phy_dq #(
     wire [DQ_BITS-1:0] dq_out_ddr;
     wire [DQ_BITS-1:0] dq_in_raw;
 
-    localparam [2:0]
-        WR_IDLE   = 3'd0,
-        WR_PRE    = 3'd1,
-        WR_BURST0 = 3'd2,
-        WR_POST   = 3'd3;
+    reg        wr_en_dq_q  = 1'b0;
+    reg [WR_DQS_DELAY_CK:0] wr_start_sr = {(WR_DQS_DELAY_CK+1){1'b0}};
+    reg [5:0]  dqs_seq_sr = 6'b000000;
+    reg        dq_drive_q  = 1'b0;
 
-    reg [2:0] wr_phase = WR_IDLE;
-    reg       wr_en_q  = 1'b0;
-    wire      wr_start = i_wr_en && !wr_en_q;
-    wire      dq_drive_en = (wr_phase != WR_IDLE);
+    wire       wr_start_dq = i_wr_en && !wr_en_dq_q;
+    wire       wr_delay_fire = wr_start_sr[WR_DQS_DELAY_CK];
+    wire       dq_drive_en = dq_drive_q;
+    wire       dqs_drive_window = |dqs_seq_sr;
+    wire       dqs_burst = |dqs_seq_sr[4:1];
+    wire       dqs_seq_done = dqs_seq_sr[5];
 
     integer j;
-    always @(posedge i_clk_sys or posedge i_rst) begin
+    always @(posedge i_clk_dq or posedge i_rst) begin
         if (i_rst) begin
-            dq_out_q <= {DQ_BITS{1'b0}};
-            wr_phase <= WR_IDLE;
-            wr_en_q  <= 1'b0;
+            dq_out_q   <= {DQ_BITS{1'b0}};
+            wr_en_dq_q <= 1'b0;
+            wr_start_sr <= {(WR_DQS_DELAY_CK+1){1'b0}};
+            dqs_seq_sr <= 6'b000000;
+            dq_drive_q  <= 1'b0;
         end else begin
-            wr_en_q <= i_wr_en;
-            if (wr_start) begin
-                wr_phase <= WR_PRE;
-            end else begin
-                case (wr_phase)
-                    WR_PRE:    wr_phase <= WR_BURST0;
-                    WR_BURST0: wr_phase <= WR_POST;
-                    WR_POST:   wr_phase <= WR_IDLE;
-                    default:   wr_phase <= WR_IDLE;
-                endcase
-            end
-
-            if (wr_start) begin
+            wr_en_dq_q <= i_wr_en;
+            wr_start_sr <= {wr_start_sr[WR_DQS_DELAY_CK-1:0], wr_start_dq};
+            if (wr_start_dq) begin
+                dq_drive_q <= 1'b1;
                 for (j = 0; j < DQ_BITS; j = j + 1)
                     dq_out_q[j] <= i_wr_data[j*RATIO];
             end
+
+            if (wr_delay_fire) begin
+                dqs_seq_sr <= 6'b000001;
+            end else begin
+                dqs_seq_sr <= {dqs_seq_sr[4:0], 1'b0};
+            end
+            if (dqs_seq_done)
+                dq_drive_q <= 1'b0;
         end
     end
 
@@ -149,8 +152,7 @@ module ddr3_phy_dq #(
     // ===========================================================
     wire dqs_in_raw;
 
-    wire dqs_burst  = (wr_phase == WR_BURST0);
-    wire dqs_drive  = dq_drive_en | i_cal_dqs_toggle_en;
+    wire dqs_drive  = dqs_drive_window | i_cal_dqs_toggle_en;
     wire dqs_active = dqs_burst || i_cal_dqs_toggle_en;
     wire dqs_out;
 
