@@ -61,11 +61,12 @@ sim-jtag-uart:
 sim-ddr3:
 	$(MAKE) -C ip/ddr3 sim
 
-# Board-level cocotb: bringup_status_led + clk_liveness.
+# Board-level cocotb: bringup_status_led + clk_liveness + memtest_lite.
 sim-board:
-	@echo "[board $(BOARD)] sim: bringup_status_led + clk_liveness"
+	@echo "[board $(BOARD)] sim: bringup_status_led + clk_liveness + memtest_lite"
 	-$(MAKE) -C boards/$(BOARD)/sim -f Makefile.cocotb
 	-$(MAKE) -C boards/$(BOARD)/sim -f Makefile.clk_liveness
+	-$(MAKE) -C boards/$(BOARD)/sim -f Makefile.memtest
 
 # --- board flow ---------------------------------------------------------------
 

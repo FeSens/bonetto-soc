@@ -1,0 +1,12 @@
+SIM           ?= icarus
+TOPLEVEL_LANG ?= verilog
+TOPLEVEL      ?= memtest_lite
+MODULE        ?= test_memtest_lite
+
+VERILOG_SOURCES = ../rtl/memtest_lite.v
+
+# Small WB_ADDR_W so addr-space is tractable.
+COMPILE_ARGS  += -g2012 -Pmemtest_lite.WB_ADDR_W=6
+SIM_BUILD     ?= sim_build_mt
+
+include $(shell cocotb-config --makefiles)/Makefile.sim
