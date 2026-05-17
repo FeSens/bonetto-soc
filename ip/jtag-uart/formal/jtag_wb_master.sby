@@ -1,0 +1,24 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc:   mode bmc
+cover: mode cover
+depth 30
+multiclock off
+
+[engines]
+bmc:   smtbmc bitwuzla
+cover: smtbmc bitwuzla
+
+[script]
+read -formal jtag_wb_master.v
+read -formal fwb_master.v
+read -formal jtag_wb_master_wrapper.sv
+prep -top jtag_wb_master_wrapper
+
+[files]
+../rtl/jtag_wb_master.v
+../../../formal/vendor/fwb_master.v
+jtag_wb_master_wrapper.sv

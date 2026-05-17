@@ -1,10 +1,17 @@
-.PHONY: formal sim clean
+.PHONY: formal sim cocotb clean
 
+# Formal: prove jtag_wb_master is a compliant WB B4 pipelined master.
 formal:
-	@echo "[jtag-uart] iter-1 stub — formal lands in iter 2"
+	@echo "[jtag-uart] formal: jtag_wb_master against fwb_master"
+	cd formal && sby -f jtag_wb_master.sby
 
-sim:
-	@echo "[jtag-uart] iter-1 stub — sim lands in iter 2"
+# Cocotb tests for jtag_uart (host↔FPGA register IO) + jtag_wb_master
+# (WB master command path).
+cocotb:
+	@$(MAKE) -C sim -f Makefile.cocotb
+	@$(MAKE) -C sim -f Makefile.jwb
+
+sim: cocotb
 
 clean:
-	@true
+	rm -rf formal/jtag_wb_master_bmc formal/jtag_wb_master_cover sim/sim_build sim/sim_build_jwb

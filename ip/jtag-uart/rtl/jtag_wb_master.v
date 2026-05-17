@@ -82,6 +82,30 @@ module jtag_wb_master #(
     reg [1:0] state;
     reg [3:0] phase_req_hold;
 
+    // Initial values: required for formal (fwb_master asserts !cyc/!stb at
+    // cycle 0 before reset takes effect). FPGA flops respect these via
+    // bitstream config so this is also a synth-time fix for power-up.
+    initial begin
+        state    = S_IDLE;
+        o_wb_cyc = 1'b0;
+        o_wb_stb = 1'b0;
+        o_wb_we  = 1'b0;
+        o_wb_adr = {WB_ADDR_W{1'b0}};
+        o_wb_dat = {WB_DATA_W{1'b0}};
+        o_busy   = 1'b0;
+        o_last_ack = 1'b0;
+        o_last_err = 1'b0;
+        o_halt_others = 1'b0;
+        o_addr   = {WB_ADDR_W{1'b0}};
+        o_data   = {WB_DATA_W{1'b0}};
+        o_rd_data = {WB_DATA_W{1'b0}};
+        o_cal_load_lane = {9{1'b0}};
+        o_cal_tap = 5'b0;
+        o_phase_req = 1'b0;
+        o_phase_inc = 1'b0;
+        phase_req_hold = 4'b0;
+    end
+
     wire [7:0] cmd = i_cmd_word[31:24];
     wire       cmd_set_addr = i_cmd_valid && (cmd == 8'hE0);
     wire       cmd_set_dlo  = i_cmd_valid && (cmd == 8'hE2);
