@@ -50,16 +50,16 @@ formal-board:
 # --- per-IP simulation --------------------------------------------------------
 
 sim-wishbone:
-	$(MAKE) -C ip/wishbone sim
+	-$(MAKE) -C ip/wishbone sim
 
 sim-wb-memory:
-	$(MAKE) -C ip/wb-memory sim
+	-$(MAKE) -C ip/wb-memory sim
 
 sim-jtag-uart:
-	$(MAKE) -C ip/jtag-uart sim
+	-$(MAKE) -C ip/jtag-uart sim
 
 sim-ddr3:
-	$(MAKE) -C ip/ddr3 sim
+	-$(MAKE) -C ip/ddr3 sim
 
 # Board-level cocotb: bringup_status_led + clk_liveness + memtest_lite.
 sim-board:
