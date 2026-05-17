@@ -18,6 +18,7 @@ CMD_GO_WR    = 0xE4
 CMD_GO_RD    = 0xE5
 CMD_HALT     = 0xE6
 CMD_RESUME   = 0xE7
+CMD_SET_CAL  = 0xE8
 
 
 def encode(cmd, payload):
@@ -109,6 +110,37 @@ async def set_then_read(dut):
     assert int(dut.o_rd_data.value) == 0xCAFEBABE, \
         f"rd_data want 0xCAFEBABE got 0x{int(dut.o_rd_data.value):08X}"
     assert int(dut.o_last_ack.value) == 1
+
+
+@cocotb.test()
+async def set_cal_pulse(dut):
+    """SET_CAL command: payload[3:0]=lane, payload[12:8]=tap. One-shot
+    pulse on o_cal_load_lane[lane]; o_cal_tap latched until next SET_CAL."""
+    cocotb.start_soon(Clock(dut.i_clk, 10, units="ns").start())
+    await reset(dut)
+
+    # First load: lane=3, tap=17.
+    payload = (17 << 8) | 3
+    await fire_cmd(dut, CMD_SET_CAL, payload)
+    await ReadOnly()
+    assert int(dut.o_cal_load_lane.value) == (1 << 3), \
+        f"want load[3]=1 got 0x{int(dut.o_cal_load_lane.value):03x}"
+    assert int(dut.o_cal_tap.value) == 17
+
+    # Pulse should clear after one cycle.
+    await RisingEdge(dut.i_clk)
+    await ReadOnly()
+    assert int(dut.o_cal_load_lane.value) == 0, \
+        "o_cal_load_lane must be a 1-cycle pulse"
+    assert int(dut.o_cal_tap.value) == 17, "o_cal_tap must hold last value"
+
+    # Second load: lane=7, tap=2.
+    await RisingEdge(dut.i_clk)
+    payload = (2 << 8) | 7
+    await fire_cmd(dut, CMD_SET_CAL, payload)
+    await ReadOnly()
+    assert int(dut.o_cal_load_lane.value) == (1 << 7)
+    assert int(dut.o_cal_tap.value) == 2
 
 
 @cocotb.test()

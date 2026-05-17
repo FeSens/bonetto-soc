@@ -27,8 +27,9 @@
 `default_nettype none
 
 module jtag_wb_master #(
-    parameter integer WB_ADDR_W = 15,
-    parameter integer WB_DATA_W = 32
+    parameter integer WB_ADDR_W       = 15,
+    parameter integer WB_DATA_W       = 32,
+    parameter integer NUM_BYTE_LANES  = 9
 ) (
     input  wire                     i_clk,
     input  wire                     i_rst,
@@ -56,7 +57,13 @@ module jtag_wb_master #(
     output reg  [WB_ADDR_W-1:0]     o_addr,
     output reg  [WB_DATA_W-1:0]     o_data,
     output reg  [WB_DATA_W-1:0]     o_rd_data,
-    output reg                      o_halt_others
+    output reg                      o_halt_others,
+
+    // iter-10: host-driven IDELAYE2 cal override. Bypasses the FPGA rdlvl
+    // FSM so the host can sweep DQS input delay via normal reads (no MPR
+    // mode required). Useful when MPR-based rdlvl can't converge.
+    output reg  [NUM_BYTE_LANES-1:0] o_cal_load_lane,
+    output reg  [4:0]                o_cal_tap
 );
     assign o_wb_sel = {(WB_DATA_W/8){1'b1}};
 
@@ -75,6 +82,8 @@ module jtag_wb_master #(
     wire       cmd_go_rd    = i_cmd_valid && (cmd == 8'hE5);
     wire       cmd_halt     = i_cmd_valid && (cmd == 8'hE6);
     wire       cmd_resume   = i_cmd_valid && (cmd == 8'hE7);
+    // iter-10: 0xE8 = SET_IDELAY_TAP (payload[3:0]=lane, payload[12:8]=tap)
+    wire       cmd_set_cal  = i_cmd_valid && (cmd == 8'hE8);
 
     always @(posedge i_clk) begin
         if (i_rst) begin
@@ -91,7 +100,17 @@ module jtag_wb_master #(
             o_data        <= {WB_DATA_W{1'b0}};
             o_rd_data     <= {WB_DATA_W{1'b0}};
             o_halt_others <= 1'b0;
+            o_cal_load_lane <= {NUM_BYTE_LANES{1'b0}};
+            o_cal_tap       <= 5'd0;
         end else begin
+            // o_cal_load_lane is a single-cycle pulse — default to 0 then
+            // assert the requested lane bit only when cmd_set_cal fires.
+            o_cal_load_lane <= {NUM_BYTE_LANES{1'b0}};
+            if (cmd_set_cal) begin
+                if (i_cmd_word[3:0] < NUM_BYTE_LANES)
+                    o_cal_load_lane <= ({{(NUM_BYTE_LANES-1){1'b0}}, 1'b1} << i_cmd_word[3:0]);
+                o_cal_tap <= i_cmd_word[12:8];
+            end
             // Idle-time scratch updates from host commands.
             if (state == S_IDLE) begin
                 if (cmd_set_addr) o_addr        <= i_cmd_word[WB_ADDR_W-1:0];

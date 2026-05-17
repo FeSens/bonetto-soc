@@ -84,6 +84,11 @@ module ddr3_phy #(
     output wire                            o_mpr_read_req,
     output wire [12:0]                     o_mpr_read_addr,
 
+    // iter-10: host-driven IDELAY override (from jtag_wb_master).
+    // OR'd with the rdlvl FSM's outputs inside ddr3_phy_lane_array.
+    input  wire [NUM_BYTE_LANES-1:0]       i_cal_jwb_load_lane,
+    input  wire [4:0]                      i_cal_jwb_tap,
+
     // DDR3 chip pins.
     output wire                            o_ddr3_ck_p,
     output wire                            o_ddr3_ck_n,
@@ -218,6 +223,11 @@ module ddr3_phy #(
     wire [NUM_BYTE_LANES-1:0]    rdlvl_dqs_in_load_lane;
     wire [4:0]                   rdlvl_dqs_in_tap;
 
+    // iter-10: OR rdlvl with JWB-driven host override + priority-mux taps.
+    wire [NUM_BYTE_LANES-1:0]    eff_dqs_in_load_lane = rdlvl_dqs_in_load_lane | i_cal_jwb_load_lane;
+    wire                         jwb_cal_active       = |i_cal_jwb_load_lane;
+    wire [4:0]                   eff_dqs_in_tap       = jwb_cal_active ? i_cal_jwb_tap : rdlvl_dqs_in_tap;
+
     // Per-lane read-data + read-valid (lane-aligned by ISERDESE2)
     wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] lane_rd_data;
     wire [NUM_BYTE_LANES-1:0]                      lane_rd_valid;
@@ -245,8 +255,8 @@ module ddr3_phy #(
         .i_cal_dq_sel             (cal_dq_sel),
         .i_cal_dq_tap             (cal_dq_tap),
 
-        .i_cal_dqs_in_load_lane   (rdlvl_dqs_in_load_lane),
-        .i_cal_dqs_in_tap         (rdlvl_dqs_in_tap),
+        .i_cal_dqs_in_load_lane   (eff_dqs_in_load_lane),
+        .i_cal_dqs_in_tap         (eff_dqs_in_tap),
 
         .i_cal_dqs_out_load_lane  (wlvl_dqs_out_load_lane),
         .i_cal_dqs_out_tap        (wlvl_dqs_out_tap),

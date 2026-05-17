@@ -213,6 +213,14 @@ JWB_CMD_GO_WR    = 0xE4
 JWB_CMD_GO_RD    = 0xE5
 JWB_CMD_HALT     = 0xE6
 JWB_CMD_RESUME   = 0xE7
+# iter-10: payload[3:0]=lane, payload[12:8]=tap
+JWB_CMD_SET_CAL  = 0xE8
+
+
+def jwb_set_idelay(xvc, lane: int, tap: int):
+    """Pulse the FPGA's IDELAYE2 load on `lane` with `tap`. lane: 0-8."""
+    payload = ((tap & 0x1F) << 8) | (lane & 0xF)
+    jwb_cmd(xvc, JWB_CMD_SET_CAL, payload)
 
 
 def jwb_cmd(xvc, cmd_code: int, payload: int = 0):

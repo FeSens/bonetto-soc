@@ -159,7 +159,10 @@ module top (
     end
     wire h2f_valid_edge_sys = h2f_valid_q2 && !h2f_valid_q3;
 
-    jtag_wb_master #(.WB_ADDR_W(15), .WB_DATA_W(32)) u_jwb (
+    wire [8:0] jwb_cal_load_lane;
+    wire [4:0] jwb_cal_tap;
+
+    jtag_wb_master #(.WB_ADDR_W(15), .WB_DATA_W(32), .NUM_BYTE_LANES(9)) u_jwb (
         .i_clk         (clk_sys),
         .i_rst         (rst_sys),
         .i_cmd_word    (h2f_sync_q2),
@@ -180,7 +183,9 @@ module top (
         .o_addr        (jwb_addr_echo),
         .o_data        (jwb_data_echo),
         .o_rd_data     (jwb_rd_data),
-        .o_halt_others (jwb_halt_others)
+        .o_halt_others (jwb_halt_others),
+        .o_cal_load_lane (jwb_cal_load_lane),
+        .o_cal_tap       (jwb_cal_tap)
     );
 
     // Priority-grant arbiter. jwb_grant flips when jwb wants the bus and
@@ -392,6 +397,9 @@ module top (
         .o_mpr_read_req    (phy_mpr_req),
         .o_mpr_read_addr   (phy_mpr_addr),
 
+        .i_cal_jwb_load_lane (jwb_cal_load_lane),
+        .i_cal_jwb_tap       (jwb_cal_tap),
+
         .o_ddr3_ck_p    (ddr3_ck_p),
         .o_ddr3_ck_n    (ddr3_ck_n),
         .o_ddr3_cke     (ddr3_cke),
@@ -584,7 +592,7 @@ module top (
             8'h11:   status_word = {17'd0, jwb_addr_echo_sync[1]};
             8'h12:   status_word = jwb_data_echo_sync[1];
             8'h13:   status_word = jwb_rd_data_sync[1];
-            8'hFE:   status_word = {16'hB07E, 16'h0008};
+            8'hFE:   status_word = {16'hB07E, 16'h000A};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase

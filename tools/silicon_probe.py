@@ -21,10 +21,13 @@ The XVC server (openFPGALoader --xvc) must already be running.
 """
 
 import argparse
+import os
 import sys
 import time
 
-sys.path.insert(0, ".")
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
+sys.path.insert(0, _PROJECT_ROOT)
 from tools.jtag_uart_read import (
     XVC, tap_reset_to_rti, select_user1,
     read_status_reg, jwb_cmd, jwb_wb_write, jwb_wb_read,
