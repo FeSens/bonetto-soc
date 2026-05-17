@@ -75,6 +75,7 @@ module top (
     wire [31:0] mtest_first_err_got;
     wire        mtest_any_err;
     wire        mtest_target;
+    wire [1:0]  mtest_pattern_idx;
 
     // Cal done signal lives in clk_sys (cal_seq runs there).
     wire ctrl_init_done;
@@ -110,7 +111,8 @@ module top (
         .o_first_err_expected (mtest_first_err_expected),
         .o_first_err_got      (mtest_first_err_got),
         .o_any_err            (mtest_any_err),
-        .o_target             (mtest_target)
+        .o_target             (mtest_target),
+        .o_pattern_idx        (mtest_pattern_idx)
     );
 
     wire        bram_cyc, bram_stb, bram_we;
@@ -333,6 +335,7 @@ module top (
     reg [1:0] mpr_busy_sync        = 2'b00;
     reg [1:0] mtest_any_err_sync   = 2'b00;
     reg [1:0] mtest_target_sync    = 2'b00;
+    reg [1:0] mtest_pattern_idx_sync [1:0];
 
     reg [1:0]  cal_error_code_sync  [1:0];
     reg [3:0]  init_error_code_sync [1:0];
@@ -357,6 +360,8 @@ module top (
         mpr_busy_sync        <= {mpr_busy_sync[0],      ctrl_mpr_busy};
         mtest_any_err_sync   <= {mtest_any_err_sync[0], mtest_any_err};
         mtest_target_sync    <= {mtest_target_sync[0],  mtest_target};
+        mtest_pattern_idx_sync[0] <= mtest_pattern_idx;
+        mtest_pattern_idx_sync[1] <= mtest_pattern_idx_sync[0];
 
         cal_error_code_sync[0]  <= cal_error_code;
         cal_error_code_sync[1]  <= cal_error_code_sync[0];
@@ -394,6 +399,7 @@ module top (
     wire mpr_busy_d      = mpr_busy_sync[1];
     wire mtest_any_err_d = mtest_any_err_sync[1];
     wire mtest_target_d  = mtest_target_sync[1];
+    wire [1:0] mtest_pattern_idx_d = mtest_pattern_idx_sync[1];
 
     wire [1:0] cal_error_code_d  = cal_error_code_sync[1];
     wire [3:0] init_error_code_d = init_error_code_sync[1];
@@ -419,11 +425,12 @@ module top (
     };
 
     wire [31:0] state_bits = {
-        init_state_d,        // [31:27]
-        cal_seq_state_d,     // [26:23]
-        cal_wlvl_state_d,    // [22:19]
-        cal_rdlvl_state_d,   // [18:15]
-        heartbeat[14:0]      // [14:0]
+        init_state_d,         // [31:27]
+        cal_seq_state_d,      // [26:23]
+        cal_wlvl_state_d,     // [22:19]
+        cal_rdlvl_state_d,    // [18:15]
+        mtest_pattern_idx_d,  // [14:13]
+        heartbeat[12:0]       // [12:0]
     };
 
     reg [31:0] status_word;
@@ -438,7 +445,7 @@ module top (
             8'h06:   status_word = mtest_first_err_expected_sync[1];
             8'h07:   status_word = mtest_first_err_got_sync[1];
             8'h08:   status_word = mtest_ddr3_pass_ctr_sync[1];
-            8'hFE:   status_word = {16'hB07E, 16'h0005};
+            8'hFE:   status_word = {16'hB07E, 16'h0006};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase

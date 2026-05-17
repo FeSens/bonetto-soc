@@ -248,15 +248,20 @@ def decode_status_flags(w: int) -> str:
             f"mpr_busy={mpr_busy} mtest_any_err={any_err} hb={hb}")
 
 
+PATTERN_NAMES = {0: "addr-data", 1: "walking-1", 2: "0xAA", 3: "0x55"}
+
+
 def decode_state_bits(w: int) -> str:
     init_st  = (w >> 27) & 0x1F
     cal_st   = (w >> 23) & 0xF
     wlvl_st  = (w >> 19) & 0xF
     rdlvl_st = (w >> 15) & 0xF
-    hb       = w & 0x7FFF
+    patt_idx = (w >> 13) & 0x3
+    hb       = w & 0x1FFF
     return (f"init_state={init_st}({INIT_STATE_NAMES.get(init_st,'?')}) "
             f"cal_seq_state={cal_st}({CAL_SEQ_STATE_NAMES.get(cal_st,'?')}) "
             f"cal_wlvl_state={wlvl_st} cal_rdlvl_state={rdlvl_st} "
+            f"pattern={patt_idx}({PATTERN_NAMES.get(patt_idx,'?')}) "
             f"hb_low={hb}")
 
 
@@ -266,7 +271,9 @@ REG_DECODERS = {
     0x02: ("HEARTBEAT",    lambda w: f"counter=0x{w:06x} ({w} cycles @ 50 MHz ≈ {w/50e6:.3f}s)"),
     0x03: ("MTEST_PASS_CTR",      lambda w: f"{w} ({w:#010x})"),
     0x04: ("MTEST_ERR_CTR",       lambda w: f"{w} ({w:#010x})"),
-    0x05: ("MTEST_FIRST_ERR_ADDR",     lambda w: f"{w:#010x}"),
+    0x05: ("MTEST_FIRST_ERR_ADDR",     lambda w: (
+        f"addr=0x{w & 0x3FFF:04x} target={(w>>14)&1} pattern={(w>>15)&3}({PATTERN_NAMES.get((w>>15)&3,'?')})"
+    )),
     0x06: ("MTEST_FIRST_ERR_EXPECTED", lambda w: f"{w:#010x}"),
     0x07: ("MTEST_FIRST_ERR_GOT",      lambda w: f"{w:#010x}"),
     0xFE: ("VERSION",      lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),

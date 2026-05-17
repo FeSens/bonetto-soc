@@ -1,27 +1,18 @@
-// memtest_lite — Wishbone B4 pipelined master.
+// memtest_lite — Wishbone B4 pipelined master with multi-pattern coverage.
 //
-// Iter-4 (cal-gated DDR3 + BRAM sanity):
-//   * Pre-cal_done: hits BRAM (adr[14]=0). 16K-word sweep, validates the
-//     WB master + decoder + memory protocol works.
+// Iter-5 (cal-gated + pattern sweep):
+//   * Pre-cal_done: hits BRAM (adr[14]=0). 16K-word sweep validates the
+//     WB master + decoder + memory protocol.
 //   * Post-cal_done: hits DDR3 (adr[14]=1). Same 16K-word sweep on a
-//     fresh address window in DDR3. memtest tracks BRAM and DDR3 pass
-//     counters independently so the host can see "BRAM works" before
-//     "DDR3 works".
+//     fresh address window in DDR3.
+//   * Each "pass" cycles through 4 patterns: address-as-data, walking-1,
+//     0xAA repeating, and 0x55 repeating. Catches stuck-at, swapped-bit,
+//     and DQ-rotation faults that a single-pattern test misses.
 //
 // LED encoding:
 //   led[0] = last_ok         most-recent read matched
 //   led[1] = heartbeat       toggles ~0.3 s; FSM is alive
-//   led[2] = sticky_error    set on first DDR3 mismatch
-//
-// Status outputs (consumed by board-top status mux):
-//   o_pass_ctr             — total successful BRAM+DDR3 read/compare
-//   o_ddr3_pass_ctr        — DDR3-only pass counter
-//   o_err_ctr              — total mismatches
-//   o_first_err_addr       — first mismatched addr (full 32 bits with target bit)
-//   o_first_err_expected   — first mismatch expected pattern
-//   o_first_err_got        — first mismatch actual pattern
-//   o_any_err              — sticky error
-//   o_target               — current target: 0=BRAM, 1=DDR3
+//   led[2] = sticky_error    set on first DDR3 mismatch (any pattern)
 
 `default_nettype none
 
@@ -30,9 +21,8 @@ module memtest_lite #(
 ) (
     input  wire        i_clk,
     input  wire        i_rst,
-    input  wire        i_cal_done,        // synchronised from DDR3 cal_seq
+    input  wire        i_cal_done,
 
-    // Wishbone master
     output reg         o_wb_cyc,
     output reg         o_wb_stb,
     output reg         o_wb_we,
@@ -46,7 +36,6 @@ module memtest_lite #(
 
     output wire [2:0]  o_led,
 
-    // Status outputs
     output wire [31:0] o_pass_ctr,
     output wire [31:0] o_ddr3_pass_ctr,
     output wire [31:0] o_err_ctr,
@@ -54,7 +43,8 @@ module memtest_lite #(
     output wire [31:0] o_first_err_expected,
     output wire [31:0] o_first_err_got,
     output wire        o_any_err,
-    output wire        o_target
+    output wire        o_target,
+    output wire [1:0]  o_pattern_idx
 );
     assign o_wb_sel = 4'b1111;
 
@@ -66,6 +56,8 @@ module memtest_lite #(
 
     reg [1:0]  state              = S_WRITE;
     reg [13:0] addr               = 14'd0;
+    reg [1:0]  pattern_idx        = 2'd0;     // 0=addr-data, 1=walking1, 2=0xAA, 3=0x55
+    reg [4:0]  walk_bit           = 5'd0;
     reg [31:0] pattern            = 32'd0;
     reg        any_err            = 1'b0;
     reg        last_ok            = 1'b0;
@@ -76,26 +68,32 @@ module memtest_lite #(
     reg [31:0] first_err_expected = 32'd0;
     reg [31:0] first_err_got      = 32'd0;
     reg [23:0] heartbeat          = 24'd0;
-    reg        target             = 1'b0;  // 0=BRAM, 1=DDR3
-    reg        bram_validated     = 1'b0;  // set once a full BRAM sweep passes
+    reg        target             = 1'b0;
+    reg        bram_validated     = 1'b0;
 
     always @(posedge i_clk) heartbeat <= heartbeat + 1'b1;
 
-    // Pattern: 0xA + 12-bit addr-hi + 14-bit addr + 2'b00 → 32 bits
-    wire [31:0] pattern_for_addr = {4'hA, addr, addr};
+    // Pattern generator — picks one of 4 patterns per pattern_idx.
+    reg [31:0] pattern_for_addr;
+    always @(*) begin
+        case (pattern_idx)
+            2'd0: pattern_for_addr = {4'hA, addr, addr};        // address-as-data
+            2'd1: pattern_for_addr = (32'd1 << walk_bit);        // walking-1
+            2'd2: pattern_for_addr = 32'hAAAAAAAA;               // 0xAA stripes
+            2'd3: pattern_for_addr = 32'h55555555;               // 0x55 stripes
+        endcase
+    end
 
     wire [WB_ADDR_W-1:0] tgt_addr = {target, addr};
 
-    // Promotion to DDR3 target: once BRAM validated AND cal_done.
-    // The first time we wrap addr through 0x3FFF in BRAM successfully,
-    // we mark bram_validated. On the next wrap we promote target to DDR3
-    // if cal_done is high.
     wire promote_to_ddr3 = bram_validated && i_cal_done && (target == 1'b0);
 
     always @(posedge i_clk) begin
         if (i_rst) begin
             state              <= S_WRITE;
             addr               <= 14'd0;
+            pattern_idx        <= 2'd0;
+            walk_bit           <= 5'd0;
             any_err            <= 1'b0;
             last_ok            <= 1'b0;
             pass_ctr           <= 32'd0;
@@ -142,7 +140,7 @@ module memtest_lite #(
                         if (i_wb_dat != pattern) begin
                             err_ctr <= err_ctr + 1'b1;
                             if (!any_err) begin
-                                first_err_addr     <= {17'b0, target, addr};
+                                first_err_addr     <= {15'b0, pattern_idx, target, addr};
                                 first_err_expected <= pattern;
                                 first_err_got      <= i_wb_dat;
                             end
@@ -151,11 +149,15 @@ module memtest_lite #(
                         pass_ctr <= pass_ctr + 1'b1;
                         if (target) ddr3_pass_ctr <= ddr3_pass_ctr + 1'b1;
 
-                        // Wrap addr and possibly promote to DDR3.
                         if (addr == 14'h3FFF) begin
                             addr <= 14'd0;
                             if (target == 1'b0) bram_validated <= 1'b1;
                             if (promote_to_ddr3) target <= 1'b1;
+                            // Cycle pattern index every BRAM wrap.
+                            pattern_idx <= pattern_idx + 1'b1;
+                            // Walking-1 bit advances every full sweep of pattern 1.
+                            if (pattern_idx == 2'd1)
+                                walk_bit <= (walk_bit == 5'd31) ? 5'd0 : walk_bit + 1'b1;
                         end else begin
                             addr <= addr + 1'b1;
                         end
@@ -181,4 +183,5 @@ module memtest_lite #(
     assign o_first_err_got      = first_err_got;
     assign o_any_err            = any_err;
     assign o_target             = target;
+    assign o_pattern_idx        = pattern_idx;
 endmodule
