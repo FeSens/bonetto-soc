@@ -11,6 +11,8 @@ sim_build/
 sim_build_*/
 results.xml
 results_*.xml
+**/results.xml
+**/results_*.xml
 *.vcd
 *.fst
 *.lxt2
@@ -29,6 +31,7 @@ sby_work/
 **/*_bmc/
 **/*_cover/
 **/*_prove/
+**/status.sqlite
 
 # Editor / OS
 .DS_Store

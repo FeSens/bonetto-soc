@@ -2,7 +2,7 @@
 # Per-IP `make formal-<ip>`, `make sim-<ip>`, plus aggregate targets.
 # `make help` for the list.
 
-.PHONY: help all ci lint formal sim fpga program memtest clean \
+.PHONY: help all ci lint formal sim fpga program memtest xvc validate-ddr3 clean \
         formal-wishbone formal-wb-memory formal-jtag-uart formal-ddr3 formal-board \
         sim-wishbone sim-wb-memory sim-jtag-uart sim-ddr3 sim-board
 
@@ -79,6 +79,12 @@ program:
 memtest:
 	$(MAKE) -C boards/$(BOARD) memtest
 
+xvc:
+	$(MAKE) -C boards/$(BOARD) xvc
+
+validate-ddr3:
+	$(MAKE) -C boards/$(BOARD) validate-ddr3
+
 # --- housekeeping -------------------------------------------------------------
 
 clean:
@@ -104,6 +110,8 @@ help:
 	@echo "  make fpga BOARD=name     synth + PnR + bitstream"
 	@echo "  make program BOARD=name  JTAG-load bitstream"
 	@echo "  make memtest BOARD=name  run on-board memory test, results via JTAG UART"
+	@echo "  make xvc BOARD=name      run openFPGALoader XVC server for host probes"
+	@echo "  make validate-ddr3       run hardware DDR3 validation against XVC"
 	@echo ""
 	@echo "  make lint                lint every IP top against interface.md"
 	@echo "  make clean               remove all build artifacts"

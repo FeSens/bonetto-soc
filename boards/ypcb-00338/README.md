@@ -1,34 +1,90 @@
 # boards/ypcb-00338
 
-Top-level integration for the Inspur YPCB-00338 (Kintex-7 `xc7k480t-ffg1156-2`). Iteration 1 instantiates a Wishbone-master memory tester (`memtest_lite`) against the BRAM-backed `wb_memory` slave and reports results on the three on-card LEDs.
+Top-level integration for the Inspur YPCB-00338
+(`xc7k480t-ffg1156-2`). The current bitstream integrates:
 
-## Files
+- `memtest_lite` as an autonomous Wishbone master,
+- BRAM sanity target,
+- `ddr3_ctrl` + `ddr3_phy` on DDR3 channel 0,
+- JTAG-UART status mux and JTAG-driven Wishbone debug master,
+- clock liveness probes for the generated DDR3 clocks.
 
-- `rtl/top.v` — wires `memtest_lite` (master) to `wb_memory` (slave).
-- `rtl/memtest_lite.v` — minimal write/read/compare FSM, drives LEDs with `{any_err, heartbeat, last_ok}`.
-- `constraints/ypcb-00338.xdc` — clock + LED pin map. From the LiteX board file.
-- `Makefile` — synth (yosys) → PnR (nextpnr-xilinx) → bitstream (fasm + xc7frames2bit) → program (openFPGALoader with the XPCU patch + Inspur CPLD chain hack).
+## DDR3 Configuration
 
-## Use
+| Item | Value |
+|---|---|
+| Part | Micron MT41K256M8DA-125 |
+| Operating point | DDR3-800, 400 MHz CK, 100 MHz controller clock |
+| Active data width | 32 bits |
+| Logical byte lanes | 0, 1, 2, 3 |
+| Physical byte lanes | 0, 1, 2, 4 |
+| Reason for lane map | Physical lane 3 read as stuck zero on this board |
+| Calibration | Write/read leveling bypassed; fixed route/timing/lane map validated |
+| Controller address span | 25 word-address bits, 128 MiB through the 32-bit WB aperture |
+
+See `DDR3_VALIDATION.md` for the current hardware evidence.
+
+## Build And Program
 
 ```sh
-# from this directory (or `make fpga BOARD=ypcb-00338` from the repo root)
-make bitstream
-make program
+nix develop
+make -C boards/ypcb-00338 bitstream
+make -C boards/ypcb-00338 program
 ```
 
-LED readout after `make program`:
+For the validated image, route with the recorded seed in `DDR3_VALIDATION.md`
+and keep the final `clk_dq` and `clk_sys` timing lines.
 
-| LED | Meaning | Healthy state |
-|---|---|---|
-| `led[0]` (red, P30) | `last_ok` — most recent compare matched | **on** (solid) |
-| `led[1]` (green, M30) | heartbeat (~3 Hz toggle) | **blinking** |
-| `led[2]` (yellow, N30) | `sticky_error` (set forever after first mismatch) | **off** |
+## Hardware Validation
 
-If `led[0]` flickers or `led[2]` lights, the wb_memory IP has a bug — see `ip/wb-memory/formal/` for the contract it must satisfy.
+Start XVC in one terminal:
 
-## Iteration 2 plan
+```sh
+make xvc BOARD=ypcb-00338
+```
 
-- Swap `wb_memory` for `ddr3_ctrl` behind the same Wishbone slave port set.
-- Add `jtag_uart` to the bus so the memory tester reports detailed pass/fail counts over JTAG instead of just three LEDs.
-- Address-decode crossbar so all three slaves (BRAM, DDR3, UART) coexist.
+Then run validation in another:
+
+```sh
+make validate-ddr3 BOARD=ypcb-00338
+```
+
+The validation script halts the autonomous memtest, runs direct JTAG/Wishbone
+DDR3 checks, resumes memtest, and records a JSON evidence file under
+`boards/ypcb-00338/build/`.
+
+## Status Registers
+
+Use `tools/jtag_uart_read.py` while XVC is running:
+
+```sh
+python3 tools/jtag_uart_read.py --tck-ns 2000
+python3 tools/jtag_uart_read.py --reg 0x00 --tck-ns 2000
+```
+
+Key registers:
+
+| Register | Meaning |
+|---|---|
+| `0x00` | status flags: init/cal done, clocks, memtest error |
+| `0x04` | memtest error counter |
+| `0x08` | DDR3 memtest pass counter |
+| `0x09` | completed BRAM/DDR3 sweep counter |
+| `0x0A`/`0x0B` | last sweep XOR expected/got |
+| `0x0C` | checksum status |
+| `0x10`..`0x13` | JTAG-WB debug master |
+| `0x15`..`0x17` | clock liveness probes |
+| `0x19` | PHY read-valid lanes |
+| `0x1A` | JTAG high-address debug register |
+
+## LEDs
+
+The LED encoder is a coarse cable-less health indicator:
+
+| LED | Healthy behavior |
+|---|---|
+| `led[0]` | Indicates latest compare/health state per encoder |
+| `led[1]` | Heartbeat/target activity |
+| `led[2]` | Off when no sticky memtest error is present |
+
+Use JTAG status registers for final diagnosis; LEDs are only a first glance.

@@ -52,7 +52,7 @@ INCDIRS := -I ../../verification/common -I ../../ip/wishbone/rtl -I ../../ip/ddr
 PYPY3  ?= pypy3
 NEXTPNR_FREQ ?= 100
 
-.PHONY: bitstream program detect memtest clean help
+.PHONY: bitstream program detect memtest xvc validate-ddr3 clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -125,7 +125,29 @@ memtest: program
 	@echo ">> memtest runs on the FPGA; observe the LEDs:"
 	@echo "   led[0]=last_ok (should be on)  led[1]=heartbeat (blinking)  led[2]=sticky_err (should be OFF)"
 
+xvc: $(FIRMWARE)
+	tail -f /dev/null | $(OFL_BASE) $(FREQ_PROGRAM) --xvc --port 3721
+
+validate-ddr3:
+	cd ../.. && python3 tools/ddr3_hw_validate.py \
+	  --tck-ns 2000 \
+	  --random-count 512 \
+	  --checksum-words 2048 \
+	  --soak-seconds 600 \
+	  --poll-interval 30 \
+	  --json boards/ypcb-00338/build/ddr3_hw_validate_latest.json
+
 clean:
 	rm -rf $(BUILD)
 	rm -rf sim/sim_build sim/sim_build_blu sim/sim_build_clkliv sim/sim_build_mt sim/results.xml sim/__pycache__
 	rm -rf formal/memtest_lite_bmc formal/memtest_lite_cover
+
+help:
+	@echo "ypcb-00338 board targets:"
+	@echo "  make bitstream       synth + PnR + bitstream"
+	@echo "  make program         program FPGA SRAM over JTAG"
+	@echo "  make memtest         program + observe LEDs"
+	@echo "  make xvc             run XVC server on port 3721 for host probes"
+	@echo "  make validate-ddr3   run hardware DDR3 validation against XVC"
+	@echo "  make detect          probe JTAG chain"
+	@echo "  make clean           remove build artifacts"

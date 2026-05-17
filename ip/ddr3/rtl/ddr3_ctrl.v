@@ -1,16 +1,17 @@
-// ddr3_ctrl — DDR3 memory controller (iter-2 skeleton).
+// ddr3_ctrl — DDR3 memory controller.
 //
-// Production-quality target: ultimately handles all of read/write,
-// refresh scheduling, bank state tracking, calibration, ECC, multi-rank.
-// Iter-2 skeleton covers:
+// Current scope:
 //   * Wishbone B4 pipelined slave port (locked in iter-1 — same set as
 //     `wb_memory` so the board top swaps one for the other with no other
 //     RTL changes).
 //   * ddr3_init.v drives the DDR3 command bus through power-up.
-//   * Until init completes (`init_done = 1`), WB transactions stall via
-//     `o_wb_stall`. After init, WB writes/reads are stubbed (acks with
-//     zero data) — the runtime read/write FSM lands in iter-3.
-//   * DDR3 chip-facing pins exposed so the board top can route them.
+//   * ddr3_runtime.v handles post-init ACT -> RD/WR -> PRE transactions,
+//     BL8 data movement, and refresh-priority arbitration.
+//   * The PHY-facing data path is parameterized by byte lane count, per-lane
+//     DQ width, and SERDES ratio.
+//
+// Deliberately out of current scope: row caching, command reordering, ECC,
+// multi-rank support, and a vendor-independent PHY wrapper.
 //
 // Per INVARIANTS #4, the WB port set NEVER changes. New parameters can
 // be added; signal names cannot be renamed.

@@ -2,7 +2,7 @@
 
 A growing SoC fabric for the Inspur YPCB-00338 (Kintex-7 `xc7k480t`) and other 7-series boards. Wishbone B4 pipelined throughout. Every IP gates on **formal verification + simulation + hardware witness** before it crosses the line.
 
-> **Status:** iteration 1 — scaffold and Wishbone foundation. DDR3 controller is a stub that satisfies the Wishbone contract so the bus + JTAG-UART + memory-test loop can be verified end-to-end. The stub gets replaced with a real DDR3 controller behind the same port set in the next iteration.
+> **Status:** DDR3 channel 0 is validated on real YPCB-00338 hardware at a DDR3-800 operating point with deterministic, random, boundary, address-walking, data-bit/byte-lane, XOR checksum, and 600-second soak evidence. See `boards/ypcb-00338/DDR3_VALIDATION.md`.
 
 ## Repository layout
 
@@ -14,9 +14,9 @@ bonetto-soc/
 ├── Makefile                  # top-level driver — `make help` for targets
 ├── ip/                       # one self-contained directory per IP
 │   ├── wishbone/             # bus primitives (arbiter, xbar, types)
-│   ├── wb-memory/            # BRAM-backed Wishbone slave (DDR3 stand-in for now)
+│   ├── wb-memory/            # BRAM-backed Wishbone slave
 │   ├── jtag-uart/            # BSCANE2-based UART, primary host-debug channel
-│   └── ddr3/                 # parameterised DDR3 controller (stub in iter 1)
+│   └── ddr3/                 # parameterized DDR3 controller and 7-series PHY
 ├── boards/                   # one directory per target board
 │   └── ypcb-00338/           # top-level integration + XDC for the Inspur card
 ├── verification/             # cross-IP test harnesses
@@ -50,7 +50,8 @@ make sim-jtag-uart
 make ci                        # all IPs: lint + formal + sim
 make fpga BOARD=ypcb-00338     # synth + PnR + bitstream
 make program BOARD=ypcb-00338  # JTAG-load via patched openFPGALoader
-make memtest BOARD=ypcb-00338  # run on-board memory test, results via JTAG UART
+make xvc BOARD=ypcb-00338      # run XVC server for JTAG status/WB probes
+make validate-ddr3             # run hardware DDR3 validation against XVC
 ```
 
 ## Why the verification rigor

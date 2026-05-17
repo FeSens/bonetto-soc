@@ -1,38 +1,97 @@
-# ddr3 — controller interface (planned)
+# ddr3 controller interface
 
 Top module: `ddr3_ctrl`
 
-## Bus side (Wishbone B4 pipelined slave)
+`ddr3_ctrl` is a controller-level block, not a complete board PHY wrapper. It
+owns JEDEC init, runtime command scheduling, Wishbone responses, MPR reads, and
+MRS rewrite requests. A board integration instantiates `ddr3_phy` beside it and
+wires the PHY data/control ports to the physical pins.
 
-Same port set as [wb_memory](../../wb-memory/docs/interface.md). The board top can substitute `ddr3_ctrl` for `wb_memory` without changing any other RTL.
+## Parameters
+
+| Parameter | Default | Notes |
+|---|---:|---|
+| `WB_DATA_W` | `32` | Wishbone data width. Current runtime is validated at 32 bits. |
+| `WB_ADDR_W` | `28` | Word address width into `{bank,row,col[COL_BITS-1:3]}`. |
+| `DDR3_PART` | `"MT41K256M8DA-125"` | Documentation guard for the selected timing block. The active RTL constants come from `ddr3_params.vh`. |
+| `SPEED_GRADE` | `1600` | Documentation guard for the selected speed bin. |
+| `ROW_BITS` | `DDR3_ROW_BITS` | From `ddr3_params.vh`; 15 for MT41K256M8. |
+| `BANK_BITS` | `DDR3_BANK_BITS` | DDR3 is 3 bank bits. |
+| `COL_BITS` | `DDR3_COL_BITS` | 10 for MT41K256M8. Bottom 3 column bits are absorbed by BL8. |
+| `DQ_BITS` | `8` | Per-byte-lane DQ width. |
+| `NUM_BYTE_LANES` | `9` | PHY-facing byte lanes. YPCB-00338 top uses 4 active lanes. |
+| `SERDES_RATIO` | `4` | Fabric-to-DDR serialization ratio. |
+
+Adding a new memory part means adding one timing/geometry block to
+`rtl/ddr3_params.vh` and selecting it at compile time. Do not edit runtime
+timing constants in board tops.
+
+## Wishbone Slave
 
 | Direction | Signal | Width | Notes |
-|---|---|---|---|
-| `parameter` | `WB_DATA_W` | int (default 32) | |
-| `parameter` | `WB_ADDR_W` | int | word-aligned within the DDR3 window |
-| `parameter` | `DDR3_PART` | string | e.g. `"MT41K256M8DA-125"` for our YPCB-00338; sets timing & geometry |
-| `parameter` | `SPEED_GRADE` | int | 1066 / 1333 / 1600 / 1866 (MT/s) |
-| ... | ... | ... | (CL, BL, ECC enable, refresh interval — derived from DDR3_PART by default, overridable) |
+|---|---|---:|---|
+| input | `i_clk` | 1 | Wishbone response clock. On YPCB-00338 this is `clk_sys`. |
+| input | `i_clk_phy` | 1 | Runtime command clock. Currently tied to `clk_sys`. |
+| input | `i_rst` | 1 | Synchronous reset for controller/runtime. |
+| input | `i_wb_cyc` | 1 | Wishbone cycle. |
+| input | `i_wb_stb` | 1 | Wishbone strobe. |
+| input | `i_wb_we` | 1 | Write when high, read when low. |
+| input | `i_wb_adr` | `WB_ADDR_W` | Word address: `{bank,row,col[COL_BITS-1:3]}`. |
+| input | `i_wb_dat` | `WB_DATA_W` | Write data. |
+| input | `i_wb_sel` | `WB_DATA_W/8` | Byte enables; current board path drives all lanes enabled. |
+| output | `o_wb_stall` | 1 | Stalls before init completes or while runtime is busy. |
+| output | `o_wb_ack` | 1 | One-cycle response pulse. |
+| output | `o_wb_dat` | `WB_DATA_W` | Read data. |
+| output | `o_wb_err` | 1 | Currently tied low. |
 
-The Wishbone-side signal set is identical to wb_memory.
-
-## DDR3 side (planned)
+## DDR3 Command Side
 
 | Direction | Signal | Width | Notes |
-|---|---|---|---|
-| `output` | `ddr3_ck_p`, `ddr3_ck_n` | 1 each | differential clock |
-| `output` | `ddr3_addr` | 16 | row/column mux |
-| `output` | `ddr3_ba` | 3 | bank |
-| `output` | `ddr3_cs_n`, `ddr3_ras_n`, `ddr3_cas_n`, `ddr3_we_n` | 1 each | command |
-| `output` | `ddr3_cke`, `ddr3_odt`, `ddr3_reset_n` | 1 each | control |
-| `inout` | `ddr3_dq` | data width (per the part — 8/16/32/64) | data |
-| `inout` | `ddr3_dqs_p`, `ddr3_dqs_n` | DQ/8 each | data strobe |
-| `output` | `ddr3_dm` | DQ/8 | data mask |
+|---|---|---:|---|
+| output | `o_ddr3_reset_n` | 1 | DDR3 reset. |
+| output | `o_ddr3_cke` | 1 | Clock enable. |
+| output | `o_ddr3_odt` | 1 | ODT control. |
+| output | `o_ddr3_cs_n` | 1 | Chip select. |
+| output | `o_ddr3_ras_n` | 1 | RAS. |
+| output | `o_ddr3_cas_n` | 1 | CAS. |
+| output | `o_ddr3_we_n` | 1 | WE. |
+| output | `o_ddr3_ba` | `BANK_BITS` | Bank address. |
+| output | `o_ddr3_addr` | `ROW_BITS` | Row/column/mode address bus. |
 
-## Iteration 1 status
+## PHY Data Side
 
-Stub satisfying the Wishbone-side contract only. The DDR3 PHY side will be empty / unconnected in iteration 1. The board top routes the DDR3 pins to the YPCB-00338 BGA pins (from the LiteX board file) but they are tied off internally until iter 2.
+| Direction | Signal | Width | Notes |
+|---|---|---:|---|
+| input | `i_phy_rd_data` | `NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO` | Captured read burst data from PHY. |
+| input | `i_phy_rd_valid` | 1 | Read data valid. |
+| output | `o_phy_wr_data` | same | Serialized write burst payload for PHY. |
+| output | `o_phy_wr_valid` | 1 | Write payload valid. |
+| output | `o_phy_rd_capture` | 1 | PHY should capture incoming read burst. |
 
-## JEDEC compliance
+## Calibration And Debug
 
-Per INVARIANTS #6: tRC / tRAS / tRP / tCK / tCWL / tCL / tRCD enforced by parameter values derived from `DDR3_PART`. Refresh deadline (tREFI) covered by a formal property. Micron's MT41K SystemVerilog model is the simulation peer.
+| Direction | Signal | Width | Notes |
+|---|---|---:|---|
+| input | `i_mpr_req` | 1 | Request an MPR read command. |
+| input | `i_mpr_addr` | 13 | MPR read address bits. |
+| output | `o_mpr_busy` | 1 | MPR request in flight. |
+| input | `i_mrs_req` | 1 | Request an MRS rewrite. |
+| input | `i_mrs_ba` | `BANK_BITS` | Mode register select. |
+| input | `i_mrs_addr` | `ROW_BITS` | Mode register payload. |
+| output | `o_mrs_busy` | 1 | MRS rewrite in flight. |
+| output | `o_init_done` | 1 | JEDEC init completed. |
+| output | `o_init_error` | 1 | Init FSM trapped. |
+| output | `o_init_error_code` | 4 | Init error code. |
+| output | `o_init_state` | 5 | Init FSM state for host debug. |
+
+## Addressing
+
+Runtime splits `i_wb_adr` as:
+
+```text
+i_wb_adr = { bank[BANK_BITS-1:0], row[ROW_BITS-1:0], col[COL_BITS-1:3] }
+```
+
+The bottom three column bits are fixed to zero because each command is a BL8
+burst. With the current MT41K256M8 geometry (`3 + 15 + 7` bits), the
+controller-visible 32-bit Wishbone space is 25 word-address bits, or 128 MiB.
