@@ -105,9 +105,15 @@ whether that profile is usable.
 Runtime splits `i_wb_adr` as:
 
 ```text
-i_wb_adr = { bank[BANK_BITS-1:0], row[ROW_BITS-1:0], col[COL_BITS-1:3] }
+i_wb_adr[BURST_ADDR_W-1:0] = {
+  bank[BANK_BITS-1:0],
+  row[ROW_BITS-1:0],
+  col[COL_BITS-1:3]
+}
 ```
 
 The bottom three column bits are fixed to zero because each command is a BL8
 burst. With the current MT41K256M8 geometry (`3 + 15 + 7` bits), the
 controller-visible 32-bit Wishbone space is 25 word-address bits, or 128 MiB.
+If `WB_ADDR_W` is wider, the current CH0 runtime deliberately ignores the high
+bits until the BL8 word offset and channel-select decode are implemented.

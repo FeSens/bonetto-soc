@@ -93,15 +93,30 @@ module ddr3_runtime #(
     input  wire [ROW_BITS-1:0]        i_mrs_addr,
     output wire                       o_mrs_busy
 );
-    // ---- WB address split ----
-    // adr = { bank, row, col[COL_BITS-1:3] } — bottom 3 bits absorbed by BL8.
-    // For WB_ADDR_W = 28 and our 15+3+10 = 28-bit DRAM address space, this fits.
-    wire [BANK_BITS-1:0]        wb_bank = i_wb_adr[BANK_BITS + ROW_BITS + (COL_BITS-3) - 1 -: BANK_BITS];
-    wire [ROW_BITS-1:0]         wb_row  = i_wb_adr[ROW_BITS + (COL_BITS-3) - 1            -: ROW_BITS];
-    wire [COL_BITS-1:0]         wb_col  = { i_wb_adr[(COL_BITS-3)-1:0], 3'b000 };
-
     localparam integer WB_BYTES = WB_DATA_W / 8;
     localparam integer PHY_DATA_W = NUM_BYTE_LANES * DQ_BITS * SERDES_RATIO;
+    localparam integer BURST_ADDR_W = BANK_BITS + ROW_BITS + (COL_BITS - 3);
+
+    // ---- WB address split ----
+    // Current CH0 runtime consumes a BL8-burst address:
+    //   adr = { bank, row, col[COL_BITS-1:3] }
+    // The low three column bits are fixed to zero until the runtime/PHY can
+    // buffer and select individual WB words inside each BL8 transfer. Keep the
+    // slice width-safe so board/debug fabrics can already be wider than the
+    // consumed CH0 burst address.
+    wire [BURST_ADDR_W-1:0] wb_burst_adr;
+    generate
+        if (WB_ADDR_W >= BURST_ADDR_W) begin : g_wb_addr_truncate
+            assign wb_burst_adr = i_wb_adr[BURST_ADDR_W-1:0];
+        end else begin : g_wb_addr_pad
+            assign wb_burst_adr = {{(BURST_ADDR_W-WB_ADDR_W){1'b0}}, i_wb_adr};
+        end
+    endgenerate
+
+    wire [BANK_BITS-1:0]        wb_bank = wb_burst_adr[BANK_BITS + ROW_BITS + (COL_BITS-3) - 1 -: BANK_BITS];
+    wire [ROW_BITS-1:0]         wb_row  = wb_burst_adr[ROW_BITS + (COL_BITS-3) - 1            -: ROW_BITS];
+    wire [COL_BITS-1:0]         wb_col  = { wb_burst_adr[(COL_BITS-3)-1:0], 3'b000 };
+
     localparam integer CK_PER_SYS = `DDR3_CK_PER_SYS;
     function integer tck_to_sys;
         input integer tck_cycles;
