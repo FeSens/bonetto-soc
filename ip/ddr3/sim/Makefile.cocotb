@@ -16,6 +16,7 @@ MODULE        ?= test_ddr3_ctrl
 # Run cocotb from this directory so MODULE imports test_ddr3_ctrl.py here.
 COCOTB_RESULTS_FILE ?= results.xml
 COCOTB_TEST_FILES   ?= test_ddr3_ctrl.py
+DDR3_DEFINES        ?=
 
 # The Nix dev shell intentionally uses its own Python for prjxray/fasm, but
 # this nixpkgs pin cannot package cocotb on aarch64-darwin without pulling in
@@ -41,6 +42,6 @@ VERILOG_SOURCES = \
     ../rtl/ddr3_init.v \
     ../rtl/ddr3_runtime.v
 
-COMPILE_ARGS += -g2012 -Den2048Mb -Dsg125 -Dx8
+COMPILE_ARGS += -g2012 -Den2048Mb -Dsg125 -Dx8 $(DDR3_DEFINES)
 
 include $(COCOTB_MAKEFILES)/Makefile.sim

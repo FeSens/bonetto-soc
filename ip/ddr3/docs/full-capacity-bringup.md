@@ -46,8 +46,9 @@ capacity guarantee: the runtime and PHY still need to consume them.
 3. Add CH1 constraints and a second controller/PHY instance, then decode one
    high address bit as channel select.
 4. Add DDR3-1600 timing/clocking mode: 800 MHz CK, 200 MHz controller clock if
-   the 1:4 command ratio is preserved, and the proper CL/CWL/MR values for the
-   `-125` speed bin.
+   the 1:4 command ratio is preserved. `DDR3_RATE_1600` now selects the JEDEC
+   CL/CWL/MR values for the `-125` speed bin; the board clock generator and
+   full-rate timing closure still need hardware proof.
 5. Re-enable real write/read leveling for full-speed operation. The fixed
    DDR3-800 lane map is not sufficient evidence for DDR3-1600.
 
@@ -62,4 +63,3 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | Dual-channel address map | boundary tests across the channel-select bit and top-of-memory |
 | DDR3-1600 timing | routed timing for `clk_sys`, CK, DQ/DQS domains at the full-rate target |
 | DDR3-1600 hardware | same direct JTAG/Wishbone validation plus timed soak on both channels |
-

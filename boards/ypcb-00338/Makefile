@@ -51,6 +51,8 @@ INCDIRS := -I ../../verification/common -I ../../ip/wishbone/rtl -I ../../ip/ddr
 
 PYPY3  ?= pypy3
 NEXTPNR_FREQ ?= 100
+DDR3_DEFINES ?=
+DDR3_DEFINES_FILE := $(BUILD)/ddr3_defines.txt
 
 .PHONY: bitstream program detect memtest xvc validate-ddr3 clean help
 .DEFAULT_GOAL := bitstream
@@ -60,8 +62,16 @@ bitstream: $(BUILD)/$(PROJECT).bit
 $(BUILD) $(CHIPDB):
 	mkdir -p $@
 
-$(BUILD)/$(PROJECT).json: $(RTL) | $(BUILD)
-	yosys -p "read_verilog $(INCDIRS) $(RTL); synth_xilinx -flatten -abc9 -arch xc7 -top $(TOP); chformal -remove; clean -purge; write_json $@"
+.PHONY: FORCE
+FORCE:
+
+$(DDR3_DEFINES_FILE): FORCE | $(BUILD)
+	@tmp="$@.tmp"; \
+	printf '%s\n' '$(DDR3_DEFINES)' > $$tmp; \
+	if ! cmp -s $$tmp $@; then mv $$tmp $@; else rm $$tmp; fi
+
+$(BUILD)/$(PROJECT).json: $(RTL) $(DDR3_DEFINES_FILE) | $(BUILD)
+	yosys -p "read_verilog $(INCDIRS) $(DDR3_DEFINES) $(RTL); synth_xilinx -flatten -abc9 -arch xc7 -top $(TOP); chformal -remove; clean -purge; write_json $@"
 
 $(CHIPDB)/$(DBPART).bin: | $(CHIPDB)
 	@echo ">> generating chipdb for $(PART) (one-time, ~5-15 min)"

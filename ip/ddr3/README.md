@@ -36,6 +36,21 @@ plumbing in the board top instead of baking those choices into the controller.
 | `docs/porting.md` | Checklist for moving the IP into a new board or project. |
 | `docs/full-capacity-bringup.md` | Gap list and validation gates for the 2-channel DDR3-1600 target. |
 
+## Operating Point
+
+`rtl/ddr3_params.vh` defaults to `DDR3_RATE_800`, the hardware-validated
+YPCB-00338 profile. The same `-125` timing table also has a `DDR3_RATE_1600`
+profile for full-speed simulation/synthesis checks:
+
+```sh
+make -C ip/ddr3 sim-init DDR3_DEFINES=-DDDR3_RATE_1600
+make -C boards/ypcb-00338 build/bonetto_soc_ypcb00338.json DDR3_DEFINES=-DDDR3_RATE_1600
+```
+
+The 1600 profile selects the JEDEC timing and mode-register values only. Full
+DDR3-1600 hardware signoff still requires full-rate clocking, real leveling,
+timing closure, and direct hardware validation on both channels.
+
 ## Verification
 
 From the repo root:

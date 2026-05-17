@@ -21,8 +21,8 @@
 
 // MT41K256M8DA-125 -125 init takes ≈ 200 µs + 500 µs + tXPR + 4·tMRD +
 // tMOD + tZQinit + tDLLK + tRP + tRFC. Worst-case ≈ 1 ms.
-// With our 1.25 ns tCK (800 MHz DDR clock), that's 800 000 cycles.
-// We give a 2× safety margin for the test.
+// At the fastest supported profile here, 1.25 ns tCK (800 MHz DDR clock),
+// that's 800 000 cycles. We give a 2× safety margin for the test.
 static constexpr uint64_t MAX_INIT_CYCLES = 2'000'000;
 
 int main(int argc, char **argv) {

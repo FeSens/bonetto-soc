@@ -4,15 +4,16 @@
 // instantiates this and just ticks the clock.
 //
 // Pins:
-//   - ck / ck_n: differential clock from a 400 MHz serialized model clock
+//   - ck / ck_n: differential clock from the selected DDR3 profile clock
 //   - cs_n / ras_n / cas_n / we_n / ba / addr / cke / odt / rst_n:
 //     direct from ddr3_ctrl
 //   - dq / dqs / dqs_n / dm_tdqs: inout, left floating during init
 //
-// `define MICRON_TOP enables the Micron model. Without it, this tb
+// `define WITH_MICRON enables the Micron model. Without it, this tb
 // runs ddr3_ctrl standalone (matches the iter-2 cycle-only sim).
 
 `default_nettype none
+`include "ddr3_params.vh"
 
 `timescale 1ps / 1ps
 
@@ -22,15 +23,20 @@ module tb_ddr3_init_top (
     // ------------------------------------------------------------------
     // Clock generation — must use real #delays so the Micron model's
     // timing checks see proper inter-edge spacing.
-    // tCK = 2500 ps for DDR3-800.
+    // The selected profile supplies tCK and the fabric-to-CK ratio.
     // ------------------------------------------------------------------
+    localparam integer TCK_PS      = `DDR3_TCK_PS;
+    localparam integer CK_PER_SYS  = `DDR3_CK_PER_SYS;
+    localparam integer CK_HALF_PS  = TCK_PS / 2;
+    localparam integer SYS_HALF_PS = (TCK_PS * CK_PER_SYS) / 2;
+
     reg clk_sys = 0;
-    always #5000 clk_sys = ~clk_sys;  // 5000 ps half-period -> 10000 ps period
+    always #SYS_HALF_PS clk_sys = ~clk_sys;
 
     reg ck_ser = 0;
-    always #1250 ck_ser = ~ck_ser;    // 1250 ps half-period -> 2500 ps period
+    always #CK_HALF_PS ck_ser = ~ck_ser;
 
-    // This ctrl-only testbench runs both controller ports at clk_sys.
+    // This init-only testbench runs both controller ports at clk_sys.
     wire clk_50 = clk_sys;
 
     // Reset: hold high for 20 ns, then drop. Numbers are in picoseconds

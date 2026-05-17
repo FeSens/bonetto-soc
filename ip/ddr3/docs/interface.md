@@ -26,6 +26,22 @@ Adding a new memory part means adding one timing/geometry block to
 `rtl/ddr3_params.vh` and selecting it at compile time. Do not edit runtime
 timing constants in board tops.
 
+## Operating-Point Selection
+
+`rtl/ddr3_params.vh` defaults to `DDR3_RATE_800`, matching the current
+YPCB-00338 hardware evidence. The MT41K256M8DA-125 table can also be compiled
+with `DDR3_RATE_1600` to select the full `-125` speed-bin timing profile:
+
+```sh
+make -C ip/ddr3 sim-init DDR3_DEFINES=-DDDR3_RATE_1600
+make -C boards/ypcb-00338 build/bonetto_soc_ypcb00338.json DDR3_DEFINES=-DDDR3_RATE_1600
+```
+
+This switch changes the JEDEC constants and mode-register encodings consumed by
+the controller. It does not by itself validate the board at DDR3-1600; the board
+clocking, leveling, route timing, and hardware validation gates still decide
+whether that profile is usable.
+
 ## Wishbone Slave
 
 | Direction | Signal | Width | Notes |

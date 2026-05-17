@@ -1,6 +1,7 @@
 .PHONY: formal sim sim-init clean
 
 BUILD := formal/build
+SIM_BUILD := sim/build
 
 # ----- Formal -----
 # WB slave protocol compliance: same fwb_slave pattern as ip/wb-memory.
@@ -9,6 +10,9 @@ BUILD := formal/build
 
 SOLVER ?= yices
 DEPTH  ?= 20
+DDR3_DEFINES ?=
+DDR3_FORMAL_DEFINES := $(BUILD)/ddr3_defines.txt
+DDR3_SIM_DEFINES    := $(SIM_BUILD)/ddr3_defines.txt
 
 formal: $(BUILD)/proof.passed formal-cal-seq
 
@@ -21,9 +25,25 @@ formal-cal-seq:
 $(BUILD):
 	@mkdir -p $@
 
-$(BUILD)/ddr3_ctrl.smt2: rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh ../../formal/vendor/fwb_slave.v formal/wrapper.sv | $(BUILD)
+$(SIM_BUILD):
+	@mkdir -p $@
+
+.PHONY: FORCE
+FORCE:
+
+$(DDR3_FORMAL_DEFINES): FORCE | $(BUILD)
+	@tmp="$@.tmp"; \
+	printf '%s\n' '$(DDR3_DEFINES)' > $$tmp; \
+	if ! cmp -s $$tmp $@; then mv $$tmp $@; else rm $$tmp; fi
+
+$(DDR3_SIM_DEFINES): FORCE | $(SIM_BUILD)
+	@tmp="$@.tmp"; \
+	printf '%s\n' '$(DDR3_DEFINES)' > $$tmp; \
+	if ! cmp -s $$tmp $@; then mv $$tmp $@; else rm $$tmp; fi
+
+$(BUILD)/ddr3_ctrl.smt2: rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh ../../formal/vendor/fwb_slave.v formal/wrapper.sv $(DDR3_FORMAL_DEFINES) | $(BUILD)
 	yosys -q -p "\
-	  read_verilog -formal -DFORMAL -I rtl rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v ../../formal/vendor/fwb_slave.v formal/wrapper.sv; \
+	  read_verilog -formal -DFORMAL $(DDR3_DEFINES) -I rtl rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v ../../formal/vendor/fwb_slave.v formal/wrapper.sv; \
 	  prep -top ddr3_ctrl_wrapper; \
 	  write_smt2 -wires $@"
 
@@ -45,16 +65,16 @@ $(BUILD)/proof.passed: $(BUILD)/ddr3_ctrl.smt2
 sim: sim-init sim-micron
 
 cocotb:
-	@$(MAKE) -C sim -f Makefile.cocotb
+	@$(MAKE) -C sim -f Makefile.cocotb DDR3_DEFINES="$(DDR3_DEFINES)"
 
 sim-init: sim/build/Vddr3_ctrl
 	@./sim/build/Vddr3_ctrl
 
-sim/build/Vddr3_ctrl: sim/tb_ddr3_init.cpp rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_cal_seq.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh
+sim/build/Vddr3_ctrl: sim/tb_ddr3_init.cpp rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_cal_seq.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh $(DDR3_SIM_DEFINES)
 	verilator --cc --trace --build --exe -j 0 \
 	  --top-module ddr3_ctrl \
 	  --Mdir sim/build \
-	  -Irtl \
+	  -Irtl $(DDR3_DEFINES) \
 	  -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-SELRANGE \
 	  rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_cal_seq.v \
 	  sim/tb_ddr3_init.cpp
@@ -62,9 +82,9 @@ sim/build/Vddr3_ctrl: sim/tb_ddr3_init.cpp rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/d
 sim-micron: sim/build/ddr3_with_micron.vvp
 	@vvp $<
 
-sim/build/ddr3_with_micron.vvp: rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_cal_seq.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh sim/vendor/ddr3.v sim/tb_ddr3_init_top.sv
+sim/build/ddr3_with_micron.vvp: rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_cal_seq.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh sim/vendor/ddr3.v sim/tb_ddr3_init_top.sv $(DDR3_SIM_DEFINES)
 	@mkdir -p sim/build
-	iverilog -o $@ -g2012 -Dden2048Mb -Dsg125 -Dx8 -DWITH_MICRON \
+	iverilog -o $@ -g2012 -Dden2048Mb -Dsg125 -Dx8 -DWITH_MICRON $(DDR3_DEFINES) \
 	  -Irtl -Isim/vendor \
 	  rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_cal_seq.v \
 	  sim/vendor/ddr3.v sim/tb_ddr3_init_top.sv
