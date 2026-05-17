@@ -3,10 +3,34 @@ TOPLEVEL_LANG ?= verilog
 TOPLEVEL      ?= memtest_lite
 MODULE        ?= test_memtest_lite
 
+unexport PYTHONPATH
+unexport PYTHONNOUSERSITE
+unexport PYTHONHOME
+
+OSS_CAD_SUITE_BIN ?= /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/bin
+export PATH := $(OSS_CAD_SUITE_BIN):$(PATH)
+
+COCOTB_PYTHON ?= $(shell for py in $(OSS_CAD_SUITE_BIN)/tabbypy3 /opt/homebrew/Caskroom/miniconda/base/bin/python3.13 /opt/homebrew/bin/python3 python3; do \
+	if env -u PYTHONPATH -u PYTHONNOUSERSITE $$py -c 'import cocotb, cocotb_tools' >/dev/null 2>&1; then \
+		printf '%s\n' "$$py"; \
+		break; \
+	fi; \
+done)
+
+ifeq ($(strip $(COCOTB_PYTHON)),)
+$(error No Python with cocotb/cocotb_tools found. Install cocotb or set COCOTB_PYTHON=/path/to/python)
+endif
+
+PYTHON_BIN ?= env -u PYTHONPATH -u PYTHONNOUSERSITE $(COCOTB_PYTHON)
+COCOTB_MAKEFILES := $(shell env -u PYTHONPATH -u PYTHONNOUSERSITE $(COCOTB_PYTHON) -m cocotb_tools.config --makefiles)
+
 VERILOG_SOURCES = ../rtl/memtest_lite.v
 
 # Small WB_ADDR_W so addr-space is tractable.
-COMPILE_ARGS  += -g2012 -Pmemtest_lite.WB_ADDR_W=6
+COMPILE_ARGS  += -g2012 \
+	-Pmemtest_lite.WB_ADDR_W=9 \
+	-Pmemtest_lite.BRAM_ADDR_W=5 \
+	-Pmemtest_lite.DDR3_ADDR_W=7
 SIM_BUILD     ?= sim_build_mt
 
-include $(shell cocotb-config --makefiles)/Makefile.sim
+include $(COCOTB_MAKEFILES)/Makefile.sim

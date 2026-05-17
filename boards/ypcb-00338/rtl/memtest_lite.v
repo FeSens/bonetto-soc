@@ -3,11 +3,15 @@
 // Iter-5 (cal-gated + pattern sweep):
 //   * Pre-cal_done: hits BRAM (adr[14]=0). 16K-word sweep validates the
 //     WB master + decoder + memory protocol.
-//   * Post-cal_done: hits DDR3 (adr[14]=1). Same 16K-word sweep on a
-//     fresh address window in DDR3.
+//   * Post-cal_done: hits DDR3 (adr[14]=1). The DDR3 target walks the full
+//     controller-visible word address space, with high address bits carried
+//     above the decode-select bit.
 //   * Each "pass" cycles through 4 patterns: address-as-data, walking-1,
 //     0xAA repeating, and 0x55 repeating. Catches stuck-at, swapped-bit,
 //     and DQ-rotation faults that a single-pattern test misses.
+//   * Each completed sweep records XOR(expected) and XOR(got). A checksum
+//     mismatch is treated as a sticky memtest error even if the first
+//     per-word mismatch was missed by host-side sampling.
 //
 // LED encoding:
 //   led[0] = last_ok         most-recent read matched
@@ -17,7 +21,9 @@
 `default_nettype none
 
 module memtest_lite #(
-    parameter integer WB_ADDR_W = 15      // top.v's wb_decode2 SEL_BIT = 14
+    parameter integer WB_ADDR_W   = 28,
+    parameter integer BRAM_ADDR_W = 14,
+    parameter integer DDR3_ADDR_W = 25
 ) (
     input  wire        i_clk,
     input  wire        i_rst,
@@ -44,6 +50,10 @@ module memtest_lite #(
     output wire [31:0] o_first_err_addr,
     output wire [31:0] o_first_err_expected,
     output wire [31:0] o_first_err_got,
+    output wire [31:0] o_sweep_ctr,
+    output wire [31:0] o_last_xor_expected,
+    output wire [31:0] o_last_xor_got,
+    output wire        o_checksum_err,
     output wire        o_any_err,
     output wire        o_target,
     output wire [1:0]  o_pattern_idx
@@ -58,18 +68,27 @@ module memtest_lite #(
         S_CHECK     = 3'd4;
 
     reg [2:0]  state              = S_WRITE;
-    reg [13:0] addr               = 14'd0;
+    localparam integer DDR3_HIGH_W = DDR3_ADDR_W - BRAM_ADDR_W;
+    localparam integer ADDR_PAD_W  = WB_ADDR_W - DDR3_ADDR_W - 1;
+
+    reg [DDR3_ADDR_W-1:0] addr    = {DDR3_ADDR_W{1'b0}};
     reg [1:0]  pattern_idx        = 2'd0;     // 0=addr-data, 1=walking1, 2=0xAA, 3=0x55
     reg [4:0]  walk_bit           = 5'd0;
     reg [31:0] pattern            = 32'd0;
     reg        any_err            = 1'b0;
+    reg        checksum_err       = 1'b0;
     reg        last_ok            = 1'b0;
     reg [31:0] pass_ctr           = 32'd0;
     reg [31:0] ddr3_pass_ctr      = 32'd0;
+    reg [31:0] sweep_ctr          = 32'd0;
     reg [31:0] err_ctr            = 32'd0;
     reg [31:0] first_err_addr     = 32'd0;
     reg [31:0] first_err_expected = 32'd0;
     reg [31:0] first_err_got      = 32'd0;
+    reg [31:0] sweep_xor_expected = 32'd0;
+    reg [31:0] sweep_xor_got      = 32'd0;
+    reg [31:0] last_xor_expected  = 32'd0;
+    reg [31:0] last_xor_got       = 32'd0;
     reg [31:0] read_dat_q         = 32'd0;
     reg [23:0] heartbeat          = 24'd0;
     reg        target             = 1'b0;
@@ -87,35 +106,54 @@ module memtest_lite #(
 
     always @(posedge i_clk) heartbeat <= heartbeat + 1'b1;
 
+    wire [31:0] addr_word = {{(32-DDR3_ADDR_W){1'b0}}, addr};
+
     // Pattern generator — picks one of 4 patterns per pattern_idx.
     reg [31:0] pattern_for_addr;
     always @(*) begin
         case (pattern_idx)
-            2'd0: pattern_for_addr = {4'hA, addr, addr};        // address-as-data
+            2'd0: pattern_for_addr = 32'hA5A50000 ^ addr_word ^
+                                     {addr_word[15:0], addr_word[31:16]};
             2'd1: pattern_for_addr = (32'd1 << walk_bit);        // walking-1
             2'd2: pattern_for_addr = 32'hAAAAAAAA;               // 0xAA stripes
             2'd3: pattern_for_addr = 32'h55555555;               // 0x55 stripes
         endcase
     end
 
-    wire [WB_ADDR_W-1:0] tgt_addr = {target, addr};
+    wire [BRAM_ADDR_W-1:0] bram_addr = addr[BRAM_ADDR_W-1:0];
+    wire [DDR3_HIGH_W-1:0] ddr3_addr_hi = addr[DDR3_ADDR_W-1:BRAM_ADDR_W];
+    wire [WB_ADDR_W-1:0] tgt_addr = target ?
+        {{ADDR_PAD_W{1'b0}}, ddr3_addr_hi, 1'b1, bram_addr} :
+        {{(WB_ADDR_W-BRAM_ADDR_W){1'b0}}, bram_addr};
+    wire sweep_last = target ?
+        (addr == {DDR3_ADDR_W{1'b1}}) :
+        (bram_addr == {BRAM_ADDR_W{1'b1}});
 
     wire promote_to_ddr3 = bram_validated && i_cal_done && (target == 1'b0);
+    wire word_mismatch = (read_dat_q != pattern);
+    wire [31:0] next_xor_expected = sweep_xor_expected ^ pattern;
+    wire [31:0] next_xor_got      = sweep_xor_got ^ read_dat_q;
 
     always @(posedge i_clk) begin
         if (i_rst) begin
             state              <= S_WRITE;
-            addr               <= 14'd0;
+            addr               <= {DDR3_ADDR_W{1'b0}};
             pattern_idx        <= 2'd0;
             walk_bit           <= 5'd0;
             any_err            <= 1'b0;
+            checksum_err       <= 1'b0;
             last_ok            <= 1'b0;
             pass_ctr           <= 32'd0;
             ddr3_pass_ctr      <= 32'd0;
+            sweep_ctr          <= 32'd0;
             err_ctr            <= 32'd0;
             first_err_addr     <= 32'd0;
             first_err_expected <= 32'd0;
             first_err_got      <= 32'd0;
+            sweep_xor_expected <= 32'd0;
+            sweep_xor_got      <= 32'd0;
+            last_xor_expected  <= 32'd0;
+            last_xor_got       <= 32'd0;
             read_dat_q         <= 32'd0;
             target             <= 1'b0;
             bram_validated     <= 1'b0;
@@ -176,21 +214,38 @@ module memtest_lite #(
                     end
                 end
                 S_CHECK: begin
-                    last_ok <= (read_dat_q == pattern);
-                    if (read_dat_q != pattern) begin
+                    last_ok <= !word_mismatch;
+                    if (word_mismatch) begin
                         err_ctr <= err_ctr + 1'b1;
                         if (!any_err) begin
-                            first_err_addr     <= {15'b0, pattern_idx, target, addr};
+                            first_err_addr     <= {4'b0, pattern_idx, target, addr};
                             first_err_expected <= pattern;
                             first_err_got      <= read_dat_q;
                         end
                         any_err <= 1'b1;
                     end
+                    sweep_xor_expected <= next_xor_expected;
+                    sweep_xor_got      <= next_xor_got;
                     pass_ctr <= pass_ctr + 1'b1;
                     if (target) ddr3_pass_ctr <= ddr3_pass_ctr + 1'b1;
 
-                    if (addr == 14'h3FFF) begin
-                        addr <= 14'd0;
+                    if (sweep_last) begin
+                        addr <= {DDR3_ADDR_W{1'b0}};
+                        sweep_ctr <= sweep_ctr + 1'b1;
+                        last_xor_expected <= next_xor_expected;
+                        last_xor_got      <= next_xor_got;
+                        sweep_xor_expected <= 32'd0;
+                        sweep_xor_got      <= 32'd0;
+                        if (next_xor_expected != next_xor_got) begin
+                            checksum_err <= 1'b1;
+                            any_err      <= 1'b1;
+                            err_ctr      <= err_ctr + 1'b1;
+                            if (!any_err && !word_mismatch) begin
+                                first_err_addr     <= {4'b0, pattern_idx, target, addr};
+                                first_err_expected <= next_xor_expected;
+                                first_err_got      <= next_xor_got;
+                            end
+                        end
                         if (target == 1'b0) bram_validated <= 1'b1;
                         if (promote_to_ddr3) target <= 1'b1;
                         // Cycle pattern index every BRAM wrap.
@@ -220,6 +275,10 @@ module memtest_lite #(
     assign o_first_err_addr     = first_err_addr;
     assign o_first_err_expected = first_err_expected;
     assign o_first_err_got      = first_err_got;
+    assign o_sweep_ctr          = sweep_ctr;
+    assign o_last_xor_expected  = last_xor_expected;
+    assign o_last_xor_got       = last_xor_got;
+    assign o_checksum_err       = checksum_err;
     assign o_any_err            = any_err;
     assign o_target             = target;
     assign o_pattern_idx        = pattern_idx;

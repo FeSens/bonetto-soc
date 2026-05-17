@@ -201,6 +201,7 @@ def read_status_reg(xvc, reg_idx: int) -> int:
 # ---------------------------------------------------------------------------
 
 JWB_CMD_SET_ADDR = 0xE0
+JWB_CMD_SET_AHI  = 0xE1
 JWB_CMD_SET_DLO  = 0xE2
 JWB_CMD_SET_DHI  = 0xE3
 JWB_CMD_GO_WR    = 0xE4
@@ -240,6 +241,12 @@ def jwb_cmd(xvc, cmd_code: int, payload: int = 0):
     write_register_index(xvc, word)
 
 
+def jwb_set_addr(xvc, addr: int, addr_hi: int = 0):
+    """Set the board-local WB address and optional DDR3 high-address debug bits."""
+    jwb_cmd(xvc, JWB_CMD_SET_AHI, addr_hi & 0x3FFF)
+    jwb_cmd(xvc, JWB_CMD_SET_ADDR, addr & 0x7FFF)
+
+
 def jwb_wait_idle(xvc, max_iters=20):
     """Poll status reg 0x10 until JWB_BUSY clears (one round-trip per iter)."""
     for _ in range(max_iters):
@@ -250,19 +257,19 @@ def jwb_wait_idle(xvc, max_iters=20):
     raise RuntimeError(f"jwb stuck busy: 0x{st:08x}")
 
 
-def jwb_wb_write(xvc, addr: int, data: int):
+def jwb_wb_write(xvc, addr: int, data: int, addr_hi: int = 0):
     """Halt memtest, write data to addr, leave halt set so caller can probe."""
     jwb_cmd(xvc, JWB_CMD_HALT)
-    jwb_cmd(xvc, JWB_CMD_SET_ADDR, addr & 0x7FFF)
+    jwb_set_addr(xvc, addr, addr_hi)
     jwb_cmd(xvc, JWB_CMD_SET_DLO, data & 0xFFFF)
     jwb_cmd(xvc, JWB_CMD_SET_DHI, (data >> 16) & 0xFFFF)
     jwb_cmd(xvc, JWB_CMD_GO_WR)
     return jwb_wait_idle(xvc)
 
 
-def jwb_wb_read(xvc, addr: int) -> int:
+def jwb_wb_read(xvc, addr: int, addr_hi: int = 0) -> int:
     jwb_cmd(xvc, JWB_CMD_HALT)
-    jwb_cmd(xvc, JWB_CMD_SET_ADDR, addr & 0x7FFF)
+    jwb_set_addr(xvc, addr, addr_hi)
     jwb_cmd(xvc, JWB_CMD_GO_RD)
     jwb_wait_idle(xvc)
     return read_status_reg(xvc, 0x13)
@@ -323,6 +330,13 @@ def decode_status_flags(w: int) -> str:
 PATTERN_NAMES = {0: "addr-data", 1: "walking-1", 2: "0xAA", 3: "0x55"}
 
 
+def decode_first_err_addr(w: int) -> str:
+    addr = w & ((1 << 25) - 1)
+    target = (w >> 25) & 1
+    pattern = (w >> 26) & 0x3
+    return f"addr=0x{addr:07x} target={target} pattern={pattern}({PATTERN_NAMES.get(pattern,'?')})"
+
+
 def decode_state_bits(w: int) -> str:
     init_st  = (w >> 27) & 0x1F
     cal_st   = (w >> 23) & 0xF
@@ -343,12 +357,16 @@ REG_DECODERS = {
     0x02: ("HEARTBEAT",    lambda w: f"counter=0x{w:06x} ({w} cycles @ 50 MHz ≈ {w/50e6:.3f}s)"),
     0x03: ("MTEST_PASS_CTR",      lambda w: f"{w} ({w:#010x})"),
     0x04: ("MTEST_ERR_CTR",       lambda w: f"{w} ({w:#010x})"),
-    0x05: ("MTEST_FIRST_ERR_ADDR",     lambda w: (
-        f"addr=0x{w & 0x3FFF:04x} target={(w>>14)&1} pattern={(w>>15)&3}({PATTERN_NAMES.get((w>>15)&3,'?')})"
-    )),
+    0x05: ("MTEST_FIRST_ERR_ADDR",     decode_first_err_addr),
     0x06: ("MTEST_FIRST_ERR_EXPECTED", lambda w: f"{w:#010x}"),
     0x07: ("MTEST_FIRST_ERR_GOT",      lambda w: f"{w:#010x}"),
     0x08: ("MTEST_DDR3_PASS_CTR",      lambda w: f"{w} ({w:#010x})"),
+    0x09: ("MTEST_SWEEP_CTR",          lambda w: f"{w} ({w:#010x})"),
+    0x0A: ("MTEST_LAST_XOR_EXPECTED",  lambda w: f"{w:#010x}"),
+    0x0B: ("MTEST_LAST_XOR_GOT",       lambda w: f"{w:#010x}"),
+    0x0C: ("MTEST_CHECKSUM_STATUS", lambda w: (
+        f"magic=0x{w>>16:04x} checksum_err={w&1}"
+    )),
     0x10: ("JWB_STATUS", lambda w: (
         f"magic=0x{w>>16:04x} busy={(w>>3)&1} last_ack={(w>>2)&1} "
         f"last_err={(w>>1)&1} halt_others={w&1}"
@@ -372,6 +390,7 @@ REG_DECODERS = {
         f"magic=0x{w>>16:04x} clk_dq_alive={(w>>15)&1} "
         f"dq_hb_bit={(w>>14)&1} dq_ticks_lo={w & 0x3F}"
     )),
+    0x1A: ("JWB_ADDR_HI", lambda w: f"magic=0x{w>>16:04x} addr_hi=0x{w & 0x3fff:04x}"),
     0xFE: ("VERSION",    lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
     0xFF: ("ECHO",       lambda w: f"{w:#010x}"),
 }

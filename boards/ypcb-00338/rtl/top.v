@@ -6,7 +6,7 @@
 //     in reset by rst_sys.
 //   * wb_decode2 routes memtest's address space:
 //       adr[14]=0 → wb_memory (BRAM, 16K words = 64 KB)
-//       adr[14]=1 → ddr3_ctrl (16K-word window inside 1 GB DDR3 space)
+//       adr[14]=1 → ddr3_ctrl (full controller-visible DDR3 space)
 //   * memtest_lite gates target promotion to DDR3 on i_cal_done.
 //     Until cal completes (or skip mode), it loops on BRAM. Once cal
 //     completes AND a full BRAM sweep passes, memtest switches to DDR3.
@@ -67,15 +67,18 @@ module top (
     // request, jwb wins (memtest is paused via i_pause anyway when host wants
     // direct control).
     // =================================================================
+    localparam integer FABRIC_ADDR_W = 28;
+    localparam integer DDR3_MEMTEST_ADDR_W = 25;
+
     wire        m_cyc, m_stb, m_we;
-    wire [14:0] m_adr;
+    wire [FABRIC_ADDR_W-1:0] m_adr;
     wire [31:0] m_dat_w, m_dat_r;
     wire [3:0]  m_sel;
     wire        m_stall, m_ack, m_err;
 
     // Memtest-side master signals (output of memtest, input of arbiter).
     wire        mt_cyc, mt_stb, mt_we;
-    wire [14:0] mt_adr;
+    wire [FABRIC_ADDR_W-1:0] mt_adr;
     wire [31:0] mt_dat_w;
     wire [3:0]  mt_sel;
     wire        mt_stall, mt_ack, mt_err;
@@ -89,6 +92,7 @@ module top (
     wire        jwb_busy, jwb_last_ack, jwb_last_err, jwb_halt_others;
     wire [31:0] jwb_data_echo, jwb_rd_data;
     wire [14:0] jwb_addr_echo;
+    wire [13:0] jwb_addr_hi_echo;
 
     wire [31:0] mtest_pass_ctr;
     wire [31:0] mtest_ddr3_pass_ctr;
@@ -96,6 +100,10 @@ module top (
     wire [31:0] mtest_first_err_addr;
     wire [31:0] mtest_first_err_expected;
     wire [31:0] mtest_first_err_got;
+    wire [31:0] mtest_sweep_ctr;
+    wire [31:0] mtest_last_xor_expected;
+    wire [31:0] mtest_last_xor_got;
+    wire        mtest_checksum_err;
     wire        mtest_any_err;
     wire        mtest_target;
     wire [1:0]  mtest_pattern_idx;
@@ -113,7 +121,11 @@ module top (
     wire [3:0] cal_wlvl_state;
     wire [3:0] cal_rdlvl_state;
 
-    memtest_lite #(.WB_ADDR_W(15)) mtest (
+    memtest_lite #(
+        .WB_ADDR_W(FABRIC_ADDR_W),
+        .BRAM_ADDR_W(14),
+        .DDR3_ADDR_W(DDR3_MEMTEST_ADDR_W)
+    ) mtest (
         .i_clk                (clk_sys),
         .i_rst                (rst_sys),
         .i_cal_done           (cal_done),
@@ -135,6 +147,10 @@ module top (
         .o_first_err_addr     (mtest_first_err_addr),
         .o_first_err_expected (mtest_first_err_expected),
         .o_first_err_got      (mtest_first_err_got),
+        .o_sweep_ctr          (mtest_sweep_ctr),
+        .o_last_xor_expected  (mtest_last_xor_expected),
+        .o_last_xor_got       (mtest_last_xor_got),
+        .o_checksum_err       (mtest_checksum_err),
         .o_any_err            (mtest_any_err),
         .o_target             (mtest_target),
         .o_pattern_idx        (mtest_pattern_idx)
@@ -207,6 +223,7 @@ module top (
         .o_last_ack    (jwb_last_ack),
         .o_last_err    (jwb_last_err),
         .o_addr        (jwb_addr_echo),
+        .o_addr_hi     (jwb_addr_hi_echo),
         .o_data        (jwb_data_echo),
         .o_rd_data     (jwb_rd_data),
         .o_halt_others (jwb_halt_others),
@@ -232,7 +249,7 @@ module top (
     assign m_cyc   = jwb_grant ? jwb_cyc   : mt_cyc;
     assign m_stb   = jwb_grant ? jwb_stb   : mt_stb;
     assign m_we    = jwb_grant ? jwb_we    : mt_we;
-    assign m_adr   = jwb_grant ? jwb_adr   : mt_adr;
+    assign m_adr   = jwb_grant ? {{(FABRIC_ADDR_W-15){1'b0}}, jwb_adr} : mt_adr;
     assign m_dat_w = jwb_grant ? jwb_dat_w : mt_dat_w;
     assign m_sel   = jwb_grant ? jwb_sel   : mt_sel;
 
@@ -245,22 +262,25 @@ module top (
     assign jwb_err   = jwb_grant ? m_err   : 1'b0;
 
     wire        bram_cyc, bram_stb, bram_we;
-    wire [14:0] bram_adr;
+    wire [FABRIC_ADDR_W-1:0] bram_adr;
     wire [31:0] bram_dat_w;
     wire [3:0]  bram_sel;
     wire        bram_stall, bram_ack, bram_err;
     wire [31:0] bram_dat_r;
 
     wire        d3_cyc, d3_stb, d3_we;
-    wire [14:0] d3_adr;
+    wire [FABRIC_ADDR_W-1:0] d3_adr;
     wire [31:0] d3_dat_w;
     wire [3:0]  d3_sel;
     wire        d3_stall, d3_ack, d3_err;
     wire [31:0] d3_dat_r;
+    wire [27:0] d3_ctrl_adr = (jwb_grant && m_adr[14]) ?
+                              {jwb_addr_hi_echo, d3_adr[13:0]} :
+                              {3'b000, d3_adr[25:15], d3_adr[13:0]};
 
     wb_decode2 #(
         .WB_DATA_W(32),
-        .WB_ADDR_W(15),
+        .WB_ADDR_W(FABRIC_ADDR_W),
         .SEL_BIT  (14)
     ) xbar (
         .i_clk     (clk_sys),
@@ -359,7 +379,7 @@ module top (
         .i_wb_cyc       (d3_cyc),
         .i_wb_stb       (d3_stb),
         .i_wb_we        (d3_we),
-        .i_wb_adr       ({13'b0, d3_adr[13:0], 1'b0}),  // word→byte addr in 28-bit space
+        .i_wb_adr       (d3_ctrl_adr),
         .i_wb_dat       (d3_dat_w),
         .i_wb_sel       (d3_sel),
         .o_wb_stall     (d3_stall),
@@ -497,6 +517,10 @@ module top (
     // 0x06  | MEMTEST_FIRST_ERR_EXPECTED
     // 0x07  | MEMTEST_FIRST_ERR_GOT
     // 0x08  | MEMTEST_DDR3_PASS_CTR
+    // 0x09  | MEMTEST_SWEEP_CTR
+    // 0x0A  | MEMTEST_LAST_XOR_EXPECTED
+    // 0x0B  | MEMTEST_LAST_XOR_GOT
+    // 0x0C  | MEMTEST_CHECKSUM_STATUS {magic=0xAB0C, checksum_err}
     // 0x10  | JWB_STATUS {busy, last_ack, last_err, halt_others, ...}
     // 0x11  | JWB_ADDR     (15-bit, zero-extended)
     // 0x12  | JWB_DATA     (host-written write data)
@@ -580,6 +604,10 @@ module top (
     reg [31:0] mtest_first_err_addr_sync     [1:0];
     reg [31:0] mtest_first_err_expected_sync [1:0];
     reg [31:0] mtest_first_err_got_sync      [1:0];
+    reg [31:0] mtest_sweep_ctr_sync          [1:0];
+    reg [31:0] mtest_last_xor_expected_sync  [1:0];
+    reg [31:0] mtest_last_xor_got_sync       [1:0];
+    reg [1:0]  mtest_checksum_err_sync       = 2'b00;
 
     always @(posedge clk_50) begin
         mmcm_locked_sync     <= {mmcm_locked_sync[0],   mmcm_locked};
@@ -619,6 +647,13 @@ module top (
         mtest_first_err_expected_sync[1] <= mtest_first_err_expected_sync[0];
         mtest_first_err_got_sync[0]      <= mtest_first_err_got;
         mtest_first_err_got_sync[1]      <= mtest_first_err_got_sync[0];
+        mtest_sweep_ctr_sync[0]          <= mtest_sweep_ctr;
+        mtest_sweep_ctr_sync[1]          <= mtest_sweep_ctr_sync[0];
+        mtest_last_xor_expected_sync[0]  <= mtest_last_xor_expected;
+        mtest_last_xor_expected_sync[1]  <= mtest_last_xor_expected_sync[0];
+        mtest_last_xor_got_sync[0]       <= mtest_last_xor_got;
+        mtest_last_xor_got_sync[1]       <= mtest_last_xor_got_sync[0];
+        mtest_checksum_err_sync          <= {mtest_checksum_err_sync[0], mtest_checksum_err};
     end
 
     // CDC for JTAG-WB master status (clk_sys → clk_50).
@@ -627,6 +662,7 @@ module top (
     reg [1:0]  phy_rd_capture_sync;
     reg [7:0]  phase_count_sync [1:0];
     reg [14:0] jwb_addr_echo_sync   [1:0];
+    reg [13:0] jwb_addr_hi_echo_sync [1:0];
     reg [31:0] jwb_data_echo_sync   [1:0];
     reg [31:0] jwb_rd_data_sync     [1:0];
     reg [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_sync [1:0];
@@ -642,6 +678,8 @@ module top (
         phase_count_sync[1]  <= phase_count_sync[0];
         jwb_addr_echo_sync[0] <= jwb_addr_echo;
         jwb_addr_echo_sync[1] <= jwb_addr_echo_sync[0];
+        jwb_addr_hi_echo_sync[0] <= jwb_addr_hi_echo;
+        jwb_addr_hi_echo_sync[1] <= jwb_addr_hi_echo_sync[0];
         jwb_data_echo_sync[0] <= jwb_data_echo;
         jwb_data_echo_sync[1] <= jwb_data_echo_sync[0];
         jwb_rd_data_sync[0]   <= jwb_rd_data;
@@ -726,6 +764,10 @@ module top (
             8'h06:   status_word = mtest_first_err_expected_sync[1];
             8'h07:   status_word = mtest_first_err_got_sync[1];
             8'h08:   status_word = mtest_ddr3_pass_ctr_sync[1];
+            8'h09:   status_word = mtest_sweep_ctr_sync[1];
+            8'h0A:   status_word = mtest_last_xor_expected_sync[1];
+            8'h0B:   status_word = mtest_last_xor_got_sync[1];
+            8'h0C:   status_word = {16'hAB0C, 15'd0, mtest_checksum_err_sync[1]};
             8'h10:   status_word = {16'hAB10,
                                     12'd0,
                                     jwb_busy_sync[1],
@@ -744,10 +786,10 @@ module top (
                                     8'd0, dq_ticks_lo};
             8'h18:   status_word = {16'hAB18, 15'd0, phy_rd_capture_sync[1]};
             8'h19:   status_word = {16'hAB19, 12'd0, phy_rd_valid_lane_sync[1]};
-            8'h1A:   status_word = {16'hAB1A, 16'd0};
+            8'h1A:   status_word = {16'hAB1A, 2'd0, jwb_addr_hi_echo_sync[1]};
             8'h1B:   status_word = {16'hAB1B, 16'd0};
             8'h1C:   status_word = {24'hAB1C00, d3_ctrl_sync[1]};
-            8'hFE:   status_word = {16'hB07E, 16'h0010};
+            8'hFE:   status_word = {16'hB07E, 16'h0011};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase

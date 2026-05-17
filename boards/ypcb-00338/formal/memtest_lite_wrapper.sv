@@ -14,8 +14,10 @@ module memtest_lite_wrapper (
     input wire clk,
     input wire rst
 );
-    localparam integer AW = 6;   // small for fast formal
+    localparam integer AW = 9;   // small for fast formal
     localparam integer DW = 32;
+    localparam integer BRAM_AW = 5;
+    localparam integer DDR3_AW = 7;
 
     (* anyseq *) wire        cal_done;
     (* anyseq *) wire        pause;
@@ -29,10 +31,16 @@ module memtest_lite_wrapper (
     wire [2:0]          led;
     wire [31:0]         pass_ctr, ddr3_pass_ctr, err_ctr;
     wire [31:0]         first_err_addr, first_err_expected, first_err_got;
+    wire [31:0]         sweep_ctr, last_xor_expected, last_xor_got;
+    wire                checksum_err;
     wire                any_err, target;
     wire [1:0]          pattern_idx;
 
-    memtest_lite #(.WB_ADDR_W(AW)) dut (
+    memtest_lite #(
+        .WB_ADDR_W(AW),
+        .BRAM_ADDR_W(BRAM_AW),
+        .DDR3_ADDR_W(DDR3_AW)
+    ) dut (
         .i_clk      (clk),
         .i_rst      (rst),
         .i_cal_done (cal_done),
@@ -54,6 +62,10 @@ module memtest_lite_wrapper (
         .o_first_err_addr     (first_err_addr),
         .o_first_err_expected (first_err_expected),
         .o_first_err_got      (first_err_got),
+        .o_sweep_ctr          (sweep_ctr),
+        .o_last_xor_expected  (last_xor_expected),
+        .o_last_xor_got       (last_xor_got),
+        .o_checksum_err       (checksum_err),
         .o_any_err            (any_err),
         .o_target             (target),
         .o_pattern_idx        (pattern_idx)

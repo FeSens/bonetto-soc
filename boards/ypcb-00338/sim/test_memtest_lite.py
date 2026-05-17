@@ -13,7 +13,8 @@ from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, ReadOnly, Combine, Timer
 
 
-# WB_ADDR_W is 6 (override via SIM_BUILD); tgt_addr is {target, addr[4:0]}.
+# The Makefile overrides WB_ADDR_W=9, BRAM_ADDR_W=5, DDR3_ADDR_W=7 so
+# promotion and high DDR3 address bits are tractable in sim.
 
 class WBSlaveModel:
     def __init__(self, dut, latency=0):
@@ -22,6 +23,8 @@ class WBSlaveModel:
         self.mem = {}
         self.corrupt_on_read = False
         self.assert_err_once = False
+        self.seen_writes = []
+        self.seen_reads = []
         self.dut.i_wb_stall.value = 0
         self.dut.i_wb_ack.value   = 0
         self.dut.i_wb_dat.value   = 0
@@ -48,9 +51,11 @@ class WBSlaveModel:
             if pending:
                 we_p, adr_p, dat_p = pending.pop(0)
                 if we_p:
+                    self.seen_writes.append(adr_p)
                     self.mem[adr_p] = dat_p
                     read_val = 0
                 else:
+                    self.seen_reads.append(adr_p)
                     read_val = self.mem.get(adr_p, 0)
                     if self.corrupt_on_read:
                         read_val ^= 0xFFFFFFFF
@@ -97,6 +102,26 @@ async def write_read_no_errors_bram_phase(dut):
     assert pass_ctr > 0, f"pass_ctr should advance, got {pass_ctr}"
     assert err_ctr == 0, f"err_ctr should be 0 with clean slave, got {err_ctr}"
     assert target == 0, f"target should still be BRAM (0) at this point, got {target}"
+
+
+@cocotb.test()
+async def ddr3_phase_walks_high_address_bits(dut):
+    """After BRAM validation and cal_done, DDR3 addresses must advance above
+    the low BRAM window while keeping the decode-select bit set."""
+    await reset(dut)
+    dut.i_cal_done.value = 1
+    slave = WBSlaveModel(dut)
+    cocotb.start_soon(slave.run())
+    for _ in range(2200):
+        await RisingEdge(dut.i_clk)
+    await Timer(1, units="ns")
+    target = int(dut.o_target.value)
+    assert target == 1, "target should promote to DDR3 once the BRAM sweep passes"
+    ddr3_writes = [a for a in slave.seen_writes if (a >> 5) & 1]
+    assert ddr3_writes, "expected writes with the DDR3 decode-select bit set"
+    assert any(a & 0x1C0 for a in ddr3_writes), (
+        f"expected DDR3 high address bits above select bit, got {ddr3_writes[:8]}"
+    )
 
 
 @cocotb.test()
