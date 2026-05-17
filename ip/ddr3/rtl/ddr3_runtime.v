@@ -40,7 +40,8 @@ module ddr3_runtime #(
     parameter integer COL_BITS  = `DDR3_COL_BITS,
     parameter integer DQ_BITS   = 8,
     parameter integer NUM_BYTE_LANES = 9,
-    parameter integer SERDES_RATIO   = 4
+    parameter integer SERDES_RATIO   = 4,
+    parameter integer WB_BURST_WORD_BITS = 0
 ) (
     input  wire                       i_clk_phy,
     input  wire                       i_rst,
@@ -96,20 +97,35 @@ module ddr3_runtime #(
     localparam integer WB_BYTES = WB_DATA_W / 8;
     localparam integer PHY_DATA_W = NUM_BYTE_LANES * DQ_BITS * SERDES_RATIO;
     localparam integer BURST_ADDR_W = BANK_BITS + ROW_BITS + (COL_BITS - 3);
+    localparam integer WB_BURST_LOCAL_W = BURST_ADDR_W + WB_BURST_WORD_BITS;
+    localparam integer WB_BURST_WORD_W = (WB_BURST_WORD_BITS > 0) ? WB_BURST_WORD_BITS : 1;
 
     // ---- WB address split ----
-    // Current CH0 runtime consumes a BL8-burst address:
+    // Default validated CH0 mode consumes one WB word per BL8 command:
     //   adr = { bank, row, col[COL_BITS-1:3] }
-    // The low three column bits are fixed to zero until the runtime/PHY can
-    // buffer and select individual WB words inside each BL8 transfer. Keep the
-    // slice width-safe so board/debug fabrics can already be wider than the
-    // consumed CH0 burst address.
+    //
+    // Full-width ports can set WB_BURST_WORD_BITS to strip low word-offset
+    // bits before the DRAM address split. For a 64-bit channel exposed through
+    // a 32-bit WB port, one BL8 burst holds 16 WB words, so the channel-local
+    // address is {bank,row,col[COL_BITS-1:3],word_offset[3:0]}.
+    // The data path still needs a real BL8 burst buffer/RMW before enabling
+    // that mode in hardware.
     wire [BURST_ADDR_W-1:0] wb_burst_adr;
+    wire [WB_BURST_WORD_W-1:0] wb_burst_word_offset;
+    wire [WB_BURST_LOCAL_W-1:0] wb_burst_local_adr;
     generate
-        if (WB_ADDR_W >= BURST_ADDR_W) begin : g_wb_addr_truncate
-            assign wb_burst_adr = i_wb_adr[BURST_ADDR_W-1:0];
+        if (WB_ADDR_W >= WB_BURST_LOCAL_W) begin : g_wb_addr_truncate
+            assign wb_burst_local_adr = i_wb_adr[WB_BURST_LOCAL_W-1:0];
         end else begin : g_wb_addr_pad
-            assign wb_burst_adr = {{(BURST_ADDR_W-WB_ADDR_W){1'b0}}, i_wb_adr};
+            assign wb_burst_local_adr = {{(WB_BURST_LOCAL_W-WB_ADDR_W){1'b0}}, i_wb_adr};
+        end
+
+        if (WB_BURST_WORD_BITS > 0) begin : g_wb_burst_word_offset
+            assign wb_burst_adr = wb_burst_local_adr[WB_BURST_WORD_BITS +: BURST_ADDR_W];
+            assign wb_burst_word_offset = wb_burst_local_adr[WB_BURST_WORD_BITS-1:0];
+        end else begin : g_wb_burst_word_none
+            assign wb_burst_adr = wb_burst_local_adr[BURST_ADDR_W-1:0];
+            assign wb_burst_word_offset = 1'b0;
         end
     endgenerate
 
@@ -241,6 +257,7 @@ module ddr3_runtime #(
     reg [COL_BITS-1:0]   saved_col;
     reg                  saved_we;
     reg [WB_DATA_W-1:0]  saved_wdat;
+    reg [WB_BURST_WORD_W-1:0] saved_burst_word_offset;
 
     // Accept WB only in IDLE with no pending refresh.
     wire wb_accept_ok = i_init_done && (state == S_IDLE) && !ref_pending;
@@ -286,6 +303,7 @@ module ddr3_runtime #(
             o_wr_valid  <= 1'b0;
             beat_ctr    <= 8'd0;
             wait_ctr    <= 8'd0;
+            saved_burst_word_offset <= {WB_BURST_WORD_W{1'b0}};
             ref_clear   <= 1'b0;
             mpr_clear   <= 1'b0;
             mrs_clear   <= 1'b0;
@@ -315,6 +333,7 @@ module ddr3_runtime #(
                         saved_col  <= wb_col;
                         saved_we   <= i_wb_we;
                         saved_wdat <= i_wb_dat;
+                        saved_burst_word_offset <= wb_burst_word_offset;
                         state      <= S_ACT;
                     end
                 end
@@ -521,6 +540,6 @@ module ddr3_runtime #(
     end
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, i_wb_sel, ref_pending, 1'b0};
+    wire _u = &{1'b0, i_wb_sel, ref_pending, saved_burst_word_offset, 1'b0};
     /* verilator lint_on UNUSED */
 endmodule

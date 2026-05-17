@@ -65,8 +65,10 @@ capacity guarantee: the runtime and PHY still need to consume them.
 ## Required RTL Deltas
 
 1. Replace the current constant-DQ write/read shortcut with a true BL8 data
-   path. The runtime must use the BL8 word offset instead of treating each
-   burst as one 32-bit word.
+   path. `WB_BURST_WORD_BITS` now gives the runtime an address hook for the
+   BL8 word offset; it stays at `0` in the validated CH0 image and should be
+   set to `4` for a full 64-bit channel only after the BL8 data buffer/RMW path
+   exists.
 2. Expand CH0 to a 64-bit data path. On this board, either recover physical
    byte lane 3 or explicitly remap data lane 3 onto the ECC byte lane and run
    without ECC for the first 64-bit proof.

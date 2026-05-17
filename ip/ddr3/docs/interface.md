@@ -21,6 +21,7 @@ wires the PHY data/control ports to the physical pins.
 | `DQ_BITS` | `8` | Per-byte-lane DQ width. |
 | `NUM_BYTE_LANES` | `9` | PHY-facing byte lanes. YPCB-00338 top uses 4 active lanes. |
 | `SERDES_RATIO` | `4` | Fabric-to-DDR serialization ratio. |
+| `WB_BURST_WORD_BITS` | `0` | Low Wishbone word-address bits inside one BL8 burst. Keep `0` for the current validated CH0 image; use `4` for a 64-bit channel exposed as 32-bit words once the full BL8 data/RMW path exists. |
 
 Adding a new memory part means adding one timing/geometry block to
 `rtl/ddr3_params.vh` and selecting it at compile time. Do not edit runtime
@@ -105,15 +106,22 @@ whether that profile is usable.
 Runtime splits `i_wb_adr` as:
 
 ```text
-i_wb_adr[BURST_ADDR_W-1:0] = {
+burst-local address = {
   bank[BANK_BITS-1:0],
   row[ROW_BITS-1:0],
-  col[COL_BITS-1:3]
+  col[COL_BITS-1:3],
+  word_offset[WB_BURST_WORD_BITS-1:0]
 }
 ```
 
-The bottom three column bits are fixed to zero because each command is a BL8
-burst. With the current MT41K256M8 geometry (`3 + 15 + 7` bits), the
-controller-visible 32-bit Wishbone space is 25 word-address bits, or 128 MiB.
-If `WB_ADDR_W` is wider, the current CH0 runtime deliberately ignores the high
-bits until the BL8 word offset and channel-select decode are implemented.
+The bottom three DDR3 column bits are fixed to zero because each command is a
+BL8 burst. With the current validated YPCB-00338 image,
+`WB_BURST_WORD_BITS=0`, so the MT41K256M8 geometry (`3 + 15 + 7` bits) exposes
+25 word-address bits, or 128 MiB, through the 32-bit Wishbone aperture.
+
+For a full 64-bit channel, one BL8 transfer carries 64 bytes, or sixteen
+32-bit Wishbone words. That mode needs `WB_BURST_WORD_BITS=4`, plus a real BL8
+read buffer and read-modify-write path before hardware writes are safe. If
+`WB_ADDR_W` is wider than the consumed channel-local address, the runtime
+deliberately ignores the high bits; board-level dual-channel integration should
+decode channel select outside each per-channel `ddr3_ctrl` instance.

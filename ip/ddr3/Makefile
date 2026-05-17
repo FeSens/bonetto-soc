@@ -1,4 +1,4 @@
-.PHONY: formal sim sim-init clean
+.PHONY: formal sim sim-init sim-runtime-addr cocotb clean
 
 BUILD := formal/build
 SIM_BUILD := sim/build
@@ -53,12 +53,14 @@ $(BUILD)/proof.passed: $(BUILD)/ddr3_ctrl.smt2
 	@touch $@
 
 # ----- Sim -----
-# Three flavours:
+# Four flavours:
 #   sim-init    = Verilator standalone, cycle-counter view of the init FSM
 #                 (fastest, no Micron model — proves the state machine).
 #   sim-micron  = Icarus with the Micron MT41K behavioural model wired in.
 #                 The model declares "Initialization Sequence is complete"
 #                 when our controller drives the JEDEC sequence correctly.
+#   sim-runtime-addr = Icarus self-check for the optional BL8 word-offset
+#                 address split used by full-capacity channel-local maps.
 #   cocotb      = Icarus + cocotb test suite. Drives WB transactions after
 #                 init_done and asserts the runtime FSM issues correct
 #                 ACT/RD/WR/PRE sequences on the DDR3 command bus.
@@ -70,6 +72,9 @@ cocotb:
 sim-init: sim/build/Vddr3_ctrl
 	@./sim/build/Vddr3_ctrl
 
+sim-runtime-addr: sim/build/ddr3_runtime_addr.vvp
+	@vvp $<
+
 sim/build/Vddr3_ctrl: sim/tb_ddr3_init.cpp rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_cal_seq.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh $(DDR3_SIM_DEFINES)
 	verilator --cc --trace --build --exe -j 0 \
 	  --top-module ddr3_ctrl \
@@ -78,6 +83,10 @@ sim/build/Vddr3_ctrl: sim/tb_ddr3_init.cpp rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/d
 	  -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-SELRANGE \
 	  rtl/ddr3_ctrl.v rtl/ddr3_init.v rtl/ddr3_runtime.v rtl/ddr3_cal_seq.v \
 	  sim/tb_ddr3_init.cpp
+
+sim/build/ddr3_runtime_addr.vvp: rtl/ddr3_runtime.v rtl/ddr3_params.vh rtl/ddr3_cmd.vh sim/tb_ddr3_runtime_addr.sv $(DDR3_SIM_DEFINES) | $(SIM_BUILD)
+	iverilog -o $@ -g2012 $(DDR3_DEFINES) \
+	  -Irtl rtl/ddr3_runtime.v sim/tb_ddr3_runtime_addr.sv
 
 sim-micron: sim/build/ddr3_with_micron.vvp
 	@vvp $<
