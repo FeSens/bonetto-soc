@@ -89,7 +89,7 @@ module ddr3_phy_dq #(
             ) u_oserdes_dq (
                 .OQ      (dq_out[i]),
                 .TQ      (dq_tristate_n[i]),
-                .CLK     (i_clk_phy_x4),
+                .CLK     (i_clk_dq),
                 .CLKDIV  (i_clk_sys),
                 .D1      (i_wr_data[i*4 + 0]),
                 .D2      (i_wr_data[i*4 + 1]),
@@ -143,13 +143,13 @@ module ddr3_phy_dq #(
                 .Q3       (rd_bits[2]),
                 .Q4       (rd_bits[3]),
                 .Q5       (), .Q6 (), .Q7 (), .Q8 (),
-                .CLK      (i_clk_phy_x4),
-                .CLKB     (~i_clk_phy_x4),
+                .CLK      (i_clk_dq),
+                .CLKB     (~i_clk_dq),
                 .CLKDIV   (i_clk_sys),
                 .CLKDIVP  (1'b0),
                 .CE1      (1'b1),
                 .CE2      (1'b0),
-                .OCLK     (i_clk_phy_x4), .OCLKB (i_clk_phy_x4),
+                .OCLK     (i_clk_dq), .OCLKB (i_clk_dq),
                 .DDLY     (dq_in_delayed[i]),
                 .D        (1'b0),
                 .BITSLIP  (1'b0),
@@ -239,7 +239,13 @@ module ddr3_phy_dq #(
         .CINVCTRL(1'b0)
     );
 
-    assign o_rd_valid = 1'b0;
+    reg rd_valid_q = 1'b0;
+    always @(posedge i_clk_sys or posedge i_rst) begin
+        if (i_rst) rd_valid_q <= 1'b0;
+        else       rd_valid_q <= 1'b1;
+    end
+
+    assign o_rd_valid = rd_valid_q;
 
     /* verilator lint_off UNUSED */
     wire _u = &{1'b0, dqs_in_delayed,

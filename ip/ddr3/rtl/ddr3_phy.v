@@ -7,7 +7,7 @@
 //
 // Architecture (iter-3b):
 //
-//   clk_50 ──> MMCM ──┬──> clk_sys (200 MHz)  -> controller logic
+//   clk_50 ──> PLL ───┬──> clk_sys (200 MHz)  -> controller logic
 //                     ├──> clk_phy_x4 (400 MHz) -> OSERDESE2 IO
 //                     └──> clk_dq (= clk_phy_x4 with 90° phase) for DQS
 //
@@ -116,7 +116,14 @@ module ddr3_phy #(
     output wire [NUM_BYTE_LANES-1:0]       o_ddr3_dm
 );
     // ============================================================
-    // MMCM — 50 MHz ref → 200 MHz sys + 400 MHz x4 SERDES + 400 +90°
+    // PLL — 50 MHz ref → 200 MHz sys + 400 MHz x4 SERDES + 400 +90°.
+    //
+    // The original bring-up used MMCME2_ADV for dynamic phase shifting, but
+    // the current openXC7/prjxray Kintex-7 flow programs an MMCM that does
+    // not lock on this board. PLLE2_ADV is covered by the local DB and gives
+    // us the three static clocks needed to move DDR3 init/cal bring-up
+    // forward. Dynamic phase-shift commands are counted for host visibility
+    // below, but they do not affect the PLL output phase.
     // ============================================================
     wire   clkfb;
     wire   mmcm_clkout_sys;       // 200 MHz
@@ -141,7 +148,8 @@ module ddr3_phy #(
     assign o_phase_count = sim_phase_count;
 `else
     // ----------------------------------------------------------------
-    // iter-11: phase-shift request CDC clk_sys -> i_clk_ref domain.
+    // iter-11 host phase commands are retained as a visible counter. PLLE2_ADV
+    // has no MMCM-style PSEN/PSDONE interface, so this is a no-op physically.
     // ----------------------------------------------------------------
     reg [2:0] ps_req_sync;
     always @(posedge i_clk_ref or posedge i_rst_ref) begin
@@ -152,44 +160,31 @@ module ddr3_phy #(
     end
     wire ps_req_edge = ps_req_sync[1] && !ps_req_sync[2];
 
-    reg ps_en_r;
-    reg ps_incdec_r;
-    wire ps_done_w;
-    reg  ps_inflight;
     reg [7:0] ps_count;     // running phase-step count, observable via status
     always @(posedge i_clk_ref or posedge i_rst_ref) begin
         if (i_rst_ref) begin
-            ps_en_r     <= 1'b0;
-            ps_incdec_r <= 1'b0;
-            ps_inflight <= 1'b0;
             ps_count    <= 8'd0;
         end else begin
-            ps_en_r <= 1'b0;     // default; one-cycle pulse below.
-            if (ps_req_edge && !ps_inflight) begin
-                ps_en_r     <= 1'b1;
-                ps_incdec_r <= i_phase_inc;
-                ps_inflight <= 1'b1;
+            if (ps_req_edge) begin
                 ps_count    <= i_phase_inc ? (ps_count + 8'd1) : (ps_count - 8'd1);
-            end else if (ps_done_w) begin
-                ps_inflight <= 1'b0;
             end
         end
     end
 
-    assign o_phase_busy  = ps_inflight;
+    assign o_phase_busy  = 1'b0;
     assign o_phase_count = ps_count;
 
-    MMCME2_ADV #(
+    PLLE2_ADV #(
         .CLKIN1_PERIOD          (20.0),
-        .CLKFBOUT_MULT_F        (16.0),
+        .CLKFBOUT_MULT          (16),
         .DIVCLK_DIVIDE          (1),
-        .CLKOUT0_DIVIDE_F       (4.0),
+        .CLKOUT0_DIVIDE         (4),
         .CLKOUT1_DIVIDE         (2),
         .CLKOUT2_DIVIDE         (2),
         .CLKOUT2_PHASE          (90.0),
-        .CLKOUT2_USE_FINE_PS    ("TRUE"),
+        .COMPENSATION           ("INTERNAL"),
         .STARTUP_WAIT           ("FALSE")
-    ) u_mmcm (
+    ) u_pll (
         .CLKIN1     (i_clk_ref),
         .CLKIN2     (1'b0),
         .CLKINSEL   (1'b1),
@@ -197,22 +192,15 @@ module ddr3_phy #(
         .PWRDWN     (1'b0),
         .CLKFBIN    (clkfb),
         .CLKFBOUT   (clkfb),
-        .CLKFBOUTB  (),
         .CLKOUT0    (mmcm_clkout_sys),
-        .CLKOUT0B   (),
         .CLKOUT1    (mmcm_clkout_phy_x4),
-        .CLKOUT1B   (),
         .CLKOUT2    (mmcm_clkout_dq),
-        .CLKOUT2B   (),
-        .CLKOUT3    (), .CLKOUT3B (),
+        .CLKOUT3    (),
         .CLKOUT4    (),
         .CLKOUT5    (),
-        .CLKOUT6    (),
         .LOCKED     (o_locked),
         .DADDR      (7'b0), .DCLK (1'b0), .DEN (1'b0), .DI (16'b0), .DWE (1'b0),
-        .DO         (), .DRDY (),
-        .PSCLK      (i_clk_ref), .PSEN (ps_en_r), .PSINCDEC (ps_incdec_r), .PSDONE (ps_done_w),
-        .CLKINSTOPPED (), .CLKFBSTOPPED ()
+        .DO         (), .DRDY ()
     );
 
     BUFG u_bufg_sys    (.I(mmcm_clkout_sys),    .O(o_clk_sys));
@@ -267,6 +255,8 @@ module ddr3_phy #(
     // ============================================================
     // Lane array — multi-byte-lane data path + IDELAYCTRL
     // ============================================================
+    wire phy_io_rst = i_rst_ref | ~o_locked;
+
     wire [NUM_BYTE_LANES-1:0]    cal_dq_load_lane = {NUM_BYTE_LANES{1'b0}}; // per-bit deskew TBD
     wire [DQ_BITS-1:0]           cal_dq_sel       = {DQ_BITS{1'b0}};
     wire [4:0]                   cal_dq_tap       = 5'd0;
@@ -298,7 +288,7 @@ module ddr3_phy #(
         .i_clk_phy_x4             (o_clk_phy_x4),
         .i_clk_dq                 (o_clk_dq),
         .i_clk_ref_200            (o_clk_sys),       // 200 MHz sys clock doubles as IDELAYCTRL ref
-        .i_rst                    (i_rst_ref),
+        .i_rst                    (phy_io_rst),
 
         .i_wr_en                  (i_wr_valid),
         .i_wr_data                (i_wr_data),

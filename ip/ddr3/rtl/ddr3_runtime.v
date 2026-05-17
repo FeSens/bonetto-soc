@@ -40,7 +40,9 @@ module ddr3_runtime #(
     parameter integer ROW_BITS  = `DDR3_ROW_BITS,
     parameter integer BANK_BITS = `DDR3_BANK_BITS,
     parameter integer COL_BITS  = `DDR3_COL_BITS,
-    parameter integer DQ_BITS   = 8
+    parameter integer DQ_BITS   = 8,
+    parameter integer NUM_BYTE_LANES = 9,
+    parameter integer SERDES_RATIO   = 4
 ) (
     input  wire                       i_clk_phy,
     input  wire                       i_rst,
@@ -64,10 +66,11 @@ module ddr3_runtime #(
     output reg  [BANK_BITS-1:0]       o_cmd_ba,
     output reg  [ROW_BITS-1:0]        o_cmd_addr,
 
-    // -------- DDR3 DQ side (placeholder for iter-3 PHY layer) --------
-    input  wire [DQ_BITS-1:0]         i_dq,           // from PHY read path
-    output wire [DQ_BITS-1:0]         o_dq,           // to PHY write path
-    output wire                       o_dq_oe,        // 1 = drive DQ
+    // -------- DDR3 PHY data side --------
+    input  wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] i_rd_data,
+    input  wire                       i_rd_valid,
+    output wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] o_wr_data,
+    output wire                       o_wr_valid,
 
     // -------- MPR-read request port (iter-3c, for read-leveling) --------
     // When `i_mpr_req` pulses, the FSM emits an RD command with
@@ -139,7 +142,15 @@ module ddr3_runtime #(
         S_MPR_RD    = 5'd15,
         S_MPR_WAIT  = 5'd16,
         S_MRS       = 5'd17,
-        S_MRS_WAIT  = 5'd18;
+        S_MRS_WAIT  = 5'd18,
+        S_WR_RECOV  = 5'd19;
+
+    localparam integer WB_BYTES = WB_DATA_W / 8;
+    localparam integer PHY_DATA_W = NUM_BYTE_LANES * DQ_BITS * SERDES_RATIO;
+    localparam integer BURST_SYS_CYCLES = `DDR3_BL / SERDES_RATIO;
+    localparam integer CL_SYS  = (`DDR3_CL  + 1) / 2;
+    localparam integer CWL_SYS = (`DDR3_CWL + 1) / 2;
+    localparam integer TWR_SYS = (`DDR3_TWR + 1) / 2;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -190,13 +201,35 @@ module ddr3_runtime #(
     reg [ROW_BITS-1:0]   saved_row;
     reg [COL_BITS-1:0]   saved_col;
     reg                  saved_we;
+    reg [WB_DATA_W-1:0]  saved_wdat;
 
     // Accept WB only in IDLE with no pending refresh.
     wire wb_accept_ok = i_init_done && (state == S_IDLE) && !ref_pending;
     assign o_wb_stall = ~wb_accept_ok;
     assign o_wb_err   = 1'b0;
-    assign o_dq       = i_wb_dat[DQ_BITS-1:0];   // placeholder — iter-3 PHY layer
-    assign o_dq_oe    = (state == S_DATA_WR);
+    assign o_wr_valid = (state == S_DATA_WR);
+
+    wire [WB_DATA_W-1:0] phy_rd_word;
+
+    genvar gl, gb, gs;
+    generate
+        for (gl = 0; gl < NUM_BYTE_LANES; gl = gl + 1) begin : g_lane_pack
+            wire [7:0] lane_byte = (gl < WB_BYTES) ? saved_wdat[gl*8 +: 8] : 8'h00;
+            for (gb = 0; gb < DQ_BITS; gb = gb + 1) begin : g_bit_pack
+                for (gs = 0; gs < SERDES_RATIO; gs = gs + 1) begin : g_ser_pack
+                    assign o_wr_data[gl*DQ_BITS*SERDES_RATIO + gb*SERDES_RATIO + gs]
+                        = lane_byte[gb];
+                end
+            end
+        end
+
+        for (gl = 0; gl < WB_BYTES; gl = gl + 1) begin : g_lane_unpack
+            for (gb = 0; gb < 8; gb = gb + 1) begin : g_bit_unpack
+                assign phy_rd_word[gl*8 + gb]
+                    = i_rd_data[gl*DQ_BITS*SERDES_RATIO + gb*SERDES_RATIO];
+            end
+        end
+    endgenerate
 
     // For iter-2.5, we ack EACH WB write/read after the BL8 completes. This
     // wastes 7/8 of each burst; iter-3 widens the WB interface or buffers
@@ -239,6 +272,7 @@ module ddr3_runtime #(
                         saved_row  <= wb_row;
                         saved_col  <= wb_col;
                         saved_we   <= i_wb_we;
+                        saved_wdat <= i_wb_dat;
                         state      <= S_ACT;
                     end
                 end
@@ -271,7 +305,7 @@ module ddr3_runtime #(
                 end
 
                 S_WAIT_CL: begin
-                    if (wait_ctr == `DDR3_CL - 2) begin
+                    if (wait_ctr == CL_SYS - 2) begin
                         wait_ctr <= 8'd0;
                         beat_ctr <= 8'd0;
                         state    <= S_DATA_RD;
@@ -281,10 +315,8 @@ module ddr3_runtime #(
                 end
 
                 S_DATA_RD: begin
-                    // Iter-2.5 placeholder: read first beat into o_wb_dat,
-                    // ack, then drain remaining 7 beats as NOP.
-                    if (beat_ctr == 0) o_wb_dat <= {{(WB_DATA_W-DQ_BITS){1'b0}}, i_dq};
-                    if (beat_ctr == `DDR3_BL - 1) begin
+                    if (beat_ctr == 0) o_wb_dat <= phy_rd_word;
+                    if (beat_ctr == BURST_SYS_CYCLES - 1) begin
                         o_wb_ack <= 1'b1;
                         beat_ctr <= 8'd0;
                         state    <= S_PRE;
@@ -303,7 +335,7 @@ module ddr3_runtime #(
                 end
 
                 S_WAIT_CWL: begin
-                    if (wait_ctr == `DDR3_CWL - 2) begin
+                    if (wait_ctr == CWL_SYS - 2) begin
                         wait_ctr <= 8'd0;
                         beat_ctr <= 8'd0;
                         state    <= S_DATA_WR;
@@ -313,14 +345,22 @@ module ddr3_runtime #(
                 end
 
                 S_DATA_WR: begin
-                    if (beat_ctr == `DDR3_BL - 1) begin
+                    if (beat_ctr == BURST_SYS_CYCLES - 1) begin
                         o_wb_ack <= 1'b1;
                         beat_ctr <= 8'd0;
-                        // tWR must elapse before PRE. tWR = 12 tCK > BL8 = 4 tCK
-                        // pairs, so we still need tWR-BL/2 cycles before PRE.
-                        state    <= S_PRE;
+                        wait_ctr <= 8'd0;
+                        state    <= S_WR_RECOV;
                     end else begin
                         beat_ctr <= beat_ctr + 1'b1;
+                    end
+                end
+
+                S_WR_RECOV: begin
+                    if (wait_ctr == TWR_SYS - 1) begin
+                        wait_ctr <= 8'd0;
+                        state    <= S_PRE;
+                    end else begin
+                        wait_ctr <= wait_ctr + 1'b1;
                     end
                 end
 
@@ -438,6 +478,6 @@ module ddr3_runtime #(
     end
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, i_wb_sel, i_wb_dat, ref_pending, 1'b0};
+    wire _u = &{1'b0, i_wb_sel, i_rd_valid, ref_pending, 1'b0};
     /* verilator lint_on UNUSED */
 endmodule

@@ -2,9 +2,8 @@
 """
 jtag_uart_read.py — host-side reader for the bonetto-soc jtag_uart IP.
 
-Talks to openFPGALoader's --xvc server (TCP port 3721 by default), navigates
-the YPCB-00338 JTAG chain (Inspur CPLD bypass + xc7k480t USER1), and reads
-the FPGA's status mux.
+Talks to openFPGALoader's --xvc server (TCP port 3721 by default), selects
+the xc7k480t USER1 register, and reads the FPGA's status mux.
 
 Iter-3 host protocol:
   1. Write a 32-bit "register index" (with dir=1) — selects which status word.
@@ -26,10 +25,12 @@ The XVC protocol is the original Xilinx Virtual Cable v1.0 — three commands:
     settck:<u32_le_period_ns>      -> u32 actual period
     shift:<u32_le_num_bits><tms><tdi>  -> tdo
 
-JTAG chain layout on YPCB-00338 (TDI -> ... -> TDO):
-    Inspur CPLD  IDCODE 0x10931093  IR_len 8  (BYPASS DR length = 1)
+XVC chain layout with openFPGALoader's --misc-device option:
     xc7k480t     IDCODE 0x23751093  IR_len 6  (USER1 DR length = 33 bits)
                                               [32]=write, [31:0]=data
+
+The Inspur CPLD is handled by openFPGALoader's misc-device support and is not
+part of the XVC client's visible IR/DR scan length.
 """
 
 import argparse
@@ -155,9 +156,9 @@ def dr_scan(xvc, dr_tdi: int, dr_len: int) -> int:
 # ---------------------------------------------------------------------------
 # YPCB-00338 chain knowledge
 # ---------------------------------------------------------------------------
-YPCB_IR_PATTERN = (0xFF << 6) | 0x02  # = 0x3FC2 — FPGA USER1, CPLD BYPASS
-YPCB_IR_LEN     = 14
-YPCB_DR_LEN     = 33 + 1              # 33-bit FPGA + 1-bit CPLD BYPASS
+YPCB_IR_PATTERN = 0x02                # FPGA USER1
+YPCB_IR_LEN     = 6
+YPCB_DR_LEN     = 33                  # 33-bit FPGA USER1 DR
 YPCB_FPGA_DR_LEN = 33
 
 
@@ -166,17 +167,9 @@ def select_user1(xvc):
 
 
 def write_register_index(xvc, reg_idx: int):
-    """Shift in {dir=1, data=reg_idx}. CPLD BYPASS contributes 1 bit at LSB
-    side because the CPLD sits closer to TDI than the FPGA.
-
-    Chain order TDI→TDO is CPLD then FPGA, so when we shift dr_len bits LSB-
-    first, the FIRST bits we shift in end up closest to TDO. The FPGA captures
-    bits at TDO end; therefore the FPGA's 33-bit DR receives bits [0..32] of
-    our shifted data, and the CPLD's BYPASS swallows bit [33].
-    """
+    """Shift in {dir=1, data=reg_idx} to the FPGA USER1 DR."""
     fpga_dr = (1 << 32) | (reg_idx & 0xFFFFFFFF)   # [32]=1 (write), [31:0]=idx
-    full_dr = fpga_dr  # bit 33 (CPLD BYPASS) = 0 — value doesn't matter
-    dr_scan(xvc, full_dr, YPCB_DR_LEN)
+    dr_scan(xvc, fpga_dr, YPCB_DR_LEN)
 
 
 def read_register(xvc) -> tuple[int, int]:
@@ -190,10 +183,11 @@ def read_register(xvc) -> tuple[int, int]:
 def read_status_reg(xvc, reg_idx: int) -> int:
     """Write the register index, then read back the selected status word."""
     write_register_index(xvc, reg_idx)
-    # The FPGA's host_to_fpga reg updates on JTAG UPDATE-DR, then the mux
-    # combinational logic produces the new status_word. A subsequent DR scan
-    # captures it on CAPTURE-DR. JTAG already gives us a fresh capture on
-    # each scan, so one read suffices.
+    # UPDATE-DR changes host_to_fpga in the 50 MHz domain. The status mux output
+    # then crosses into the JTAG DRCK domain through a 2-FF synchroniser inside
+    # jtag_uart, so the first read after a select write can still contain the
+    # previously selected register. The second read captures the settled word.
+    read_register(xvc)
     data, _ = read_register(xvc)
     return data
 

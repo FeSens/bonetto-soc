@@ -28,7 +28,9 @@ module ddr3_ctrl #(
     parameter integer ROW_BITS    = `DDR3_ROW_BITS,
     parameter integer BANK_BITS   = `DDR3_BANK_BITS,
     parameter integer COL_BITS    = `DDR3_COL_BITS,
-    parameter integer DQ_BITS     = 8                    // per-chip DQ width
+    parameter integer DQ_BITS     = 8,                   // per-chip DQ width
+    parameter integer NUM_BYTE_LANES = 9,
+    parameter integer SERDES_RATIO   = 4
 ) (
     input  wire                     i_clk,               // SoC clock (50 MHz on YPCB-00338)
     input  wire                     i_clk_phy,           // DDR3 clock — TODO: MMCM in iter-3
@@ -56,8 +58,12 @@ module ddr3_ctrl #(
     output wire                     o_ddr3_we_n,
     output wire [BANK_BITS-1:0]     o_ddr3_ba,
     output wire [ROW_BITS-1:0]      o_ddr3_addr,
-    // DQ/DQS/DM tristate handled by IOB cells in the PHY layer (iter-3).
-    // For iter-2 they are unused.
+
+    // -------- PHY data path --------
+    input  wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] i_phy_rd_data,
+    input  wire                     i_phy_rd_valid,
+    output wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] o_phy_wr_data,
+    output wire                     o_phy_wr_valid,
 
     // -------- MPR-read interface (for ddr3_phy_rdlvl, board-level wiring) -----
     // The PHY's read-leveling FSM pulses i_mpr_req with the desired
@@ -136,7 +142,9 @@ module ddr3_ctrl #(
         .ROW_BITS  (ROW_BITS),
         .BANK_BITS (BANK_BITS),
         .COL_BITS  (COL_BITS),
-        .DQ_BITS   (DQ_BITS)
+        .DQ_BITS   (DQ_BITS),
+        .NUM_BYTE_LANES (NUM_BYTE_LANES),
+        .SERDES_RATIO   (SERDES_RATIO)
     ) u_runtime (
         .i_clk_phy   (i_clk_phy),
         .i_rst       (i_rst),
@@ -158,9 +166,10 @@ module ddr3_ctrl #(
         .o_cmd_ba    (rt_ba),
         .o_cmd_addr  (rt_addr),
 
-        .i_dq        ({DQ_BITS{1'b0}}),     // PHY iter-3
-        .o_dq        (),
-        .o_dq_oe     (),
+        .i_rd_data   (i_phy_rd_data),
+        .i_rd_valid  (i_phy_rd_valid),
+        .o_wr_data   (o_phy_wr_data),
+        .o_wr_valid  (o_phy_wr_valid),
 
         .i_mpr_req   (i_mpr_req),
         .i_mpr_addr  (i_mpr_addr),
@@ -206,6 +215,6 @@ module ddr3_ctrl #(
     /* verilator lint_off UNUSED */
     wire _unused = &{1'b0, i_wb_we, i_wb_adr, i_wb_dat, i_wb_sel,
                      DDR3_PART[0], SPEED_GRADE[0], COL_BITS[0],
-                     DQ_BITS[0], 1'b0};
+                     DQ_BITS[0], NUM_BYTE_LANES[0], SERDES_RATIO[0], 1'b0};
     /* verilator lint_on UNUSED */
 endmodule

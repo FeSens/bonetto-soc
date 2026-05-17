@@ -48,6 +48,8 @@ int main(int argc, char **argv) {
     dut->i_wb_adr  = 0;
     dut->i_wb_dat  = 0;
     dut->i_wb_sel  = 0;
+    for (int i = 0; i < 9; i++) dut->i_phy_rd_data[i] = 0;
+    dut->i_phy_rd_valid = 1;
 
     uint64_t cycle = 0;
     auto tick = [&]() {

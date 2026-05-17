@@ -1,6 +1,13 @@
 # cocotb Makefile for ddr3_ctrl. Driven by 'make -C ip/ddr3 cocotb' which
 # delegates here.
 
+unexport PYTHONPATH
+unexport PYTHONNOUSERSITE
+unexport PYTHONHOME
+
+OSS_CAD_SUITE_BIN ?= /Users/bonetto/bonetto/riscv-autoarch/.toolchain/oss-cad-suite/bin
+export PATH := $(OSS_CAD_SUITE_BIN):$(PATH)
+
 SIM           ?= icarus
 TOPLEVEL_LANG ?= verilog
 TOPLEVEL      ?= ddr3_ctrl
@@ -10,6 +17,24 @@ MODULE        ?= test_ddr3_ctrl
 COCOTB_RESULTS_FILE ?= results.xml
 COCOTB_TEST_FILES   ?= test_ddr3_ctrl.py
 
+# The Nix dev shell intentionally uses its own Python for prjxray/fasm, but
+# this nixpkgs pin cannot package cocotb on aarch64-darwin without pulling in
+# ghdl/gnat. Prefer an existing Python that has cocotb installed, and strip the
+# Nix Python environment so that interpreter sees its own site-packages.
+COCOTB_PYTHON ?= $(shell for py in $(OSS_CAD_SUITE_BIN)/tabbypy3 /opt/homebrew/Caskroom/miniconda/base/bin/python3.13 /opt/homebrew/bin/python3 python3; do \
+	if env -u PYTHONPATH -u PYTHONNOUSERSITE $$py -c 'import cocotb, cocotb_tools' >/dev/null 2>&1; then \
+		printf '%s\n' "$$py"; \
+		break; \
+	fi; \
+done)
+
+ifeq ($(strip $(COCOTB_PYTHON)),)
+$(error No Python with cocotb/cocotb_tools found. Install cocotb or set COCOTB_PYTHON=/path/to/python)
+endif
+
+PYTHON_BIN ?= env -u PYTHONPATH -u PYTHONNOUSERSITE $(COCOTB_PYTHON)
+COCOTB_MAKEFILES := $(shell env -u PYTHONPATH -u PYTHONNOUSERSITE $(COCOTB_PYTHON) -m cocotb_tools.config --makefiles)
+
 VERILOG_INCLUDE_DIRS = ../rtl
 VERILOG_SOURCES = \
     ../rtl/ddr3_ctrl.v \
@@ -18,4 +43,4 @@ VERILOG_SOURCES = \
 
 COMPILE_ARGS += -g2012 -Den2048Mb -Dsg125 -Dx8
 
-include $(shell cocotb-config --makefiles)/Makefile.sim
+include $(COCOTB_MAKEFILES)/Makefile.sim

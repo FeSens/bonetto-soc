@@ -312,8 +312,18 @@ module top (
 
     wire        cal_wlvl_start, cal_wlvl_done, cal_wlvl_error;
     wire        cal_rdlvl_start, cal_rdlvl_done, cal_rdlvl_error;
+    wire        phy_wr_valid;
+    wire [9*8*4-1:0] phy_wr_data;
+    wire        phy_rd_valid;
+    wire [9*8*4-1:0] phy_rd_data;
 
-    ddr3_ctrl #(.WB_DATA_W(32), .WB_ADDR_W(28), .DQ_BITS(8)) u_ddr3_ctrl (
+    ddr3_ctrl #(
+        .WB_DATA_W(32),
+        .WB_ADDR_W(28),
+        .DQ_BITS(8),
+        .NUM_BYTE_LANES(9),
+        .SERDES_RATIO(4)
+    ) u_ddr3_ctrl (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),
         .i_rst          (rst_sys),
@@ -336,6 +346,10 @@ module top (
         .o_ddr3_we_n    (ctrl_we_n),
         .o_ddr3_ba      (ctrl_ba),
         .o_ddr3_addr    (ctrl_addr),
+        .i_phy_rd_data   (phy_rd_data),
+        .i_phy_rd_valid  (phy_rd_valid),
+        .o_phy_wr_data   (phy_wr_data),
+        .o_phy_wr_valid  (phy_wr_valid),
         .i_mpr_req      (phy_mpr_req),
         .i_mpr_addr     (phy_mpr_addr),
         .o_mpr_busy     (ctrl_mpr_busy),
@@ -386,12 +400,12 @@ module top (
         .i_cmd_reset_n  (ctrl_reset_n),
         .i_cmd_odt      (ctrl_odt),
 
-        .i_wr_valid     (1'b0),
-        .i_wr_data      ({(9*8*4){1'b0}}),
+        .i_wr_valid     (phy_wr_valid),
+        .i_wr_data      (phy_wr_data),
         .i_wr_mask      (9'b0),
 
-        .o_rd_valid     (),
-        .o_rd_data      (),
+        .o_rd_valid     (phy_rd_valid),
+        .o_rd_data      (phy_rd_data),
 
         .i_cal_start_wlvl  (cal_wlvl_start),
         .o_cal_done_wlvl   (cal_wlvl_done),
@@ -674,12 +688,12 @@ module top (
             8'h13:   status_word = jwb_rd_data_sync[1];
             8'h14:   status_word = {16'hAB14, 7'd0, phase_busy_sync[1], phase_count_sync[1]};
             8'h15:   status_word = {16'hAB15, sys_clk_alive, sys_hb_synced_bit,
-                                    7'd0, sys_hb_ticks_lo};
+                                    8'd0, sys_hb_ticks_lo};
             8'h16:   status_word = {16'hAB16, phy_x4_alive, phy_x4_synced_bit,
-                                    7'd0, phy_x4_ticks_lo};
+                                    8'd0, phy_x4_ticks_lo};
             8'h17:   status_word = {16'hAB17, dq_alive, dq_synced_bit,
-                                    7'd0, dq_ticks_lo};
-            8'hFE:   status_word = {16'hB07E, 16'h000E};
+                                    8'd0, dq_ticks_lo};
+            8'hFE:   status_word = {16'hB07E, 16'h0010};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase
