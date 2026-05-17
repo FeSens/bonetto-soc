@@ -1,0 +1,10 @@
+SIM           ?= icarus
+TOPLEVEL_LANG ?= verilog
+TOPLEVEL      ?= jtag_wb_master
+MODULE        ?= test_jtag_wb_master
+
+VERILOG_SOURCES = ../rtl/jtag_wb_master.v
+COMPILE_ARGS    += -g2012 -DBONETTO_SOC_SIM
+SIM_BUILD       ?= sim_build_jwb
+
+include $(shell cocotb-config --makefiles)/Makefile.sim

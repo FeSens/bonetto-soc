@@ -58,14 +58,37 @@ module top (
     wire rst_sys = rst_sync_sys[2];
 
     // =================================================================
-    // memtest_lite → wb_decode2 → {wb_memory, ddr3_ctrl}
+    // {memtest_lite, jtag_wb_master} → arbiter → wb_decode2 → {wb_memory, ddr3_ctrl}
     // All on clk_sys.
+    //
+    // iter-7: a second WB master (jtag_wb_master) lives alongside memtest_lite
+    // so the host can drive arbitrary WB transactions over JTAG. A priority
+    // grant arbiter hands the bus to whichever master is requesting; if both
+    // request, jwb wins (memtest is paused via i_pause anyway when host wants
+    // direct control).
     // =================================================================
     wire        m_cyc, m_stb, m_we;
     wire [14:0] m_adr;
     wire [31:0] m_dat_w, m_dat_r;
     wire [3:0]  m_sel;
     wire        m_stall, m_ack, m_err;
+
+    // Memtest-side master signals (output of memtest, input of arbiter).
+    wire        mt_cyc, mt_stb, mt_we;
+    wire [14:0] mt_adr;
+    wire [31:0] mt_dat_w;
+    wire [3:0]  mt_sel;
+    wire        mt_stall, mt_ack, mt_err;
+
+    // JTAG-WB-master signals (output of jwb, input of arbiter).
+    wire        jwb_cyc, jwb_stb, jwb_we;
+    wire [14:0] jwb_adr;
+    wire [31:0] jwb_dat_w;
+    wire [3:0]  jwb_sel;
+    wire        jwb_stall, jwb_ack, jwb_err;
+    wire        jwb_busy, jwb_last_ack, jwb_last_err, jwb_halt_others;
+    wire [31:0] jwb_data_echo, jwb_rd_data;
+    wire [14:0] jwb_addr_echo;
 
     wire [31:0] mtest_pass_ctr;
     wire [31:0] mtest_ddr3_pass_ctr;
@@ -93,16 +116,17 @@ module top (
         .i_clk                (clk_sys),
         .i_rst                (rst_sys),
         .i_cal_done           (cal_done),
-        .o_wb_cyc             (m_cyc),
-        .o_wb_stb             (m_stb),
-        .o_wb_we              (m_we),
-        .o_wb_adr             (m_adr),
-        .o_wb_dat             (m_dat_w),
-        .o_wb_sel             (m_sel),
-        .i_wb_stall           (m_stall),
-        .i_wb_ack             (m_ack),
+        .i_pause              (jwb_halt_others),
+        .o_wb_cyc             (mt_cyc),
+        .o_wb_stb             (mt_stb),
+        .o_wb_we              (mt_we),
+        .o_wb_adr             (mt_adr),
+        .o_wb_dat             (mt_dat_w),
+        .o_wb_sel             (mt_sel),
+        .i_wb_stall           (mt_stall),
+        .i_wb_ack             (mt_ack),
         .i_wb_dat             (m_dat_r),
-        .i_wb_err             (m_err),
+        .i_wb_err             (mt_err),
         .o_led                (led),
         .o_pass_ctr           (mtest_pass_ctr),
         .o_ddr3_pass_ctr      (mtest_ddr3_pass_ctr),
@@ -114,6 +138,78 @@ module top (
         .o_target             (mtest_target),
         .o_pattern_idx        (mtest_pattern_idx)
     );
+
+    // -----------------------------------------------------------------
+    // CDC: host_to_fpga + valid pulse from clk_50 → clk_sys.
+    // The bus is stable for many clk_sys cycles between writes (JTAG is
+    // slow); per-bit 2-FF sync is safe. The valid pulse is wider than one
+    // clk_sys period (host_to_fpga_valid_50 holds for one clk_50 = 20 ns,
+    // which is 4 clk_sys cycles), so 3-stage flop captures the rising edge.
+    // -----------------------------------------------------------------
+    wire [31:0] host_to_fpga;
+    wire        host_to_fpga_valid_50;
+    reg  [31:0] h2f_sync_q1, h2f_sync_q2;
+    reg         h2f_valid_q1, h2f_valid_q2, h2f_valid_q3;
+    always @(posedge clk_sys) begin
+        h2f_sync_q1  <= host_to_fpga;
+        h2f_sync_q2  <= h2f_sync_q1;
+        h2f_valid_q1 <= host_to_fpga_valid_50;
+        h2f_valid_q2 <= h2f_valid_q1;
+        h2f_valid_q3 <= h2f_valid_q2;
+    end
+    wire h2f_valid_edge_sys = h2f_valid_q2 && !h2f_valid_q3;
+
+    jtag_wb_master #(.WB_ADDR_W(15), .WB_DATA_W(32)) u_jwb (
+        .i_clk         (clk_sys),
+        .i_rst         (rst_sys),
+        .i_cmd_word    (h2f_sync_q2),
+        .i_cmd_valid   (h2f_valid_edge_sys),
+        .o_wb_cyc      (jwb_cyc),
+        .o_wb_stb      (jwb_stb),
+        .o_wb_we       (jwb_we),
+        .o_wb_adr      (jwb_adr),
+        .o_wb_dat      (jwb_dat_w),
+        .o_wb_sel      (jwb_sel),
+        .i_wb_stall    (jwb_stall),
+        .i_wb_ack      (jwb_ack),
+        .i_wb_dat      (m_dat_r),
+        .i_wb_err      (jwb_err),
+        .o_busy        (jwb_busy),
+        .o_last_ack    (jwb_last_ack),
+        .o_last_err    (jwb_last_err),
+        .o_addr        (jwb_addr_echo),
+        .o_data        (jwb_data_echo),
+        .o_rd_data     (jwb_rd_data),
+        .o_halt_others (jwb_halt_others)
+    );
+
+    // Priority-grant arbiter. jwb_grant flips when jwb wants the bus and
+    // memtest is idle; it stays asserted until jwb drops cyc, giving jwb
+    // a clean WB cycle without ever interrupting an in-flight mt cycle.
+    reg jwb_grant;
+    always @(posedge clk_sys) begin
+        if (rst_sys) jwb_grant <= 1'b0;
+        else if (jwb_grant) begin
+            if (!jwb_cyc) jwb_grant <= 1'b0;
+        end else begin
+            if (jwb_cyc && !mt_cyc) jwb_grant <= 1'b1;
+        end
+    end
+
+    assign m_cyc   = jwb_grant ? jwb_cyc   : mt_cyc;
+    assign m_stb   = jwb_grant ? jwb_stb   : mt_stb;
+    assign m_we    = jwb_grant ? jwb_we    : mt_we;
+    assign m_adr   = jwb_grant ? jwb_adr   : mt_adr;
+    assign m_dat_w = jwb_grant ? jwb_dat_w : mt_dat_w;
+    assign m_sel   = jwb_grant ? jwb_sel   : mt_sel;
+
+    assign mt_stall = jwb_grant ? 1'b1 : m_stall;
+    assign mt_ack   = jwb_grant ? 1'b0 : m_ack;
+    assign mt_err   = jwb_grant ? 1'b0 : m_err;
+
+    assign jwb_stall = jwb_grant ? m_stall : 1'b1;
+    assign jwb_ack   = jwb_grant ? m_ack   : 1'b0;
+    assign jwb_err   = jwb_grant ? m_err   : 1'b0;
 
     wire        bram_cyc, bram_stb, bram_we;
     wire [14:0] bram_adr;
@@ -315,11 +411,14 @@ module top (
     // 0x06  | MEMTEST_FIRST_ERR_EXPECTED
     // 0x07  | MEMTEST_FIRST_ERR_GOT
     // 0x08  | MEMTEST_DDR3_PASS_CTR
+    // 0x10  | JWB_STATUS {busy, last_ack, last_err, halt_others, ...}
+    // 0x11  | JWB_ADDR     (15-bit, zero-extended)
+    // 0x12  | JWB_DATA     (host-written write data)
+    // 0x13  | JWB_RD_DATA  (last successful read)
     // 0xFE  | VERSION (magic + iter)
     // 0xFF  | ECHO (returns last host-written word)
     // other | 0xDEADBA<idx>
     // =================================================================
-    wire [31:0] host_to_fpga;
 
     // Heartbeat on clk_50.
     reg [23:0] heartbeat = 24'd0;
@@ -390,6 +489,24 @@ module top (
         mtest_first_err_got_sync[1]      <= mtest_first_err_got_sync[0];
     end
 
+    // CDC for JTAG-WB master status (clk_sys → clk_50).
+    reg [1:0]  jwb_busy_sync, jwb_last_ack_sync, jwb_last_err_sync, jwb_halt_others_sync;
+    reg [14:0] jwb_addr_echo_sync   [1:0];
+    reg [31:0] jwb_data_echo_sync   [1:0];
+    reg [31:0] jwb_rd_data_sync     [1:0];
+    always @(posedge clk_50) begin
+        jwb_busy_sync        <= {jwb_busy_sync[0],        jwb_busy};
+        jwb_last_ack_sync    <= {jwb_last_ack_sync[0],    jwb_last_ack};
+        jwb_last_err_sync    <= {jwb_last_err_sync[0],    jwb_last_err};
+        jwb_halt_others_sync <= {jwb_halt_others_sync[0], jwb_halt_others};
+        jwb_addr_echo_sync[0] <= jwb_addr_echo;
+        jwb_addr_echo_sync[1] <= jwb_addr_echo_sync[0];
+        jwb_data_echo_sync[0] <= jwb_data_echo;
+        jwb_data_echo_sync[1] <= jwb_data_echo_sync[0];
+        jwb_rd_data_sync[0]   <= jwb_rd_data;
+        jwb_rd_data_sync[1]   <= jwb_rd_data_sync[0];
+    end
+
     wire mmcm_locked_d   = mmcm_locked_sync[1];
     wire idelay_ready_d  = idelay_ready_sync[1];
     wire init_done_d     = init_done_sync[1];
@@ -445,27 +562,37 @@ module top (
             8'h06:   status_word = mtest_first_err_expected_sync[1];
             8'h07:   status_word = mtest_first_err_got_sync[1];
             8'h08:   status_word = mtest_ddr3_pass_ctr_sync[1];
-            8'hFE:   status_word = {16'hB07E, 16'h0006};
+            8'h10:   status_word = {16'hAB10,
+                                    12'd0,
+                                    jwb_busy_sync[1],
+                                    jwb_last_ack_sync[1],
+                                    jwb_last_err_sync[1],
+                                    jwb_halt_others_sync[1]};
+            8'h11:   status_word = {17'd0, jwb_addr_echo_sync[1]};
+            8'h12:   status_word = jwb_data_echo_sync[1];
+            8'h13:   status_word = jwb_rd_data_sync[1];
+            8'hFE:   status_word = {16'hB07E, 16'h0007};
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase
     end
 
     jtag_uart #(.WB_DATA_W(32), .WB_ADDR_W(2), .USER_CHAIN(1)) uart (
-        .i_clk          (clk_50),
-        .i_rst          (1'b0),
-        .i_wb_cyc       (1'b0),
-        .i_wb_stb       (1'b0),
-        .i_wb_we        (1'b0),
-        .i_wb_adr       (2'b0),
-        .i_wb_dat       (32'b0),
-        .i_wb_sel       (4'b0),
-        .o_wb_stall     (),
-        .o_wb_ack       (),
-        .o_wb_dat       (),
-        .o_wb_err       (),
-        .i_fpga_to_host (status_word),
-        .o_host_to_fpga (host_to_fpga)
+        .i_clk                (clk_50),
+        .i_rst                (1'b0),
+        .i_wb_cyc             (1'b0),
+        .i_wb_stb             (1'b0),
+        .i_wb_we              (1'b0),
+        .i_wb_adr             (2'b0),
+        .i_wb_dat             (32'b0),
+        .i_wb_sel             (4'b0),
+        .o_wb_stall           (),
+        .o_wb_ack             (),
+        .o_wb_dat             (),
+        .o_wb_err             (),
+        .i_fpga_to_host       (status_word),
+        .o_host_to_fpga       (host_to_fpga),
+        .o_host_to_fpga_valid (host_to_fpga_valid_50)
     );
 
     /* verilator lint_off UNUSED */

@@ -20,6 +20,7 @@ RTL := \
     rtl/memtest_lite.v \
     ../../ip/wb-memory/rtl/wb_memory.v \
     ../../ip/jtag-uart/rtl/jtag_uart.v \
+    ../../ip/jtag-uart/rtl/jtag_wb_master.v \
     ../../ip/wishbone/rtl/wb_decode2.v \
     ../../ip/ddr3/rtl/ddr3_ctrl.v \
     ../../ip/ddr3/rtl/ddr3_init.v \

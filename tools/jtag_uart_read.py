@@ -199,6 +199,57 @@ def read_status_reg(xvc, reg_idx: int) -> int:
 
 
 # ---------------------------------------------------------------------------
+# iter-7: JTAG-driven WB master commands.
+#
+# All command codes are encoded in host_to_fpga[31:24]; lower bits carry
+# payload. The FPGA's jtag_wb_master decodes each command on the UPDATE-DR
+# rising edge.
+# ---------------------------------------------------------------------------
+
+JWB_CMD_SET_ADDR = 0xE0
+JWB_CMD_SET_DLO  = 0xE2
+JWB_CMD_SET_DHI  = 0xE3
+JWB_CMD_GO_WR    = 0xE4
+JWB_CMD_GO_RD    = 0xE5
+JWB_CMD_HALT     = 0xE6
+JWB_CMD_RESUME   = 0xE7
+
+
+def jwb_cmd(xvc, cmd_code: int, payload: int = 0):
+    """Write a raw 32-bit command word with `cmd_code` in [31:24] and `payload` in lower bits."""
+    word = ((cmd_code & 0xFF) << 24) | (payload & 0x00FFFFFF)
+    write_register_index(xvc, word)
+
+
+def jwb_wait_idle(xvc, max_iters=20):
+    """Poll status reg 0x10 until JWB_BUSY clears (one round-trip per iter)."""
+    for _ in range(max_iters):
+        st = read_status_reg(xvc, 0x10)
+        busy = (st >> 3) & 1
+        if not busy:
+            return st
+    raise RuntimeError(f"jwb stuck busy: 0x{st:08x}")
+
+
+def jwb_wb_write(xvc, addr: int, data: int):
+    """Halt memtest, write data to addr, leave halt set so caller can probe."""
+    jwb_cmd(xvc, JWB_CMD_HALT)
+    jwb_cmd(xvc, JWB_CMD_SET_ADDR, addr & 0x7FFF)
+    jwb_cmd(xvc, JWB_CMD_SET_DLO, data & 0xFFFF)
+    jwb_cmd(xvc, JWB_CMD_SET_DHI, (data >> 16) & 0xFFFF)
+    jwb_cmd(xvc, JWB_CMD_GO_WR)
+    return jwb_wait_idle(xvc)
+
+
+def jwb_wb_read(xvc, addr: int) -> int:
+    jwb_cmd(xvc, JWB_CMD_HALT)
+    jwb_cmd(xvc, JWB_CMD_SET_ADDR, addr & 0x7FFF)
+    jwb_cmd(xvc, JWB_CMD_GO_RD)
+    jwb_wait_idle(xvc)
+    return read_status_reg(xvc, 0x13)
+
+
+# ---------------------------------------------------------------------------
 # Status register decoders
 # ---------------------------------------------------------------------------
 
@@ -276,8 +327,16 @@ REG_DECODERS = {
     )),
     0x06: ("MTEST_FIRST_ERR_EXPECTED", lambda w: f"{w:#010x}"),
     0x07: ("MTEST_FIRST_ERR_GOT",      lambda w: f"{w:#010x}"),
-    0xFE: ("VERSION",      lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
-    0xFF: ("ECHO",         lambda w: f"{w:#010x}"),
+    0x08: ("MTEST_DDR3_PASS_CTR",      lambda w: f"{w} ({w:#010x})"),
+    0x10: ("JWB_STATUS", lambda w: (
+        f"magic=0x{w>>16:04x} busy={(w>>3)&1} last_ack={(w>>2)&1} "
+        f"last_err={(w>>1)&1} halt_others={w&1}"
+    )),
+    0x11: ("JWB_ADDR",   lambda w: f"{w:#06x}"),
+    0x12: ("JWB_DATA",   lambda w: f"{w:#010x}"),
+    0x13: ("JWB_RD_DATA",lambda w: f"{w:#010x}"),
+    0xFE: ("VERSION",    lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
+    0xFF: ("ECHO",       lambda w: f"{w:#010x}"),
 }
 
 
@@ -305,6 +364,12 @@ def main():
                     help="poll interval in seconds (with --watch)")
     ap.add_argument("--tck-ns", type=int, default=None,
                     help="set XVC TCK period in ns (default: server default)")
+    ap.add_argument("--wb-write", nargs=2, metavar=("ADDR", "DATA"),
+                    help="iter-7: WB write via JTAG-WB master (hex/dec ok)")
+    ap.add_argument("--wb-read", metavar="ADDR",
+                    help="iter-7: WB read via JTAG-WB master (hex/dec ok)")
+    ap.add_argument("--wb-resume", action="store_true",
+                    help="clear JWB halt_others so memtest_lite resumes")
     args = ap.parse_args()
 
     xvc = XVC(args.host, args.port)
@@ -316,6 +381,27 @@ def main():
 
     tap_reset_to_rti(xvc)
     select_user1(xvc)
+
+    if args.wb_write is not None:
+        addr = int(args.wb_write[0], 0)
+        data = int(args.wb_write[1], 0)
+        st = jwb_wb_write(xvc, addr, data)
+        print(f"WB write addr={addr:#06x} data={data:#010x} -> status={st:#010x}")
+        xvc.close()
+        return 0
+
+    if args.wb_read is not None:
+        addr = int(args.wb_read, 0)
+        d = jwb_wb_read(xvc, addr)
+        print(f"WB read addr={addr:#06x} -> data={d:#010x}")
+        xvc.close()
+        return 0
+
+    if args.wb_resume:
+        jwb_cmd(xvc, JWB_CMD_RESUME)
+        print("JWB resumed (halt_others cleared)")
+        xvc.close()
+        return 0
 
     while True:
         if args.reg is not None:

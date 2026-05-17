@@ -49,7 +49,11 @@ module jtag_uart #(
 
     // Status mux interface (iter-3)
     input  wire [WB_DATA_W-1:0]     i_fpga_to_host,   // current status word (mux output)
-    output wire [WB_DATA_W-1:0]     o_host_to_fpga    // host's last-written value (mux select)
+    output wire [WB_DATA_W-1:0]     o_host_to_fpga,   // host's last-written value (mux select)
+
+    // iter-7: pulse on every UPDATE-DR with dir=1 (i.e. each host-to-FPGA
+    // write). Consumers (e.g. jtag_wb_master) edge-trigger commands from it.
+    output wire                     o_host_to_fpga_valid
 );
     // --- BSCANE2 USER1 chain --------------------------------------------------
     wire        bscan_tdi;
@@ -130,13 +134,24 @@ module jtag_uart #(
     end
     wire update_pulse = update_sync2 && !update_sync3;   // rising edge in i_clk
 
-    // On UPDATE, if the JTAG word was a write, latch into host_to_fpga.
+    // On UPDATE, if the JTAG word was a write, latch into host_to_fpga
+    // and fire a single-cycle valid pulse for downstream command consumers.
+    reg host_to_fpga_valid_r = 1'b0;
     always @(posedge i_clk) begin
-        if (i_rst) host_to_fpga <= 0;
-        else if (update_pulse && jtag_sr[32]) host_to_fpga <= jtag_sr[31:0];
+        if (i_rst) begin
+            host_to_fpga         <= 0;
+            host_to_fpga_valid_r <= 1'b0;
+        end else begin
+            host_to_fpga_valid_r <= 1'b0;
+            if (update_pulse && jtag_sr[32]) begin
+                host_to_fpga         <= jtag_sr[31:0];
+                host_to_fpga_valid_r <= 1'b1;
+            end
+        end
     end
 
-    assign o_host_to_fpga = host_to_fpga;
+    assign o_host_to_fpga       = host_to_fpga;
+    assign o_host_to_fpga_valid = host_to_fpga_valid_r;
 
     // --- Wishbone B4 pipelined slave -----------------------------------------
     // WB write path is legacy/no-op (i_fpga_to_host now drives JTAG capture

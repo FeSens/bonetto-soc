@@ -22,6 +22,8 @@ module memtest_lite #(
     input  wire        i_clk,
     input  wire        i_rst,
     input  wire        i_cal_done,
+    input  wire        i_pause,           // iter-7: held high → FSM stalls at next IDLE
+
 
     output reg         o_wb_cyc,
     output reg         o_wb_stb,
@@ -110,13 +112,18 @@ module memtest_lite #(
         end else begin
             case (state)
                 S_WRITE: begin
-                    pattern  <= pattern_for_addr;
-                    o_wb_cyc <= 1'b1;
-                    o_wb_stb <= 1'b1;
-                    o_wb_we  <= 1'b1;
-                    o_wb_adr <= tgt_addr;
-                    o_wb_dat <= pattern_for_addr;
-                    state    <= S_WAIT_WACK;
+                    if (i_pause) begin
+                        o_wb_cyc <= 1'b0;
+                        o_wb_stb <= 1'b0;
+                    end else begin
+                        pattern  <= pattern_for_addr;
+                        o_wb_cyc <= 1'b1;
+                        o_wb_stb <= 1'b1;
+                        o_wb_we  <= 1'b1;
+                        o_wb_adr <= tgt_addr;
+                        o_wb_dat <= pattern_for_addr;
+                        state    <= S_WAIT_WACK;
+                    end
                 end
                 S_WAIT_WACK: begin
                     if (i_wb_ack) begin
