@@ -54,7 +54,7 @@ NEXTPNR_FREQ ?= 100
 DDR3_DEFINES ?=
 DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
-.PHONY: bitstream program detect memtest xvc validate-ddr3 full-ch0-json clean help
+.PHONY: bitstream program detect memtest xvc validate-ddr3 full-ch0-json full-2ch-json clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -79,6 +79,14 @@ full-ch0-json:
 	  DDR3_ACTIVE_DQ_MAX=71 \
 	  DDR3_ACTIVE_DQS_MAX=8 \
 	  build/bonetto_soc_ypcb00338_full_ch0.json
+
+full-2ch-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch \
+	  DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_full_2ch.json
 
 $(CHIPDB)/$(DBPART).bin: | $(CHIPDB)
 	@echo ">> generating chipdb for $(PART) (one-time, ~5-15 min)"
@@ -167,5 +175,6 @@ help:
 	@echo "  make xvc             run XVC server on port 3721 for host probes"
 	@echo "  make validate-ddr3   run hardware DDR3 validation against XVC"
 	@echo "  make full-ch0-json   synth build-only 64-bit CH0 / BL8 image"
+	@echo "  make full-2ch-json   synth build-only 2-channel 4 GiB DDR3-1600 image"
 	@echo "  make detect          probe JTAG chain"
 	@echo "  make clean           remove build artifacts"

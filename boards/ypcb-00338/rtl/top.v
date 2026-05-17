@@ -17,6 +17,10 @@
 
 `include "soc_params.vh"
 
+`ifdef DDR3_FULL_2CH
+`define DDR3_FULL_CH0
+`endif
+
 module top (
     input  wire        clk_50,
 
@@ -41,6 +45,23 @@ module top (
     inout  wire [39:0] ddr3_dq,
     inout  wire [4:0]  ddr3_dqs_p,
     inout  wire [4:0]  ddr3_dqs_n
+`endif
+`ifdef DDR3_FULL_2CH
+    ,
+    output wire [14:0] ddr3_ch1_addr,
+    output wire [2:0]  ddr3_ch1_ba,
+    output wire        ddr3_ch1_ras_n,
+    output wire        ddr3_ch1_cas_n,
+    output wire        ddr3_ch1_we_n,
+    output wire        ddr3_ch1_cs_n,
+    output wire        ddr3_ch1_cke,
+    output wire        ddr3_ch1_odt,
+    output wire        ddr3_ch1_reset_n,
+    output wire        ddr3_ch1_ck_p,
+    output wire        ddr3_ch1_ck_n,
+    inout  wire [71:0] ddr3_ch1_dq,
+    inout  wire [8:0]  ddr3_ch1_dqs_p,
+    inout  wire [8:0]  ddr3_ch1_dqs_n
 `endif
 );
     // ---- Power-on reset on clk_50 (16K cycles ≈ 320 µs @ 50 MHz) ----
@@ -76,18 +97,29 @@ module top (
     // direct control).
     // =================================================================
     localparam integer FABRIC_ADDR_W = `WB_ADDR_W;
-`ifdef DDR3_FULL_CH0
+`ifdef DDR3_FULL_2CH
+    // Build-only dual-channel expansion: two 64-bit channels over BL8.
+    // The global DDR3 word address uses bit 29 as channel select and
+    // bits [28:0] as the per-channel MT41K256M8 address.
+    localparam integer DDR3_MEMTEST_ADDR_W = 30;
+    localparam integer DDR3_ACTIVE_BYTE_LANES = 8;
+    localparam integer DDR3_SERDES_RATIO = 8;
+    localparam integer DDR3_WB_BURST_WORD_BITS = 4;
+    localparam integer DDR3_MEMTEST_DIRECT_ADDR = 1;
+`elsif DDR3_FULL_CH0
     // Build-only CH0 expansion: 64 data bits over BL8, with physical lane 3
     // bypassed and the board ECC lane used as logical data lane 7.
     localparam integer DDR3_MEMTEST_ADDR_W = 29;
     localparam integer DDR3_ACTIVE_BYTE_LANES = 8;
     localparam integer DDR3_SERDES_RATIO = 8;
     localparam integer DDR3_WB_BURST_WORD_BITS = 4;
+    localparam integer DDR3_MEMTEST_DIRECT_ADDR = 0;
 `else
     localparam integer DDR3_MEMTEST_ADDR_W = 25;
     localparam integer DDR3_ACTIVE_BYTE_LANES = 4;
     localparam integer DDR3_SERDES_RATIO = 4;
     localparam integer DDR3_WB_BURST_WORD_BITS = 0;
+    localparam integer DDR3_MEMTEST_DIRECT_ADDR = 0;
 `endif
     localparam integer JWB_LOCAL_ADDR_W = 15;
     localparam integer JWB_DDR3_LOCAL_W = 14;
@@ -159,6 +191,33 @@ module top (
     );
 `endif
 
+`ifdef DDR3_FULL_2CH
+    // Mirror the CH0 lane-3 bypass on CH1 for the build-only dual-channel
+    // image; logical lane 7 is mapped onto the CH1 ECC byte lane.
+    wire [7:0] ddr3_ch1_lane3_dq_unused;
+    wire       ddr3_ch1_lane3_dqs_unused;
+
+    genvar ddr3_ch1_lane3_i;
+    generate
+        for (ddr3_ch1_lane3_i = 0; ddr3_ch1_lane3_i < 8; ddr3_ch1_lane3_i = ddr3_ch1_lane3_i + 1) begin : g_ddr3_ch1_lane3_bypass
+            IOBUF #(.SLEW("FAST")) u_dq_iobuf (
+                .O  (ddr3_ch1_lane3_dq_unused[ddr3_ch1_lane3_i]),
+                .IO (ddr3_ch1_dq[24 + ddr3_ch1_lane3_i]),
+                .I  (1'b0),
+                .T  (1'b1)
+            );
+        end
+    endgenerate
+
+    IOBUFDS #(.SLEW("FAST")) u_ch1_dqs_iobuf (
+        .O   (ddr3_ch1_lane3_dqs_unused),
+        .IO  (ddr3_ch1_dqs_p[3]),
+        .IOB (ddr3_ch1_dqs_n[3]),
+        .I   (1'b0),
+        .T   (1'b1)
+    );
+`endif
+
     // Cal done signal lives in clk_sys (cal_seq runs there).
     wire ctrl_init_done;
     wire ctrl_init_error;
@@ -171,14 +230,31 @@ module top (
     wire [3:0] cal_wlvl_state;
     wire [3:0] cal_rdlvl_state;
 
+`ifdef DDR3_FULL_2CH
+    wire ctrl_init_done_ch1;
+    wire ctrl_init_error_ch1;
+    wire [3:0] ctrl_init_error_code_ch1;
+    wire [4:0] ctrl_init_state_ch1;
+    wire       cal_done_ch1;
+    wire       cal_error_ch1;
+    wire [1:0] cal_error_code_ch1;
+    wire [3:0] cal_seq_state_ch1;
+    wire [3:0] cal_wlvl_state_ch1;
+    wire [3:0] cal_rdlvl_state_ch1;
+    wire       ddr3_all_cal_done = cal_done & cal_done_ch1;
+`else
+    wire       ddr3_all_cal_done = cal_done;
+`endif
+
     memtest_lite #(
         .WB_ADDR_W(FABRIC_ADDR_W),
         .BRAM_ADDR_W(14),
-        .DDR3_ADDR_W(DDR3_MEMTEST_ADDR_W)
+        .DDR3_ADDR_W(DDR3_MEMTEST_ADDR_W),
+        .DIRECT_DDR_ADDRESS(DDR3_MEMTEST_DIRECT_ADDR)
     ) mtest (
         .i_clk                (clk_sys),
         .i_rst                (rst_sys),
-        .i_cal_done           (cal_done),
+        .i_cal_done           (ddr3_all_cal_done),
         .i_pause              (jwb_halt_others),
         .o_wb_cyc             (mt_cyc),
         .o_wb_stb             (mt_stb),
@@ -328,11 +404,40 @@ module top (
     wire [3:0]  d3_sel;
     wire        d3_stall, d3_ack, d3_err;
     wire [31:0] d3_dat_r;
+`ifdef DDR3_FULL_2CH
+    wire        full2ch_d3_select = jwb_grant ? m_adr[14] : mtest_target;
+    wire [FABRIC_ADDR_W-1:0] d3_global_adr = jwb_grant ?
+        {jwb_addr_hi_echo, m_adr[JWB_DDR3_LOCAL_W-1:0]} :
+        m_adr;
+    wire        d3_ch_sel = d3_global_adr[29];
+    wire [FABRIC_ADDR_W-1:0] d3_ctrl_adr =
+        {{(FABRIC_ADDR_W-29){1'b0}}, d3_global_adr[28:0]};
+
+    assign bram_cyc   = m_cyc & ~full2ch_d3_select;
+    assign bram_stb   = m_stb & ~full2ch_d3_select;
+    assign bram_we    = m_we;
+    assign bram_adr   = m_adr;
+    assign bram_dat_w = m_dat_w;
+    assign bram_sel   = m_sel;
+
+    assign d3_cyc   = m_cyc & full2ch_d3_select;
+    assign d3_stb   = m_stb & full2ch_d3_select;
+    assign d3_we    = m_we;
+    assign d3_adr   = d3_global_adr;
+    assign d3_dat_w = m_dat_w;
+    assign d3_sel   = m_sel;
+
+    assign m_stall = full2ch_d3_select ? d3_stall : bram_stall;
+    assign m_ack   = full2ch_d3_select ? d3_ack   : bram_ack;
+    assign m_err   = full2ch_d3_select ? d3_err   : bram_err;
+    assign m_dat_r = full2ch_d3_select ? d3_dat_r : bram_dat_r;
+`else
     wire [FABRIC_ADDR_W-1:0] d3_ctrl_adr = (jwb_grant && m_adr[14]) ?
         {jwb_addr_hi_echo, d3_adr[JWB_DDR3_LOCAL_W-1:0]} :
         {{(FABRIC_ADDR_W-DDR3_MEMTEST_ADDR_W){1'b0}},
          d3_adr[DDR3_MEMTEST_ADDR_W:JWB_LOCAL_ADDR_W],
          d3_adr[JWB_DDR3_LOCAL_W-1:0]};
+    wire        d3_ch_sel = 1'b0;
 
     wb_decode2 #(
         .WB_DATA_W(32),
@@ -372,6 +477,7 @@ module top (
         .i_s1_dat  (d3_dat_r),
         .i_s1_err  (d3_err)
     );
+`endif
 
     wb_memory #(.WB_DATA_W(32), .WB_ADDR_W(14)) mem (
         .i_clk      (clk_sys),
@@ -391,6 +497,36 @@ module top (
     // =================================================================
     // DDR3 stack on clk_sys
     // =================================================================
+    wire        d3_ch0_cyc = d3_cyc & ~d3_ch_sel;
+    wire        d3_ch0_stb = d3_stb & ~d3_ch_sel;
+    wire        d3_ch0_we  = d3_we;
+    wire [FABRIC_ADDR_W-1:0] d3_ch0_adr = d3_ctrl_adr;
+    wire [31:0] d3_ch0_dat_w = d3_dat_w;
+    wire [3:0]  d3_ch0_sel = d3_sel;
+    wire        d3_ch0_stall, d3_ch0_ack, d3_ch0_err;
+    wire [31:0] d3_ch0_dat_r;
+
+`ifdef DDR3_FULL_2CH
+    wire        d3_ch1_cyc = d3_cyc & d3_ch_sel;
+    wire        d3_ch1_stb = d3_stb & d3_ch_sel;
+    wire        d3_ch1_we  = d3_we;
+    wire [FABRIC_ADDR_W-1:0] d3_ch1_adr = d3_ctrl_adr;
+    wire [31:0] d3_ch1_dat_w = d3_dat_w;
+    wire [3:0]  d3_ch1_sel = d3_sel;
+    wire        d3_ch1_stall, d3_ch1_ack, d3_ch1_err;
+    wire [31:0] d3_ch1_dat_r;
+
+    assign d3_stall = d3_ch_sel ? d3_ch1_stall : d3_ch0_stall;
+    assign d3_ack   = d3_ch_sel ? d3_ch1_ack   : d3_ch0_ack;
+    assign d3_err   = d3_ch_sel ? d3_ch1_err   : d3_ch0_err;
+    assign d3_dat_r = d3_ch_sel ? d3_ch1_dat_r : d3_ch0_dat_r;
+`else
+    assign d3_stall = d3_ch0_stall;
+    assign d3_ack   = d3_ch0_ack;
+    assign d3_err   = d3_ch0_err;
+    assign d3_dat_r = d3_ch0_dat_r;
+`endif
+
     wire        ctrl_reset_n;
     wire        ctrl_cke;
     wire        ctrl_odt;
@@ -431,16 +567,16 @@ module top (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),
         .i_rst          (rst_sys),
-        .i_wb_cyc       (d3_cyc),
-        .i_wb_stb       (d3_stb),
-        .i_wb_we        (d3_we),
-        .i_wb_adr       (d3_ctrl_adr),
-        .i_wb_dat       (d3_dat_w),
-        .i_wb_sel       (d3_sel),
-        .o_wb_stall     (d3_stall),
-        .o_wb_ack       (d3_ack),
-        .o_wb_dat       (d3_dat_r),
-        .o_wb_err       (d3_err),
+        .i_wb_cyc       (d3_ch0_cyc),
+        .i_wb_stb       (d3_ch0_stb),
+        .i_wb_we        (d3_ch0_we),
+        .i_wb_adr       (d3_ch0_adr),
+        .i_wb_dat       (d3_ch0_dat_w),
+        .i_wb_sel       (d3_ch0_sel),
+        .o_wb_stall     (d3_ch0_stall),
+        .o_wb_ack       (d3_ch0_ack),
+        .o_wb_dat       (d3_ch0_dat_r),
+        .o_wb_err       (d3_ch0_err),
         .o_ddr3_reset_n (ctrl_reset_n),
         .o_ddr3_cke     (ctrl_cke),
         .o_ddr3_odt     (ctrl_odt),
@@ -491,10 +627,16 @@ module top (
     ddr3_phy #(
         .DQ_BITS(DDR3_DQ_BITS),
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
-        .SERDES_RATIO(DDR3_SERDES_RATIO)
+        .SERDES_RATIO(DDR3_SERDES_RATIO),
+        .USE_EXTERNAL_CLOCKS(0)
     ) u_ddr3_phy (
         .i_clk_ref      (clk_50),
         .i_rst_ref      (por_rst_50),
+        .i_clk_sys_ext  (1'b0),
+        .i_clk_phy_x4_ext(1'b0),
+        .i_clk_dq_ext   (1'b0),
+        .i_locked_ext   (1'b0),
+        .i_idelay_ready_ext(1'b0),
         .o_clk_sys      (clk_sys),
         .o_clk_phy_x4   (clk_phy_x4),
         .o_clk_dq       (clk_dq),
@@ -567,6 +709,222 @@ module top (
 `endif
         .o_ddr3_dm      ()
     );
+
+`ifdef DDR3_FULL_2CH
+    wire        ctrl_reset_n_ch1;
+    wire        ctrl_cke_ch1;
+    wire        ctrl_odt_ch1;
+    wire        ctrl_cs_n_ch1, ctrl_ras_n_ch1, ctrl_cas_n_ch1, ctrl_we_n_ch1;
+    wire [2:0]  ctrl_ba_ch1;
+    wire [14:0] ctrl_addr_ch1;
+
+    wire        phy_mpr_req_ch1;
+    wire [12:0] phy_mpr_addr_ch1;
+    wire        ctrl_mpr_busy_ch1;
+
+    wire        cal_mrs_req_ch1;
+    wire [2:0]  cal_mrs_ba_ch1;
+    wire [14:0] cal_mrs_addr_ch1;
+    wire        ctrl_mrs_busy_ch1;
+
+    wire        cal_wlvl_start_ch1, cal_wlvl_done_ch1, cal_wlvl_error_ch1;
+    wire        cal_rdlvl_start_ch1, cal_rdlvl_done_ch1, cal_rdlvl_error_ch1;
+
+    wire        phy_wr_valid_ch1;
+    wire [DDR3_PHY_DATA_W-1:0] phy_wr_data_ch1;
+    wire        phy_rd_capture_ch1;
+    wire        phy_rd_valid_ch1;
+    wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_ch1;
+    wire [DDR3_PHY_DATA_W-1:0] phy_rd_data_ch1;
+
+    ddr3_ctrl #(
+        .WB_DATA_W(32),
+        .WB_ADDR_W(FABRIC_ADDR_W),
+        .DQ_BITS(DDR3_DQ_BITS),
+        .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
+        .SERDES_RATIO(DDR3_SERDES_RATIO),
+        .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS)
+    ) u_ddr3_ctrl_ch1 (
+        .i_clk          (clk_sys),
+        .i_clk_phy      (clk_sys),
+        .i_rst          (rst_sys),
+        .i_wb_cyc       (d3_ch1_cyc),
+        .i_wb_stb       (d3_ch1_stb),
+        .i_wb_we        (d3_ch1_we),
+        .i_wb_adr       (d3_ch1_adr),
+        .i_wb_dat       (d3_ch1_dat_w),
+        .i_wb_sel       (d3_ch1_sel),
+        .o_wb_stall     (d3_ch1_stall),
+        .o_wb_ack       (d3_ch1_ack),
+        .o_wb_dat       (d3_ch1_dat_r),
+        .o_wb_err       (d3_ch1_err),
+        .o_ddr3_reset_n (ctrl_reset_n_ch1),
+        .o_ddr3_cke     (ctrl_cke_ch1),
+        .o_ddr3_odt     (ctrl_odt_ch1),
+        .o_ddr3_cs_n    (ctrl_cs_n_ch1),
+        .o_ddr3_ras_n   (ctrl_ras_n_ch1),
+        .o_ddr3_cas_n   (ctrl_cas_n_ch1),
+        .o_ddr3_we_n    (ctrl_we_n_ch1),
+        .o_ddr3_ba      (ctrl_ba_ch1),
+        .o_ddr3_addr    (ctrl_addr_ch1),
+        .i_phy_rd_data   (phy_rd_data_ch1),
+        .i_phy_rd_valid  (phy_rd_valid_ch1),
+        .o_phy_wr_data   (phy_wr_data_ch1),
+        .o_phy_wr_valid  (phy_wr_valid_ch1),
+        .o_phy_rd_capture(phy_rd_capture_ch1),
+        .i_mpr_req      (phy_mpr_req_ch1),
+        .i_mpr_addr     (phy_mpr_addr_ch1),
+        .o_mpr_busy     (ctrl_mpr_busy_ch1),
+        .i_mrs_req      (cal_mrs_req_ch1),
+        .i_mrs_ba       (cal_mrs_ba_ch1),
+        .i_mrs_addr     (cal_mrs_addr_ch1),
+        .o_mrs_busy     (ctrl_mrs_busy_ch1),
+        .o_init_done        (ctrl_init_done_ch1),
+        .o_init_error       (ctrl_init_error_ch1),
+        .o_init_error_code  (ctrl_init_error_code_ch1),
+        .o_init_state       (ctrl_init_state_ch1)
+    );
+
+    ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(1)) u_cal_seq_ch1 (
+        .i_clk            (clk_sys),
+        .i_rst            (rst_sys),
+        .i_init_done      (ctrl_init_done_ch1),
+        .o_wlvl_start     (cal_wlvl_start_ch1),
+        .i_wlvl_done      (cal_wlvl_done_ch1),
+        .i_wlvl_error     (cal_wlvl_error_ch1),
+        .o_rdlvl_start    (cal_rdlvl_start_ch1),
+        .i_rdlvl_done     (cal_rdlvl_done_ch1),
+        .i_rdlvl_error    (cal_rdlvl_error_ch1),
+        .o_mrs_req        (cal_mrs_req_ch1),
+        .o_mrs_ba         (cal_mrs_ba_ch1),
+        .o_mrs_addr       (cal_mrs_addr_ch1),
+        .i_mrs_busy       (ctrl_mrs_busy_ch1),
+        .o_cal_done       (cal_done_ch1),
+        .o_cal_error      (cal_error_ch1),
+        .o_cal_error_code (cal_error_code_ch1),
+        .o_state          (cal_seq_state_ch1)
+    );
+
+    wire clk_sys_ch1_unused;
+    wire clk_phy_x4_ch1_unused;
+    wire clk_dq_ch1_unused;
+    wire mmcm_locked_ch1_unused;
+    wire idelay_ready_ch1;
+    wire phy_phase_busy_ch1;
+    wire [7:0] phy_phase_count_ch1;
+
+    ddr3_phy #(
+        .DQ_BITS(DDR3_DQ_BITS),
+        .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
+        .SERDES_RATIO(DDR3_SERDES_RATIO),
+        .USE_EXTERNAL_CLOCKS(1)
+    ) u_ddr3_phy_ch1 (
+        .i_clk_ref      (clk_50),
+        .i_rst_ref      (por_rst_50),
+        .i_clk_sys_ext  (clk_sys),
+        .i_clk_phy_x4_ext(clk_phy_x4),
+        .i_clk_dq_ext   (clk_dq),
+        .i_locked_ext   (mmcm_locked),
+        .i_idelay_ready_ext(idelay_ready),
+        .o_clk_sys      (clk_sys_ch1_unused),
+        .o_clk_phy_x4   (clk_phy_x4_ch1_unused),
+        .o_clk_dq       (clk_dq_ch1_unused),
+        .o_locked       (mmcm_locked_ch1_unused),
+        .o_idelay_ready (idelay_ready_ch1),
+
+        .i_cmd_valid    (1'b1),
+        .i_cmd          ({ctrl_cs_n_ch1, ctrl_ras_n_ch1, ctrl_cas_n_ch1, ctrl_we_n_ch1}),
+        .i_cmd_ba       (ctrl_ba_ch1),
+        .i_cmd_addr     (ctrl_addr_ch1),
+        .i_cmd_cke      (ctrl_cke_ch1),
+        .i_cmd_reset_n  (ctrl_reset_n_ch1),
+        .i_cmd_odt      (ctrl_odt_ch1),
+
+        .i_wr_valid     (phy_wr_valid_ch1),
+        .i_wr_data      (phy_wr_data_ch1),
+        .i_wr_mask      ({DDR3_ACTIVE_BYTE_LANES{1'b0}}),
+        .i_rd_capture   (phy_rd_capture_ch1),
+
+        .o_rd_valid     (phy_rd_valid_ch1),
+        .o_rd_valid_lane(phy_rd_valid_lane_ch1),
+        .o_rd_data      (phy_rd_data_ch1),
+
+        .i_cal_start_wlvl  (cal_wlvl_start_ch1),
+        .o_cal_done_wlvl   (cal_wlvl_done_ch1),
+        .o_cal_error_wlvl  (cal_wlvl_error_ch1),
+        .o_cal_state_wlvl  (cal_wlvl_state_ch1),
+        .i_cal_start_rdlvl (cal_rdlvl_start_ch1),
+        .o_cal_done_rdlvl  (cal_rdlvl_done_ch1),
+        .o_cal_error_rdlvl (cal_rdlvl_error_ch1),
+        .o_cal_state_rdlvl (cal_rdlvl_state_ch1),
+        .o_mpr_read_req    (phy_mpr_req_ch1),
+        .o_mpr_read_addr   (phy_mpr_addr_ch1),
+
+        .i_cal_jwb_load_lane ({DDR3_ACTIVE_BYTE_LANES{1'b0}}),
+        .i_cal_jwb_tap       (jwb_cal_tap),
+
+        .i_phase_req     (1'b0),
+        .i_phase_inc     (1'b0),
+        .o_phase_busy    (phy_phase_busy_ch1),
+        .o_phase_count   (phy_phase_count_ch1),
+
+        .o_ddr3_ck_p    (ddr3_ch1_ck_p),
+        .o_ddr3_ck_n    (ddr3_ch1_ck_n),
+        .o_ddr3_cke     (ddr3_ch1_cke),
+        .o_ddr3_reset_n (ddr3_ch1_reset_n),
+        .o_ddr3_cs_n    (ddr3_ch1_cs_n),
+        .o_ddr3_ras_n   (ddr3_ch1_ras_n),
+        .o_ddr3_cas_n   (ddr3_ch1_cas_n),
+        .o_ddr3_we_n    (ddr3_ch1_we_n),
+        .o_ddr3_odt     (ddr3_ch1_odt),
+        .o_ddr3_ba      (ddr3_ch1_ba),
+        .o_ddr3_addr    (ddr3_ch1_addr),
+        .io_ddr3_dq     ({ddr3_ch1_dq[71:64], ddr3_ch1_dq[63:56],
+                          ddr3_ch1_dq[55:48], ddr3_ch1_dq[47:40],
+                          ddr3_ch1_dq[39:32], ddr3_ch1_dq[23:0]}),
+        .io_ddr3_dqs_p  ({ddr3_ch1_dqs_p[8], ddr3_ch1_dqs_p[7],
+                          ddr3_ch1_dqs_p[6], ddr3_ch1_dqs_p[5],
+                          ddr3_ch1_dqs_p[4], ddr3_ch1_dqs_p[2:0]}),
+        .io_ddr3_dqs_n  ({ddr3_ch1_dqs_n[8], ddr3_ch1_dqs_n[7],
+                          ddr3_ch1_dqs_n[6], ddr3_ch1_dqs_n[5],
+                          ddr3_ch1_dqs_n[4], ddr3_ch1_dqs_n[2:0]}),
+        .o_ddr3_dm      ()
+    );
+`endif
+
+`ifdef DDR3_FULL_2CH
+    wire       ctrl_init_done_status = ctrl_init_done & ctrl_init_done_ch1;
+    wire       ctrl_init_error_status = ctrl_init_error | ctrl_init_error_ch1;
+    wire [3:0] ctrl_init_error_code_status =
+        ctrl_init_error ? ctrl_init_error_code : ctrl_init_error_code_ch1;
+    wire [4:0] ctrl_init_state_status =
+        ctrl_init_done ? ctrl_init_state_ch1 : ctrl_init_state;
+    wire       cal_done_status = cal_done & cal_done_ch1;
+    wire       cal_error_status = cal_error | cal_error_ch1;
+    wire [1:0] cal_error_code_status =
+        cal_error ? cal_error_code : cal_error_code_ch1;
+    wire [3:0] cal_seq_state_status =
+        cal_done ? cal_seq_state_ch1 : cal_seq_state;
+    wire [3:0] cal_wlvl_state_status =
+        cal_done ? cal_wlvl_state_ch1 : cal_wlvl_state;
+    wire [3:0] cal_rdlvl_state_status =
+        cal_done ? cal_rdlvl_state_ch1 : cal_rdlvl_state;
+    wire       ctrl_mpr_busy_status = ctrl_mpr_busy | ctrl_mpr_busy_ch1;
+    wire       idelay_ready_status = idelay_ready & idelay_ready_ch1;
+`else
+    wire       ctrl_init_done_status = ctrl_init_done;
+    wire       ctrl_init_error_status = ctrl_init_error;
+    wire [3:0] ctrl_init_error_code_status = ctrl_init_error_code;
+    wire [4:0] ctrl_init_state_status = ctrl_init_state;
+    wire       cal_done_status = cal_done;
+    wire       cal_error_status = cal_error;
+    wire [1:0] cal_error_code_status = cal_error_code;
+    wire [3:0] cal_seq_state_status = cal_seq_state;
+    wire [3:0] cal_wlvl_state_status = cal_wlvl_state;
+    wire [3:0] cal_rdlvl_state_status = cal_rdlvl_state;
+    wire       ctrl_mpr_busy_status = ctrl_mpr_busy;
+    wire       idelay_ready_status = idelay_ready;
+`endif
 
     // =================================================================
     // STATUS MUX — host writes a register index to jtag_uart, then reads
@@ -677,28 +1035,28 @@ module top (
 
     always @(posedge clk_50) begin
         mmcm_locked_sync     <= {mmcm_locked_sync[0],   mmcm_locked};
-        idelay_ready_sync    <= {idelay_ready_sync[0],  idelay_ready};
-        init_done_sync       <= {init_done_sync[0],     ctrl_init_done};
-        init_error_sync      <= {init_error_sync[0],    ctrl_init_error};
-        cal_done_sync        <= {cal_done_sync[0],      cal_done};
-        cal_error_sync       <= {cal_error_sync[0],     cal_error};
-        mpr_busy_sync        <= {mpr_busy_sync[0],      ctrl_mpr_busy};
+        idelay_ready_sync    <= {idelay_ready_sync[0],  idelay_ready_status};
+        init_done_sync       <= {init_done_sync[0],     ctrl_init_done_status};
+        init_error_sync      <= {init_error_sync[0],    ctrl_init_error_status};
+        cal_done_sync        <= {cal_done_sync[0],      cal_done_status};
+        cal_error_sync       <= {cal_error_sync[0],     cal_error_status};
+        mpr_busy_sync        <= {mpr_busy_sync[0],      ctrl_mpr_busy_status};
         mtest_any_err_sync   <= {mtest_any_err_sync[0], mtest_any_err};
         mtest_target_sync    <= {mtest_target_sync[0],  mtest_target};
         mtest_pattern_idx_sync[0] <= mtest_pattern_idx;
         mtest_pattern_idx_sync[1] <= mtest_pattern_idx_sync[0];
 
-        cal_error_code_sync[0]  <= cal_error_code;
+        cal_error_code_sync[0]  <= cal_error_code_status;
         cal_error_code_sync[1]  <= cal_error_code_sync[0];
-        init_error_code_sync[0] <= ctrl_init_error_code;
+        init_error_code_sync[0] <= ctrl_init_error_code_status;
         init_error_code_sync[1] <= init_error_code_sync[0];
-        init_state_sync[0]      <= ctrl_init_state;
+        init_state_sync[0]      <= ctrl_init_state_status;
         init_state_sync[1]      <= init_state_sync[0];
-        cal_seq_state_sync[0]   <= cal_seq_state;
+        cal_seq_state_sync[0]   <= cal_seq_state_status;
         cal_seq_state_sync[1]   <= cal_seq_state_sync[0];
-        cal_wlvl_state_sync[0]  <= cal_wlvl_state;
+        cal_wlvl_state_sync[0]  <= cal_wlvl_state_status;
         cal_wlvl_state_sync[1]  <= cal_wlvl_state_sync[0];
-        cal_rdlvl_state_sync[0] <= cal_rdlvl_state;
+        cal_rdlvl_state_sync[0] <= cal_rdlvl_state_status;
         cal_rdlvl_state_sync[1] <= cal_rdlvl_state_sync[0];
 
         mtest_pass_ctr_sync[0]           <= mtest_pass_ctr;

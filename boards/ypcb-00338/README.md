@@ -33,6 +33,17 @@ DDR3 runtime/PHY before the extra address bits map to unique DRAM cells.
 reference with `ddr3_ch1_*` port names for the later dual-channel top. It is not
 part of the current CH0-only `XDC_FILES` list.
 
+Build-only full-width gates are available for the next bring-up stages:
+
+```sh
+make -C boards/ypcb-00338 full-ch0-json
+make -C boards/ypcb-00338 full-2ch-json
+```
+
+The dual-channel target uses the online CH0 and CH1 memory pin maps and selects
+the DDR3-1600 timing/clocking profile. It is synthesis evidence only, not a
+replacement for routed timing or hardware validation.
+
 For pin work, use the public board reference archive rather than deriving pins
 from the current reduced top:
 

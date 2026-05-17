@@ -7,8 +7,8 @@
 //
 // Architecture:
 //
-//   clk_50 ──> PLL ───┬──> clk_sys (100 MHz)  -> controller logic
-//                     ├──> clk_phy_x4 (400 MHz) -> DDR3 CK
+//   clk_50 ──> PLL ───┬──> clk_sys (100/200 MHz)  -> controller logic
+//                     ├──> clk_phy_x4 (400/800 MHz) -> DDR3 CK
 //                     └──> clk_dq (= clk_phy_x4 with 90 deg phase) for DQS
 //
 //   clk_sys ─→ fixed-phase fabric I/O path for YPCB-00338 bring-up
@@ -39,11 +39,19 @@ module ddr3_phy #(
     parameter integer NUM_BYTE_LANES = 9,           // YPCB-00338: 8 data + 1 ECC
     parameter integer ROW_BITS       = `DDR3_ROW_BITS,
     parameter integer BANK_BITS      = `DDR3_BANK_BITS,
-    parameter integer SERDES_RATIO   = 4
+    parameter integer SERDES_RATIO   = 4,
+    parameter integer USE_EXTERNAL_CLOCKS = 0
 ) (
     // Reference clock from board (50 MHz on YPCB-00338).
     input  wire                            i_clk_ref,
     input  wire                            i_rst_ref,
+
+    // Optional shared clocks for multi-channel board integrations.
+    input  wire                            i_clk_sys_ext,
+    input  wire                            i_clk_phy_x4_ext,
+    input  wire                            i_clk_dq_ext,
+    input  wire                            i_locked_ext,
+    input  wire                            i_idelay_ready_ext,
 
     // MMCM outputs to controller side.
     output wire                            o_clk_sys,       // 100 MHz controller
@@ -121,7 +129,9 @@ module ddr3_phy #(
     output wire [NUM_BYTE_LANES-1:0]       o_ddr3_dm
 );
     // ============================================================
-    // PLL - 50 MHz ref -> 100 MHz sys + 400 MHz DDR CK + 400 MHz +90 deg.
+    // PLL - 50 MHz ref -> controller clock + DDR CK + DDR CK +90 deg.
+    // DDR3_RATE_800:  100 MHz sys + 400 MHz CK.
+    // DDR3_RATE_1600: 200 MHz sys + 800 MHz CK.
     //
     // The original bring-up used MMCME2_ADV for dynamic phase shifting, but
     // the current openXC7/prjxray Kintex-7 flow programs an MMCM that does
@@ -152,6 +162,18 @@ module ddr3_phy #(
     assign o_phase_busy  = 1'b0;
     assign o_phase_count = sim_phase_count;
 `else
+    generate
+    if (USE_EXTERNAL_CLOCKS) begin : g_external_clocks
+        assign mmcm_clkout_sys    = i_clk_sys_ext;
+        assign mmcm_clkout_phy_x4 = i_clk_phy_x4_ext;
+        assign mmcm_clkout_dq     = i_clk_dq_ext;
+        assign o_clk_sys          = i_clk_sys_ext;
+        assign o_clk_phy_x4       = i_clk_phy_x4_ext;
+        assign o_clk_dq           = i_clk_dq_ext;
+        assign o_locked           = i_locked_ext;
+        assign o_phase_busy       = 1'b0;
+        assign o_phase_count      = 8'd0;
+    end else begin : g_local_pll
     // ----------------------------------------------------------------
     // iter-11 host phase commands are retained as a visible counter. PLLE2_ADV
     // has no MMCM-style PSEN/PSDONE interface, so this is a no-op physically.
@@ -179,13 +201,23 @@ module ddr3_phy #(
     assign o_phase_busy  = 1'b0;
     assign o_phase_count = ps_count;
 
+`ifdef DDR3_RATE_1600
+    localparam integer PLL_CLKOUT0_DIVIDE = 4;
+    localparam integer PLL_CLKOUT1_DIVIDE = 1;
+    localparam integer PLL_CLKOUT2_DIVIDE = 1;
+`else
+    localparam integer PLL_CLKOUT0_DIVIDE = 8;
+    localparam integer PLL_CLKOUT1_DIVIDE = 2;
+    localparam integer PLL_CLKOUT2_DIVIDE = 2;
+`endif
+
     PLLE2_ADV #(
         .CLKIN1_PERIOD          (20.0),
         .CLKFBOUT_MULT          (16),
         .DIVCLK_DIVIDE          (1),
-        .CLKOUT0_DIVIDE         (8),
-        .CLKOUT1_DIVIDE         (2),
-        .CLKOUT2_DIVIDE         (2),
+        .CLKOUT0_DIVIDE         (PLL_CLKOUT0_DIVIDE),
+        .CLKOUT1_DIVIDE         (PLL_CLKOUT1_DIVIDE),
+        .CLKOUT2_DIVIDE         (PLL_CLKOUT2_DIVIDE),
         .CLKOUT2_PHASE          (90.0),
         .COMPENSATION           ("INTERNAL"),
         .STARTUP_WAIT           ("FALSE")
@@ -211,6 +243,8 @@ module ddr3_phy #(
     BUFG u_bufg_sys    (.I(mmcm_clkout_sys),    .O(o_clk_sys));
     BUFG u_bufg_phy_x4 (.I(mmcm_clkout_phy_x4), .O(o_clk_phy_x4));
     BUFG u_bufg_dq     (.I(mmcm_clkout_dq),     .O(o_clk_dq));
+    end
+    endgenerate
 `endif
 
     wire phy_io_rst = i_rst_ref | ~o_locked;
@@ -457,6 +491,7 @@ module ddr3_phy #(
     );
 
     /* verilator lint_off UNUSED */
-    wire _u = &{1'b0, i_wr_mask, mmcm_clkout_dq, SERDES_RATIO[0], 1'b0};
+    wire _u = &{1'b0, i_wr_mask, i_idelay_ready_ext, mmcm_clkout_dq,
+                SERDES_RATIO[0], 1'b0};
     /* verilator lint_on UNUSED */
 endmodule

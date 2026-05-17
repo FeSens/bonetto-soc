@@ -36,12 +36,15 @@ with `DDR3_RATE_1600` to select the full `-125` speed-bin timing profile:
 ```sh
 make -C ip/ddr3 sim-init DDR3_DEFINES=-DDDR3_RATE_1600
 make -C boards/ypcb-00338 build/bonetto_soc_ypcb00338.json DDR3_DEFINES=-DDDR3_RATE_1600
+make -C boards/ypcb-00338 full-2ch-json
 ```
 
 This switch changes the JEDEC constants and mode-register encodings consumed by
-the controller. It does not by itself validate the board at DDR3-1600; the board
-clocking, leveling, route timing, and hardware validation gates still decide
-whether that profile is usable.
+the controller. In the YPCB-00338 board PHY, it also selects the 200 MHz
+controller clock and 800 MHz CK/DQS PLL divisors used by the dual-channel
+build-only target. It does not by itself validate the board at DDR3-1600; the
+board clocking, leveling, route timing, and hardware validation gates still
+decide whether that profile is usable.
 
 ## Wishbone Slave
 

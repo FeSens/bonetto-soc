@@ -69,6 +69,16 @@ path, and maps logical data lanes 0,1,2,3,4,5,6,7 onto physical lanes
 0,1,2,4,5,6,7,8. Physical byte lane 3 remains bypassed. This target does not
 replace the hardware-proven default image and is not hardware signoff.
 
+`make -C boards/ypcb-00338 full-2ch-json` is the build-only gate for the
+first full installed-capacity image. It enables `DDR3_FULL_2CH` and
+`DDR3_RATE_1600`, instantiates a second controller/PHY stack for CH1, reuses
+the CH0-generated clocks for both channels, maps global DDR3 word address bit
+29 as the channel select, and uses bits `[28:0]` as the per-channel word
+address. CH0 and CH1 both use the online 72-bit pin maps with physical byte
+lane 3 bypassed and the ECC byte lane used as data lane 7. This target has
+passed synthesis only; it still needs route timing, programming, per-channel
+debug visibility, and hardware memory validation.
+
 ## Required RTL Deltas
 
 1. Replace the current constant-DQ write/read shortcut with a true BL8 data
@@ -83,14 +93,16 @@ replace the hardware-proven default image and is not hardware signoff.
    the ECC byte lane as data lane 7. It still needs route timing, programming,
    and JTAG/Wishbone validation before it can replace the validated image.
 3. Add a second controller/PHY instance, then decode one high address bit as
-   channel select. CH1 pin constraints are now captured in
+   channel select. `DDR3_FULL_2CH` now instantiates the second stack and routes
+   bit 29 to CH0/CH1 selection. CH1 pin constraints are captured in
    `boards/ypcb-00338/constraints/ddr3_ch1.xdc`, converted from the online
-   YPCB-00338-1P1 `MEMORY_CH1.ucf` reference. The file is intentionally not in
-   the current CH0-only board build until the top-level CH1 ports exist.
+   YPCB-00338-1P1 `MEMORY_CH1.ucf` reference. The default CH0-only board build
+   still excludes CH1 constraints.
 4. Add DDR3-1600 timing/clocking mode: 800 MHz CK, 200 MHz controller clock if
    the 1:4 command ratio is preserved. `DDR3_RATE_1600` now selects the JEDEC
-   CL/CWL/MR values for the `-125` speed bin; the board clock generator and
-   full-rate timing closure still need hardware proof.
+   CL/CWL/MR values for the `-125` speed bin and the PHY PLL divisors now
+   generate 200 MHz controller and 800 MHz CK/DQS clocks for that build. Full
+   route timing closure still needs hardware proof.
 5. Re-enable real write/read leveling for full-speed operation. The fixed
    DDR3-800 lane map is not sufficient evidence for DDR3-1600.
 
@@ -102,6 +114,7 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 |---|---|
 | PHY BL8 lane synthesis | `make -C ip/ddr3 synth-phy-dq-ratio8` passes |
 | CH0 full-width synthesis | `make -C boards/ypcb-00338 full-ch0-json` passes |
+| Dual-channel full-speed synthesis | `make -C boards/ypcb-00338 full-2ch-json` passes |
 | CH0 64-bit DDR3-800 | deterministic, walking address/data, per-byte lane, checksum, and soak over unique BL8 offsets |
 | CH1 64-bit DDR3-800 | same checks on the second channel |
 | Dual-channel address map | boundary tests across the channel-select bit and top-of-memory |

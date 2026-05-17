@@ -23,7 +23,8 @@
 module memtest_lite #(
     parameter integer WB_ADDR_W   = 28,
     parameter integer BRAM_ADDR_W = 14,
-    parameter integer DDR3_ADDR_W = 25
+    parameter integer DDR3_ADDR_W = 25,
+    parameter integer DIRECT_DDR_ADDRESS = 0
 ) (
     input  wire        i_clk,
     input  wire        i_rst,
@@ -69,7 +70,12 @@ module memtest_lite #(
 
     reg [2:0]  state              = S_WRITE;
     localparam integer DDR3_HIGH_W = DDR3_ADDR_W - BRAM_ADDR_W;
-    localparam integer ADDR_PAD_W  = WB_ADDR_W - DDR3_ADDR_W - 1;
+    localparam integer ADDR_PAD_W  =
+        (WB_ADDR_W > (DDR3_ADDR_W + 1)) ? (WB_ADDR_W - DDR3_ADDR_W - 1) : 0;
+    localparam integer FIRST_ERR_ADDR_BITS =
+        (DDR3_ADDR_W > 29) ? 29 : DDR3_ADDR_W;
+    localparam integer FIRST_ERR_ADDR_PAD_W =
+        32 - FIRST_ERR_ADDR_BITS - 3;
 
     reg [DDR3_ADDR_W-1:0] addr    = {DDR3_ADDR_W{1'b0}};
     reg [1:0]  pattern_idx        = 2'd0;     // 0=addr-data, 1=walking1, 2=0xAA, 3=0x55
@@ -122,9 +128,22 @@ module memtest_lite #(
 
     wire [BRAM_ADDR_W-1:0] bram_addr = addr[BRAM_ADDR_W-1:0];
     wire [DDR3_HIGH_W-1:0] ddr3_addr_hi = addr[DDR3_ADDR_W-1:BRAM_ADDR_W];
+    wire [WB_ADDR_W-1:0] direct_ddr_addr;
+    generate
+        if (DDR3_ADDR_W >= WB_ADDR_W) begin : g_direct_addr_truncate
+            assign direct_ddr_addr = addr[WB_ADDR_W-1:0];
+        end else begin : g_direct_addr_extend
+            assign direct_ddr_addr = {{(WB_ADDR_W-DDR3_ADDR_W){1'b0}}, addr};
+        end
+    endgenerate
+    wire [WB_ADDR_W-1:0] selected_ddr_addr =
+        {{ADDR_PAD_W{1'b0}}, ddr3_addr_hi, 1'b1, bram_addr};
     wire [WB_ADDR_W-1:0] tgt_addr = target ?
-        {{ADDR_PAD_W{1'b0}}, ddr3_addr_hi, 1'b1, bram_addr} :
+        (DIRECT_DDR_ADDRESS ? direct_ddr_addr : selected_ddr_addr) :
         {{(WB_ADDR_W-BRAM_ADDR_W){1'b0}}, bram_addr};
+    wire [31:0] first_err_addr_packed =
+        {{FIRST_ERR_ADDR_PAD_W{1'b0}}, pattern_idx, target,
+         addr[FIRST_ERR_ADDR_BITS-1:0]};
     wire sweep_last = target ?
         (addr == {DDR3_ADDR_W{1'b1}}) :
         (bram_addr == {BRAM_ADDR_W{1'b1}});
@@ -218,7 +237,7 @@ module memtest_lite #(
                     if (word_mismatch) begin
                         err_ctr <= err_ctr + 1'b1;
                         if (!any_err) begin
-                            first_err_addr     <= {4'b0, pattern_idx, target, addr};
+                            first_err_addr     <= first_err_addr_packed;
                             first_err_expected <= pattern;
                             first_err_got      <= read_dat_q;
                         end
@@ -241,7 +260,7 @@ module memtest_lite #(
                             any_err      <= 1'b1;
                             err_ctr      <= err_ctr + 1'b1;
                             if (!any_err && !word_mismatch) begin
-                                first_err_addr     <= {4'b0, pattern_idx, target, addr};
+                                first_err_addr     <= first_err_addr_packed;
                                 first_err_expected <= next_xor_expected;
                                 first_err_got      <= next_xor_got;
                             end
