@@ -22,8 +22,7 @@ $(BUILD)/proof.passed: $(BUILD)/wb_decode2.smt2
 	@touch $@
 
 sim:
-	@echo "[wishbone] sim is iter-3 (cocotb cross-IP fabric tests)"
-	@true
+	@$(MAKE) -C sim -f Makefile.cocotb
 
 clean:
 	rm -rf $(BUILD)
