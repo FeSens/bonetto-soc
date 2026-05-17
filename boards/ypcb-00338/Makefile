@@ -108,3 +108,5 @@ memtest: program
 
 clean:
 	rm -rf $(BUILD)
+	rm -rf sim/sim_build sim/sim_build_blu sim/sim_build_clkliv sim/sim_build_mt sim/results.xml sim/__pycache__
+	rm -rf formal/memtest_lite_bmc formal/memtest_lite_cover
