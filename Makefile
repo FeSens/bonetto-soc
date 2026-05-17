@@ -3,8 +3,8 @@
 # `make help` for the list.
 
 .PHONY: help all ci lint formal sim fpga program memtest clean \
-        formal-wishbone formal-wb-memory formal-jtag-uart formal-ddr3 \
-        sim-wishbone sim-wb-memory sim-jtag-uart sim-ddr3
+        formal-wishbone formal-wb-memory formal-jtag-uart formal-ddr3 formal-board \
+        sim-wishbone sim-wb-memory sim-jtag-uart sim-ddr3 sim-board
 
 .DEFAULT_GOAL := help
 
@@ -18,9 +18,9 @@ ci: lint formal sim
 
 all: ci fpga
 
-formal: formal-wishbone formal-wb-memory formal-jtag-uart formal-ddr3
+formal: formal-wishbone formal-wb-memory formal-jtag-uart formal-ddr3 formal-board
 
-sim:    sim-wishbone    sim-wb-memory    sim-jtag-uart    sim-ddr3
+sim:    sim-wishbone    sim-wb-memory    sim-jtag-uart    sim-ddr3    sim-board
 
 # --- lint ---------------------------------------------------------------------
 
@@ -42,6 +42,11 @@ formal-jtag-uart:
 formal-ddr3:
 	$(MAKE) -C ip/ddr3 formal
 
+# Board-level formal: memtest_lite WB-master compliance proof.
+formal-board:
+	@echo "[board $(BOARD)] formal: memtest_lite against fwb_master"
+	cd boards/$(BOARD)/formal && sby -f memtest_lite.sby
+
 # --- per-IP simulation --------------------------------------------------------
 
 sim-wishbone:
@@ -55,6 +60,12 @@ sim-jtag-uart:
 
 sim-ddr3:
 	$(MAKE) -C ip/ddr3 sim
+
+# Board-level cocotb: bringup_status_led + clk_liveness.
+sim-board:
+	@echo "[board $(BOARD)] sim: bringup_status_led + clk_liveness"
+	-$(MAKE) -C boards/$(BOARD)/sim -f Makefile.cocotb
+	-$(MAKE) -C boards/$(BOARD)/sim -f Makefile.clk_liveness
 
 # --- board flow ---------------------------------------------------------------
 
@@ -85,7 +96,8 @@ help:
 	@echo "Per-IP (each runs that IP's own Makefile):"
 	@echo "  make formal-<ip>         SymbiYosys for the IP under ip/<ip>/"
 	@echo "  make sim-<ip>            Verilator/cocotb for the IP"
-	@echo "  Available IPs: wishbone, wb-memory, jtag-uart, ddr3"
+	@echo "  Available IPs: wishbone, wb-memory, jtag-uart, ddr3, board"
+	@echo "  ('board' covers boards/$(BOARD)/formal/* and boards/$(BOARD)/sim/*)"
 	@echo ""
 	@echo "Board (default BOARD=$(BOARD); override BOARD=name):"
 	@echo "  make fpga BOARD=name     synth + PnR + bitstream"
