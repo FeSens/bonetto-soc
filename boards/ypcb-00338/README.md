@@ -29,6 +29,10 @@ word-address contract. The current DDR3 runtime still exposes only the validated
 burst-word offset, 64-bit data lanes, and channel select to be consumed by the
 DDR3 runtime/PHY before the extra address bits map to unique DRAM cells.
 
+`constraints/ddr3_ch1.xdc` records the online YPCB-00338-1P1 channel-1 DDR3 pin
+reference with `ddr3_ch1_*` port names for the later dual-channel top. It is not
+part of the current CH0-only `XDC_FILES` list.
+
 See `DDR3_VALIDATION.md` for the current hardware evidence.
 
 ## Build And Program

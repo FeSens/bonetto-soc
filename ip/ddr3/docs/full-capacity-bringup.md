@@ -43,8 +43,11 @@ capacity guarantee: the runtime and PHY still need to consume them.
 2. Expand CH0 to a 64-bit data path. On this board, either recover physical
    byte lane 3 or explicitly remap data lane 3 onto the ECC byte lane and run
    without ECC for the first 64-bit proof.
-3. Add CH1 constraints and a second controller/PHY instance, then decode one
-   high address bit as channel select.
+3. Add a second controller/PHY instance, then decode one high address bit as
+   channel select. CH1 pin constraints are now captured in
+   `boards/ypcb-00338/constraints/ddr3_ch1.xdc`, converted from the online
+   YPCB-00338-1P1 `MEMORY_CH1.ucf` reference. The file is intentionally not in
+   the current CH0-only board build until the top-level CH1 ports exist.
 4. Add DDR3-1600 timing/clocking mode: 800 MHz CK, 200 MHz controller clock if
    the 1:4 command ratio is preserved. `DDR3_RATE_1600` now selects the JEDEC
    CL/CWL/MR values for the `-125` speed bin; the board clock generator and
