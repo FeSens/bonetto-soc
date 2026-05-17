@@ -27,7 +27,15 @@
 
 `default_nettype none
 
-module bringup_status_led (
+module bringup_status_led #(
+    // Default bit positions assume clk_50 = 50 MHz; tests override these
+    // so the counter wraps in tens of cycles instead of millions.
+    parameter integer TICK_W    = 28,
+    parameter integer FAST_BIT  = 22,  // ~12 Hz at 50 MHz
+    parameter integer SLOW_BIT  = 25,  // ~1.5 Hz
+    parameter integer HB_HI     = 25,
+    parameter integer HB_LO     = 23
+) (
     input  wire        i_clk_50,
     input  wire        i_por_active,
     input  wire        i_mmcm_locked,
@@ -40,12 +48,12 @@ module bringup_status_led (
     input  wire        i_mtest_target,
     output reg  [2:0]  o_led
 );
-    reg [27:0] tick = 28'd0;
+    reg [TICK_W-1:0] tick = {TICK_W{1'b0}};
     always @(posedge i_clk_50) tick <= tick + 1'b1;
 
-    wire slow_blink = tick[25];
-    wire fast_blink = tick[22];
-    wire heartbeat  = (tick[25:23] == 3'b000);
+    wire slow_blink = tick[SLOW_BIT];
+    wire fast_blink = tick[FAST_BIT];
+    wire heartbeat  = (tick[HB_HI:HB_LO] == 3'b000);
 
     wire red, green, yellow;
     reg r_red, r_green, r_yellow;

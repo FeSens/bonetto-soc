@@ -1,0 +1,17 @@
+SIM           ?= icarus
+TOPLEVEL_LANG ?= verilog
+TOPLEVEL      ?= bringup_status_led
+MODULE        ?= test_bringup_status_led
+
+VERILOG_SOURCES = ../rtl/bringup_status_led.v
+
+# Override blink-rate bit positions so each "slow cycle" only takes
+# 2^4 = 16 ticks rather than 2^25 = 32M ticks.
+COMPILE_ARGS  += -g2012 -Pbringup_status_led.TICK_W=8
+COMPILE_ARGS  += -Pbringup_status_led.FAST_BIT=2
+COMPILE_ARGS  += -Pbringup_status_led.SLOW_BIT=4
+COMPILE_ARGS  += -Pbringup_status_led.HB_HI=4
+COMPILE_ARGS  += -Pbringup_status_led.HB_LO=2
+SIM_BUILD     ?= sim_build_blu
+
+include $(shell cocotb-config --makefiles)/Makefile.sim
