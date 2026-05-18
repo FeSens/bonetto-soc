@@ -439,6 +439,23 @@ hard: placement reported 108.87 MHz `u_blu.i_clk_50`, 83.30 MHz `clk_sys`,
 `rst_bram` into a runtime set/reset pin with 9.1 ns routing. This proves
 auto-precharge is not useful as a local timing fix in the current runtime FSM.
 
+A registered refresh-block experiment in `ddr3_runtime` was tested and
+reverted. The change replaced direct `ref_pending` use in WB stall/IDLE
+arbitration with a registered `ref_block`, allowing at most one accepted
+transaction after `ref_pending` rises before forcing refresh service. Fast
+checks passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`,
+`make -C ip/ddr3 sim`, `make -C ip/ddr3 formal DEPTH=20`, and the late-flat
+JSON target. The late-flat hard-command synthesis image reported 11,498 cells
+/ 2,640 estimated logic cells, with `ddr3_runtime` at 2,367 cells / 909
+estimated logic cells. The seed-1 late-flat route regressed versus the clean
+baseline: placement reported 117.16 MHz `u_blu.i_clk_50`, 86.28 MHz
+`clk_sys`, 536.19 MHz `clk_dq`, and 2500.00 MHz `clk_phy_x4`; final route
+reported 162.28 MHz `u_blu.i_clk_50`, 117.30 MHz `clk_sys`, 773.99 MHz
+`clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final `clk_sys` critical path
+moved into top-level/JTAG address decode feeding CH1 `burst_byte_mask`. This
+confirms that moving the refresh/stall guard alone does not solve the 200 MHz
+runtime scheduling path.
+
 Pipelining the full-BL8 write-data bus at the PHY lane-array boundary plus a
 one-cycle runtime `S_WR_PREP` state was tested and reverted. Fast checks still
 passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
