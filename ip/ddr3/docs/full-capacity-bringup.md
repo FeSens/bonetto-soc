@@ -69,6 +69,14 @@ path, and maps logical data lanes 0,1,2,3,4,5,6,7 onto physical lanes
 0,1,2,4,5,6,7,8. Physical byte lane 3 remains bypassed. This target does not
 replace the hardware-proven default image and is not hardware signoff.
 
+`make -C boards/ypcb-00338 full-ch0-ddr800-bitstream` is the routed
+single-channel full-width isolation image. Seed 2 routes this image at
+105.15 MHz `clk_sys`, 145.45 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`
+against the current 100 MHz nextpnr target. Hardware validation fails
+immediately, including address-zero direct reads, while BRAM sanity passes.
+That isolates the functional break to the 8-lane / BL8 data path before CH1 is
+involved.
+
 `make -C boards/ypcb-00338 full-2ch-json` is the build-only gate for the
 first full installed-capacity image. It enables `DDR3_FULL_2CH` and
 `DDR3_RATE_1600`, instantiates a second controller/PHY stack for CH1, reuses
@@ -85,8 +93,14 @@ same 30-bit global address decode, but keeps the DDR3-800 timing profile.
 After replacing the generic BL8 word-offset muxing with a registered one-hot
 fast path, seed 1 routes this image at 103.44 MHz `clk_sys`, 136.89 MHz
 `clk_dq`, and 1557.63 MHz `clk_phy_x4` against a 100 MHz target. This is route
-evidence only until the bitstream is programmed and the hardware validator
-passes across both channels.
+evidence only: programming succeeds, but the 30-bit hardware validator fails
+immediately at address zero and the autonomous DDR3 memtest error counter is
+already nonzero.
+
+The local XDC pin maps were compared against the online raw UCFs on
+2026-05-17. CH0 and CH1 package pins matched the public references; the only
+expected differences were scalar local ports for single-bit nets such as
+`ddr3_ck_p[0]` -> `ddr3_ck_p`.
 
 ## Required RTL Deltas
 
@@ -97,10 +111,10 @@ passes across both channels.
    the validated CH0 board image still keeps `WB_BURST_WORD_BITS=0` and
    `SERDES_RATIO=4` until a full-lane top-level build and hardware timing are
    proven.
-2. Prove the CH0 64-bit data path in hardware. The build-only
-   `DDR3_FULL_CH0` image already remaps around physical byte lane 3 by using
-   the ECC byte lane as data lane 7. It still needs route timing, programming,
-   and JTAG/Wishbone validation before it can replace the validated image.
+2. Prove the CH0 64-bit data path in hardware. The `DDR3_FULL_CH0` image
+   already remaps around physical byte lane 3 by using the ECC byte lane as
+   data lane 7, and seed 2 routes at DDR3-800. Hardware validation currently
+   fails immediately, so this cannot replace the validated 32-bit image.
 3. Add a second controller/PHY instance, then decode one high address bit as
    channel select. `DDR3_FULL_2CH` now instantiates the second stack and routes
    bit 29 to CH0/CH1 selection. CH1 pin constraints are captured in
@@ -112,7 +126,12 @@ passes across both channels.
    CL/CWL/MR values for the `-125` speed bin and the PHY PLL divisors now
    generate 200 MHz controller and 800 MHz CK/DQS clocks for that build. Full
    route timing closure still needs hardware proof.
-5. Re-enable real write/read leveling for full-speed operation. The fixed
+5. Replace the current RATIO>=8 fabric BL8 sequencer with a hard SERDES-based
+   PHY before full-speed signoff. The current path switches DQ/DQS sample
+   selection in fabric on the DDR clock domain and uses no OSERDESE2,
+   ISERDESE2, BUFIO, IDELAYE2, or IDELAYCTRL resources. LiteDRAM/MIG-style
+   hard-IO serialization and read capture is the right next architecture.
+6. Re-enable real write/read leveling for full-speed operation. The fixed
    DDR3-800 lane map is not sufficient evidence for DDR3-1600.
 
 ## Validation Gates
@@ -124,8 +143,9 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | PHY BL8 lane synthesis | `make -C ip/ddr3 synth-phy-dq-ratio8` passes |
 | CH0 full-width synthesis | `make -C boards/ypcb-00338 full-ch0-json` passes |
 | Dual-channel full-speed synthesis | `make -C boards/ypcb-00338 full-2ch-json` passes |
+| CH0 full-width DDR3-800 route | `make -C boards/ypcb-00338 full-ch0-ddr800-bitstream` passes with seed 2 |
 | Dual-channel DDR3-800 staging route | `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` passes with seed 1 |
-| CH0 64-bit DDR3-800 | deterministic, walking address/data, per-byte lane, checksum, and soak over unique BL8 offsets |
+| CH0 64-bit DDR3-800 | currently fails direct hardware validation at address zero |
 | CH1 64-bit DDR3-800 | same checks on the second channel |
 | Dual-channel address map | boundary tests across the channel-select bit and top-of-memory |
 | DDR3-1600 timing | routed timing for `clk_sys`, CK, DQ/DQS domains at the full-rate target |

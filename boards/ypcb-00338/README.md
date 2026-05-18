@@ -37,6 +37,7 @@ Build-only full-width gates are available for the next bring-up stages:
 
 ```sh
 make -C boards/ypcb-00338 full-ch0-json
+make -C boards/ypcb-00338 full-ch0-ddr800-bitstream
 make -C boards/ypcb-00338 full-2ch-json
 make -C boards/ypcb-00338 full-2ch-ddr800-bitstream
 ```
@@ -45,11 +46,23 @@ The dual-channel target uses the online CH0 and CH1 memory pin maps and selects
 the DDR3-1600 timing/clocking profile. It is synthesis evidence only, not a
 replacement for routed timing or hardware validation.
 
+The `full-ch0-ddr800-bitstream` isolation target keeps DDR3-800 timing and
+uses only the online CH0 memory pin map. Seed 2 routes at 105.15 MHz
+`clk_sys`, 145.45 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4` against the
+100 MHz target, but hardware validation currently fails at address zero. It is
+route/debug evidence, not a usable memory image.
+
 The `full-2ch-ddr800-bitstream` staging target keeps DDR3-800 timing while
 using both online memory-channel pin maps. With the BL8 word-offset fast path,
 seed 1 routes at 103.44 MHz `clk_sys`, 136.89 MHz `clk_dq`, and 1557.63 MHz
-`clk_phy_x4` against the 100 MHz target. It is still a bring-up image until it
-is programmed and validated on hardware.
+`clk_phy_x4` against the 100 MHz target. Programming succeeds, but the 30-bit
+hardware validator currently fails immediately and `mtest_any_err` asserts.
+This points back to the full-width BL8 datapath, not the CH1 pin map.
+
+The current 32-bit CH0 image remains the hardware-validated path. A rebuilt
+smoke run on 2026-05-17 passed deterministic boundaries, walking address/data,
+per-byte lane, XOR checksum, randomized writes, and a 60-second soak with
+`err_ctr=0`.
 
 For pin work, use the public board reference archive rather than deriving pins
 from the current reduced top:
@@ -99,6 +112,15 @@ make validate-ddr3-full-2ch BOARD=ypcb-00338
 
 That switches the host validator from the old 25-bit CH0 aperture to the
 30-bit global address map, including the channel-select boundary at bit 29.
+
+For the routed full-width CH0 isolation image, use:
+
+```sh
+make validate-ddr3-full-ch0 BOARD=ypcb-00338
+```
+
+That switches the host validator to the 29-bit per-channel BL8 word-offset
+map.
 
 ## Status Registers
 
