@@ -1236,6 +1236,22 @@ otherwise noted.
   520.29 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Do not repeat this as a
   standalone timing fix; the accept/stall cut needs to be local to the DDR3
   scheduler/runtime path, not a top-level debug bridge.
+- Registering runtime ownership one command-clock cycle after init and
+  replacing the fast full-width read-select helper with the existing static
+  one-hot read word selector were tested and reverted. The registered-init
+  variant passed `make -C ip/ddr3 sim-runtime-addr sim-init` and `make -C
+  ip/ddr3 sim`, but route only nudged `clk_sys` to 144.63 MHz while dropping
+  `clk_dq` below the DDR3-1600 intent at 781.25 MHz; see
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_rtinitq_lateflat_seed1_route.log`.
+  The combined registered-init/static-read route recovered DQ margin at
+  901.71 MHz but regressed `clk_sys` to 140.96 MHz; see
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_rtinitq_staticrd_lateflat_seed1_route.log`.
+  The static-read variant alone was worse at 113.28 MHz `clk_sys` and
+  706.71 MHz `clk_dq`; see
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_staticrd_lateflat_seed1_route.log`.
+  Do not keep these local read-select/init-release reshapes; they confirm the
+  next useful split has to change the scheduler/runtime ownership boundary
+  rather than only moving individual muxes or init gating.
 
 ## Validation Gates
 
