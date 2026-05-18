@@ -448,6 +448,16 @@ compensate for the lower controller and 50 MHz clock timing, so keep the
 current count-up wait FSM until the runtime control path is restructured more
 deeply.
 
+Narrowing the shared runtime `wait_ctr` width to the computed maximum wait was
+tested and reverted. `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`,
+and `make -C ip/ddr3 sim` passed, and `full-2ch-serdescmd-json` improved to
+12,603 cells / 2,909 estimated logic cells. The paired seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route still failed timing at
+164.42 MHz `u_blu.i_clk_50`, 133.49 MHz `clk_sys`, 743.49 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. Although controller timing improved modestly,
+`clk_dq` dropped below the DDR3-1600 800 MHz intent, so do not repeat this as
+a standalone wait-counter cleanup.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
