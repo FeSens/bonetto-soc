@@ -105,6 +105,12 @@ lane 3 bypassed and the ECC byte lane used as data lane 7. This target has
 passed synthesis only; it still needs route timing, programming, per-channel
 debug visibility, and hardware memory validation.
 
+After the RMW fast-path fanout cleanups through commit `a98f6dc`, the
+full 2-channel DDR3-1600 synthesis gate reports 16,737 cells and an estimated
+3,923 logic cells. Notable primitive use is 22 BUFG, 196 CARRY4, 3,237 FDCE,
+6,007 FDRE, 128 IDDR, 16 IDELAYE2, 128 OSERDESE2, 1 PLLE2_ADV, and
+16 RAMB36E1.
+
 `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` is the current
 dual-channel staging gate. It uses both online CH0/CH1 DDR3 pin maps and the
 same 30-bit global address decode, but keeps the DDR3-800 timing profile.
@@ -114,6 +120,17 @@ fast path, seed 1 routes this image at 103.44 MHz `clk_sys`, 136.89 MHz
 evidence only: programming succeeds, but the 30-bit hardware validator fails
 immediately at address zero and the autonomous DDR3 memtest error counter is
 already nonzero.
+
+`make -C boards/ypcb-00338 full-2ch-ddr1600-bitstream` is the current
+full-speed route gate. Seed 1 does not close timing after commit `a98f6dc`:
+final nextpnr estimates are 85.19 MHz for `u_blu.i_clk_50` against the
+200 MHz route target, 76.80 MHz for `clk_sys` against the 200 MHz controller
+target, 511.51 MHz for `clk_dq`, and 1557.63 MHz for `clk_phy_x4`.
+`clk_dq` passes the current 200 MHz nextpnr check but remains below the
+800 MHz CK/DQS intent for DDR3-1600. The slow-net report is dominated by
+global reset/control fanout, `saved_burst_word_onehot` fanout in both runtime
+instances, `phy_*_valid`, memtest state, and fabric read-capture paths. This
+is route-failure evidence only; there is no full-speed hardware bitstream.
 
 The local XDC pin maps were compared against the online raw UCFs on
 2026-05-17. CH0 and CH1 package pins matched the public references; the only
@@ -212,6 +229,7 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | Dual-channel full-speed synthesis | `make -C boards/ypcb-00338 full-2ch-json` passes |
 | CH0 full-width DDR3-800 route | `make -C boards/ypcb-00338 full-ch0-ddr800-bitstream` passes with seed 2 |
 | Dual-channel DDR3-800 staging route | `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` passes with seed 1 |
+| Dual-channel DDR3-1600 target route | `make -C boards/ypcb-00338 full-2ch-ddr1600-bitstream` currently fails timing with seed 1 |
 | CH0 64-bit DDR3-800 | currently fails direct hardware validation at address zero |
 | CH1 64-bit DDR3-800 | same checks on the second channel |
 | Dual-channel address map | boundary tests across the channel-select bit and top-of-memory |
