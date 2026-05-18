@@ -275,6 +275,7 @@ module ddr3_runtime #(
     reg [WB_BYTES-1:0]   saved_sel;
     reg [WB_BURST_WORD_W-1:0] saved_burst_word_offset;
     reg [15:0]           saved_burst_word_onehot;
+    reg [63:0]           saved_burst_byte_mask;
     reg [PHY_DATA_W-1:0] rmw_wr_data;
     reg [PHY_DATA_W-1:0] rd_data_q;
     reg                  rd_seen;
@@ -392,6 +393,24 @@ module ddr3_runtime #(
         end
     endfunction
 
+    function [63:0] burst_byte_mask;
+        input [WB_BURST_WORD_W-1:0] word_offset;
+        input [WB_BYTES-1:0] word_sel;
+        integer word_idx;
+        integer byte_idx;
+        begin
+            burst_byte_mask = 64'd0;
+            for (word_idx = 0; word_idx < 16; word_idx = word_idx + 1) begin
+                if (word_offset == word_idx[WB_BURST_WORD_W-1:0]) begin
+                    for (byte_idx = 0; byte_idx < WB_BYTES; byte_idx = byte_idx + 1) begin
+                        if (word_sel[byte_idx])
+                            burst_byte_mask[word_idx*WB_BYTES + byte_idx] = 1'b1;
+                    end
+                end
+            end
+        end
+    endfunction
+
     wire [WB_DATA_W-1:0] phy_rd_word;
     wire [PHY_DATA_W-1:0] rmw_wr_data_next;
     wire [PHY_DATA_W-1:0] direct_wr_data_next;
@@ -473,20 +492,14 @@ module ddr3_runtime #(
                             localparam integer RD_BIT =
                                 rl*DQ_BITS*SERDES_RATIO +
                                 rbit*SERDES_RATIO + RD_SAMPLE;
+                            localparam integer BURST_BYTE_INDEX =
+                                WORD_INDEX*WB_BYTES + BYTE_INDEX;
                             wire rmw_replace_bit =
-                                saved_burst_word_onehot[WORD_INDEX] &
-                                saved_sel[BYTE_INDEX];
-                            wire direct_word_bit =
-                                (BROADCAST_WRITE_SAMPLES != 0) ?
-                                (saved_burst_word_offset[0] == (rl / 4)) :
-                                saved_burst_word_onehot[WORD_INDEX];
-                            wire direct_replace_bit =
-                                direct_word_bit & saved_sel[BYTE_INDEX];
+                                saved_burst_byte_mask[BURST_BYTE_INDEX];
                             assign rmw_wr_data_next[WR_BIT] = rmw_replace_bit ?
                                 saved_wdat[BYTE_INDEX*8 + rbit] :
                                 rd_burst_data[RD_BIT];
-                            assign direct_wr_data_next[WR_BIT] = direct_replace_bit ?
-                                saved_wdat[BYTE_INDEX*8 + rbit] : 1'b0;
+                            assign direct_wr_data_next[WR_BIT] = 1'b0;
                         end
                     end
                 end
@@ -571,6 +584,7 @@ module ddr3_runtime #(
             wait_ctr    <= 8'd0;
             saved_burst_word_offset <= {WB_BURST_WORD_W{1'b0}};
             saved_burst_word_onehot <= 16'd1;
+            saved_burst_byte_mask <= 64'd0;
             saved_sel   <= {WB_BYTES{1'b0}};
             rmw_wr_data <= {PHY_DATA_W{1'b0}};
             rd_data_q   <= {PHY_DATA_W{1'b0}};
@@ -608,6 +622,7 @@ module ddr3_runtime #(
                         saved_sel  <= i_wb_sel;
                         saved_burst_word_offset <= wb_burst_word_offset;
                         saved_burst_word_onehot <= burst_word_onehot(wb_burst_word_offset);
+                        saved_burst_byte_mask <= burst_byte_mask(wb_burst_word_offset, i_wb_sel);
                         state      <= S_ACT;
                     end
                 end
