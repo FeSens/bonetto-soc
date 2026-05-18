@@ -438,6 +438,16 @@ hard: placement reported 108.87 MHz `u_blu.i_clk_50`, 83.30 MHz `clk_sys`,
 1557.63 MHz `clk_phy_x4`. The final `clk_sys` critical path ran from
 `rst_bram` into a runtime set/reset pin with 9.1 ns routing. This proves
 auto-precharge is not useful as a local timing fix in the current runtime FSM.
+A later retry using the macro name `DDR3_RUNTIME_AUTO_PRECHARGE` also passed
+default `make -C ip/ddr3 sim-runtime-addr sim` and opt-in
+`DDR3_DEFINES=-DDDR3_RUNTIME_AUTO_PRECHARGE make -C ip/ddr3 sim-runtime-addr
+sim`, but the same seed-1 late-flat JTAG-only route still regressed versus the
+current best. Final routed timing in
+`boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_autopre_lateflat_seed1_route.log`
+was 147.65 MHz `u_blu.i_clk_50`, 121.82 MHz `clk_sys`, 562.43 MHz `clk_dq`,
+and 1557.63 MHz `clk_phy_x4`, below the current best 175.13 MHz
+`u_blu.i_clk_50`, 143.97 MHz `clk_sys`, 820.34 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`.
 
 A registered refresh-block experiment in `ddr3_runtime` was tested and
 reverted. The change replaced direct `ref_pending` use in WB stall/IDLE
