@@ -88,6 +88,8 @@ module ddr3_phy_dq #(
     reg  [DQ_BITS-1:0] dq_rise_q;
     reg  [DQ_BITS-1:0] dq_fall_q;
     reg  [DQ_BITS*RATIO-1:0] wr_data_q;
+    reg  [DQ_BITS*RATIO-1:0] wr_data_sys_q = {(DQ_BITS*RATIO){1'b0}};
+    reg  [2:0] wr_oe_sys_sr = 3'b000;
     wire [DQ_BITS-1:0] dq_out_ddr;
     wire [DQ_BITS-1:0] dq_in_raw;
 
@@ -103,8 +105,20 @@ module ddr3_phy_dq #(
     wire       dqs_drive_window = |dqs_seq_sr;
     wire       dqs_burst = |dqs_seq_sr[4:1];
     wire       dqs_seq_done = dqs_seq_sr[5];
+    wire       dq_drive_oserdes = i_wr_dqs_en | (|wr_oe_sys_sr);
+    wire [DQ_BITS*RATIO-1:0] wr_data_oserdes = wr_data_sys_q;
 
     integer j;
+    always @(posedge i_clk_sys or posedge i_rst) begin
+        if (i_rst) begin
+            wr_data_sys_q <= {(DQ_BITS*RATIO){1'b0}};
+            wr_oe_sys_sr  <= 3'b000;
+        end else begin
+            wr_data_sys_q <= i_wr_data;
+            wr_oe_sys_sr <= {wr_oe_sys_sr[1:0], i_wr_dqs_en};
+        end
+    end
+
     always @(posedge i_clk_dq or posedge i_rst) begin
         if (i_rst) begin
             dq_rise_q  <= {DQ_BITS{1'b0}};
@@ -185,22 +199,22 @@ module ddr3_phy_dq #(
                     .TQ        (dq_t[i]),
                     .CLK       (i_clk_phy_x4),
                     .CLKDIV    (i_clk_sys),
-                    .D1        (i_wr_data[i*RATIO + 0]),
-                    .D2        (i_wr_data[i*RATIO + 1]),
-                    .D3        (i_wr_data[i*RATIO + 2]),
-                    .D4        (i_wr_data[i*RATIO + 3]),
-                    .D5        (i_wr_data[i*RATIO + 4]),
-                    .D6        (i_wr_data[i*RATIO + 5]),
-                    .D7        (i_wr_data[i*RATIO + 6]),
-                    .D8        (i_wr_data[i*RATIO + 7]),
+                    .D1        (wr_data_oserdes[i*RATIO + 0]),
+                    .D2        (wr_data_oserdes[i*RATIO + 1]),
+                    .D3        (wr_data_oserdes[i*RATIO + 2]),
+                    .D4        (wr_data_oserdes[i*RATIO + 3]),
+                    .D5        (wr_data_oserdes[i*RATIO + 4]),
+                    .D6        (wr_data_oserdes[i*RATIO + 5]),
+                    .D7        (wr_data_oserdes[i*RATIO + 6]),
+                    .D8        (wr_data_oserdes[i*RATIO + 7]),
                     .OCE       (1'b1),
                     .RST       (i_rst),
                     .SHIFTIN1  (1'b0),
                     .SHIFTIN2  (1'b0),
-                    .T1        (~dq_drive_en),
-                    .T2        (~dq_drive_en),
-                    .T3        (~dq_drive_en),
-                    .T4        (~dq_drive_en),
+                    .T1        (~dq_drive_oserdes),
+                    .T2        (~dq_drive_oserdes),
+                    .T3        (~dq_drive_oserdes),
+                    .T4        (~dq_drive_oserdes),
                     .TBYTEIN   (1'b0),
                     .TCE       (1'b1)
                 );

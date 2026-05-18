@@ -154,16 +154,23 @@ expected differences were scalar local ports for single-bit nets such as
 
 ## Ratio-8 CH0 Diagnostic Notes
 
-Latest hardware observations on the four-lane CH0 DDR3-800 `DDR3_RATIO8_CH0`
-image:
+Hardware observations and current status for the four-lane CH0 DDR3-800
+`DDR3_RATIO8_CH0` image:
 
-- The OSERDESE2 DQ-write path routes and programs, but it has not passed direct
-  JTAG/Wishbone readback.
-- Global sample 0 made logical byte 3 track writes while the lower 24 bits
+- The OSERDESE2 DQ-write path now passes the four-lane CH0 DDR3-800 hardware
+  validator when the write vector is continuously registered on `clk_sys` and
+  OSERDES tri-state is driven from the sys-domain write-data strobe. Seed 2
+  routes at 126.97 MHz `clk_sys`, 516.00 MHz `clk_dq`, and 1557.63 MHz
+  `clk_phy_x4`. The 60 second validator passed BRAM sanity, deterministic
+  boundary patterns, address walking, every 32-bit data bit and byte lane,
+  contiguous alignment windows, a 1024-word XOR checksum sweep, 128 randomized
+  writes, and autonomous memtest soak:
+  `DDR3_HW_VALIDATE_SUMMARY ok=1 failures=0 ddr3_pass_ctr=474271898 err_ctr=0`.
+- Earlier, global sample 0 made logical byte 3 track writes while the lower 24 bits
   mostly read back as `0x000080`.
-- Global sample 7 made logical bytes 0-2 track writes while byte 3 read back as
+- Earlier, global sample 7 made logical bytes 0-2 track writes while byte 3 read back as
   stale `0x55`.
-- A constant lane sample map of `16'h0777` changed behavior but still failed:
+- Earlier, a constant lane sample map of `16'h0777` changed behavior but still failed:
   bytes 1-2 tracked, bytes 0 and 3 read back as stale `0x55`.
 - With the wide debug status path gated back off, seed 2 routes at 123.87 MHz
   `clk_sys`, 580.38 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`, but direct

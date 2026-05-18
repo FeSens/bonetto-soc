@@ -409,7 +409,7 @@ module ddr3_phy #(
 
         .i_wr_en                  (wr_cmd_launch_q),
         .i_wr_data                (i_wr_data),
-        .i_wr_dqs_en              (wr_cmd_launch_q), // normal-write DQS strobe
+        .i_wr_dqs_en              (i_wr_valid), // sys-domain write-data strobe
         .i_rd_capture             (i_rd_capture),
 
         .o_rd_data                (lane_rd_data),
