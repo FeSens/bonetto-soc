@@ -1514,6 +1514,18 @@ otherwise noted.
   7.5 ns routing. This proves that removing the final `saved_sel` fanout alone
   does not improve the 200 MHz controller target; keep the scheduler-boundary
   refactor as the next direction instead of another local write-data tweak.
+- Rerouting the current keeper JSON with nextpnr's `--placer-budgets` option
+  was tested as a pure tool-flow diagnostic and not carried. The command used
+  the existing
+  `bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_nrdata_lateflat.json`
+  image plus seed 1 and wrote
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_nrdata_lateflat_seed1_budgets_route.log`.
+  It regressed to 152.04 MHz `u_blu.i_clk_50`, 129.02 MHz `clk_sys`,
+  734.21 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The `clk_sys` critical
+  path remained CH1 runtime reset/FSM CE routing (`rst_cal_ch1_pipe[10]` into
+  generated runtime pattern-cache logic) with 0.6 ns logic and 7.2 ns routing.
+  This confirms the current miss is structural RTL placement pressure, not a
+  missing nextpnr placer-budget knob.
 
 ## Validation Gates
 
