@@ -81,6 +81,20 @@ immediately, including address-zero direct reads, while BRAM sanity passes.
 That isolates the functional break to the 8-lane / BL8 data path before CH1 is
 involved.
 
+`make -C boards/ypcb-00338 full-ch0-oddrwr-ddr800-bitstream` is a
+full-width diagnostic that keeps the 8-lane / BL8 read path but forces DQ
+writes back through the legacy repeated-data ODDR launcher. Seed 2 failed
+timing and did not produce a bitstream. Seed 3 produced a bitstream at
+107.26 MHz `clk_sys`, 146.54 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`,
+so the DQ write path is still far below the DDR3-800 400 MHz operating point.
+Programming succeeded (`init 1 done 1`), but direct JTAG/Wishbone DDR3
+readback failed immediately and the short hardware validator failed all DDR3
+checks after BRAM sanity. First deterministic failure was address `0x00000000`,
+expected `0xd0f56b4a`, got `0x00000000`; final summary was
+`DDR3_HW_VALIDATE_SUMMARY ok=0 failures=7 ddr3_pass_ctr=89286466 err_ctr=89278405`.
+This confirms the full-width fabric/ODDR diagnostic is not a viable
+capacity-validation path.
+
 `make -C boards/ypcb-00338 full-2ch-json` is the build-only gate for the
 first full installed-capacity image. It enables `DDR3_FULL_2CH` and
 `DDR3_RATE_1600`, instantiates a second controller/PHY stack for CH1, reuses
@@ -172,6 +186,10 @@ image:
   failed with a rising memtest error counter. This localizes the latest
   repeated-write failure to the OSERDESE2 DQ write path or its OE/load behavior,
   but it is not timing-clean validation evidence.
+- The same ODDR-write diagnostic does not scale to the full eight logical CH0
+  byte lanes. Seed 3 can produce a bitstream, but it routes only
+  107.26 MHz `clk_sys` and 146.54 MHz `clk_dq`; direct DDR3 readback and the
+  bounded validator both fail immediately after BRAM sanity.
 - A wide raw-`phy_rd_data` status latch was useful for diagnosis but perturbed
   routing enough to invalidate direct comparison with the narrower diagnostic
   images. Do not treat that image as validation evidence.
