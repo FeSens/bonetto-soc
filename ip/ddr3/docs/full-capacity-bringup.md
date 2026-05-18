@@ -341,6 +341,26 @@ The reset net is no longer the `clk_sys` critical path; the remaining blocker
 is again lane-0 `i_rd_capture`/DQS capture-control routing. This is useful
 progress, not DDR3-1600 signoff.
 
+The latest kept PHY read-capture checkpoint makes the full-BL8 DQS-domain
+sampler lane-local: IDDR `CE` is tied high only in full-BL8 mode, the DQS edge
+counter arms locally from `i_rd_capture`, and full-BL8 DQS-domain sample/tail
+registers no longer take the sys reset. The ratio-4 path keeps its existing
+reset and capture behavior. `make -C ip/ddr3 synth-phy-dq-ratio8` and
+`make -C ip/ddr3 sim-runtime-addr` still pass. The current
+`full-2ch-serdescmd-json` image reports 13,606 cells / 3,216 estimated logic
+cells, with 22 `BUFG`, 136 `CARRY4`, 2,479 `FDCE`, 4,673 `FDRE`, 128 `IDDR`,
+16 `IDELAYE2`, 178 `OSERDESE2`, 1 `IDELAYCTRL`, 1 `PLLE2_ADV`, and
+16 `RAMB36E1`. The paired seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route still fails timing:
+156.49 MHz `u_blu.i_clk_50`, 112.32 MHz `clk_sys`, 914.08 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`; all DQS raw clocks pass the current 200 MHz nextpnr
+check. This improves high-speed DQ route margin but does not solve the
+200 MHz controller-clock blocker. A follow-on experiment that added kept
+lane-local sys-domain start/done pulses grew the image to 13,627 cells /
+3,959 estimated logic cells and regressed route timing to 151.01 MHz
+`u_blu.i_clk_50`, 98.22 MHz `clk_sys`, and 840.34 MHz `clk_dq`, so that pulse
+split was reverted.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with

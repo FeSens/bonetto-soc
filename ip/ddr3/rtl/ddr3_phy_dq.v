@@ -445,6 +445,8 @@ module ddr3_phy_dq #(
             reg [7:0] dqs_edges_sys = 8'd0;
             reg       dqs_event_toggle = 1'b0;
             wire [DQ_BITS*RATIO-1:0] rd_data_complete;
+            wire rd_iddr_ce;
+            wire rd_dqs_sample_en;
 
             for (i = 0; i < DQ_BITS; i = i + 1) begin : g_rd_iddr
                 wire rd_rise;
@@ -469,17 +471,14 @@ module ddr3_phy_dq #(
                         .Q1 (rd_rise),
                         .Q2 (rd_fall),
                         .C  (dqs_in_raw),
-                        .CE (i_rd_capture),
+                        .CE (rd_iddr_ce),
                         .D  (dq_in_raw[i]),
-                        .R  (i_rst),
+                        .R  (1'b0),
                         .S  (1'b0)
                     );
 
-                    always @(posedge dqs_in_raw or posedge i_rst) begin
-                        if (i_rst) begin
-                            rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
-                            rd_tail_rise_dqs[i] <= 1'b0;
-                        end else if (i_rd_capture && !dqs_drive) begin
+                    always @(posedge dqs_in_raw) begin
+                        if (rd_dqs_sample_en) begin
                             // IDDR outputs are visible to fabric one DQS rising edge
                             // after the corresponding input pair. Use IDDR for the
                             // first three pairs and sample only the final pair directly.
@@ -502,10 +501,8 @@ module ddr3_phy_dq #(
                         end
                     end
 
-                    always @(negedge dqs_in_raw or posedge i_rst) begin
-                        if (i_rst) begin
-                            rd_tail_fall_dqs[i] <= 1'b0;
-                        end else if (i_rd_capture && !dqs_drive) begin
+                    always @(negedge dqs_in_raw) begin
+                        if (rd_dqs_sample_en) begin
                             if (dqs_edges_dqs[2:0] == 3'd4)
                                 rd_tail_fall_dqs[i] <= dq_in_raw[i];
                         end
@@ -523,7 +520,7 @@ module ddr3_phy_dq #(
                         .Q1 (rd_rise),
                         .Q2 (rd_fall),
                         .C  (dqs_in_raw),
-                        .CE (i_rd_capture),
+                        .CE (rd_iddr_ce),
                         .D  (dq_in_raw[i]),
                         .R  (i_rst),
                         .S  (1'b0)
@@ -532,7 +529,7 @@ module ddr3_phy_dq #(
                     always @(posedge dqs_in_raw or posedge i_rst) begin
                         if (i_rst) begin
                             rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
-                        end else if (i_rd_capture && !dqs_drive) begin
+                        end else if (rd_dqs_sample_en) begin
                             rd_data_dqs[i*RATIO + 0] <= rd_rise;
                             rd_data_dqs[i*RATIO + 1] <= rd_fall;
                             rd_data_dqs[i*RATIO + 2] <= rd_rise;
@@ -542,33 +539,85 @@ module ddr3_phy_dq #(
                 end
             end
 
+            if (FULL_BL8_MODE) begin : g_full_bl8_dqs_arm
+                reg  rd_arm_dqs = 1'b0;
+                wire rd_capture_dqs_en = i_rd_capture;
+
+                assign rd_iddr_ce = 1'b1;
+                assign rd_dqs_sample_en = rd_arm_dqs && !dqs_drive;
+
+                always @(posedge dqs_in_raw or negedge rd_capture_dqs_en) begin
+                    if (!rd_capture_dqs_en) begin
+                        rd_arm_dqs <= 1'b0;
+                        dqs_edges_dqs <= 8'd0;
+                    end else if (!dqs_drive) begin
+                        rd_arm_dqs <= 1'b1;
+                        dqs_edges_dqs <= rd_arm_dqs ? (dqs_edges_dqs + 8'd1) : 8'd1;
+                    end
+                end
+
+                always @(posedge dqs_in_raw) begin
+                    if (rd_arm_dqs && !dqs_drive && (dqs_edges_dqs[2:0] == 3'd3)) begin
+                        dqs_event_toggle <= ~dqs_event_toggle;
+                    end
+                end
+            end else begin : g_legacy_dqs_arm
+                assign rd_iddr_ce = i_rd_capture;
+                assign rd_dqs_sample_en = i_rd_capture && !dqs_drive;
+
+                always @(posedge dqs_in_raw or posedge i_rst or negedge i_rd_capture) begin
+                    if (i_rst) begin
+                        dqs_edges_dqs <= 8'd0;
+                    end else if (!i_rd_capture) begin
+                        dqs_edges_dqs <= 8'd0;
+                    end else if (!dqs_drive) begin
+                        dqs_edges_dqs <= dqs_edges_dqs + 8'd1;
+                    end
+                end
+
+                always @(posedge dqs_in_raw or posedge i_rst) begin
+                    if (i_rst) begin
+                        dqs_event_toggle <= 1'b0;
+                    end else if (i_rd_capture && !dqs_drive) begin
+                        dqs_event_toggle <= ~dqs_event_toggle;
+                    end
+                end
+            end
+
             reg       rd_capture_q = 1'b0;
+            reg       rd_capture_qq = 1'b0;
             reg       rd_valid_q = 1'b0;
             reg       dqs_seen_q = 1'b0;
             reg [2:0] dqs_event_sync = 3'b000;
 
             wire dqs_event_sys = dqs_event_sync[2] ^ dqs_event_sync[1];
+            wire rd_capture_start_sys = FULL_BL8_MODE ? (rd_capture_q && !rd_capture_qq) :
+                                                         (i_rd_capture && !rd_capture_q);
+            wire rd_capture_done_sys = FULL_BL8_MODE ? (!rd_capture_q && rd_capture_qq) :
+                                                        !i_rd_capture;
 
             always @(posedge i_clk_sys or posedge i_rst) begin
                 if (i_rst) begin
                     rd_data_sys    <= {(DQ_BITS*RATIO){1'b0}};
                     dqs_edges_sys  <= 8'd0;
                     rd_capture_q   <= 1'b0;
+                    rd_capture_qq  <= 1'b0;
                     rd_valid_q     <= 1'b0;
                     dqs_seen_q     <= 1'b0;
                     dqs_event_sync <= 3'b000;
                 end else begin
                     rd_capture_q   <= i_rd_capture;
+                    rd_capture_qq  <= rd_capture_q;
                     dqs_event_sync <= {dqs_event_sync[1:0], dqs_event_toggle};
                     dqs_edges_sys  <= dqs_edges_dqs;
 
-                    if (i_rd_capture && !rd_capture_q) begin
+                    if (rd_capture_start_sys) begin
                         rd_data_sys <= {(DQ_BITS*RATIO){1'b0}};
                         rd_valid_q  <= 1'b0;
                         dqs_seen_q  <= 1'b0;
                     end else begin
                         if (FULL_BL8_MODE) begin
-                            if (!i_rd_capture && (dqs_seen_q || dqs_event_sys))
+                            if (rd_capture_done_sys && (dqs_seen_q || dqs_event_sys))
                                 rd_data_sys <= rd_data_complete;
                         end else if (i_rd_capture || rd_capture_q || dqs_event_sys) begin
                             rd_data_sys <= rd_data_complete;
@@ -577,28 +626,9 @@ module ddr3_phy_dq #(
                         if (dqs_event_sys)
                             dqs_seen_q <= 1'b1;
 
-                        if (!i_rd_capture && (dqs_seen_q || dqs_event_sys))
+                        if (rd_capture_done_sys && (dqs_seen_q || dqs_event_sys))
                             rd_valid_q <= 1'b1;
                     end
-                end
-            end
-
-            always @(posedge dqs_in_raw or posedge i_rst or negedge i_rd_capture) begin
-                if (i_rst) begin
-                    dqs_edges_dqs <= 8'd0;
-                end else if (!i_rd_capture) begin
-                    dqs_edges_dqs <= 8'd0;
-                end else if (!dqs_drive) begin
-                    dqs_edges_dqs <= dqs_edges_dqs + 8'd1;
-                end
-            end
-
-            always @(posedge dqs_in_raw or posedge i_rst) begin
-                if (i_rst) begin
-                    dqs_event_toggle <= 1'b0;
-                end else if (i_rd_capture && !dqs_drive &&
-                         (!FULL_BL8_MODE || (dqs_edges_dqs[1:0] == 2'd3))) begin
-                    dqs_event_toggle <= ~dqs_event_toggle;
                 end
             end
 
