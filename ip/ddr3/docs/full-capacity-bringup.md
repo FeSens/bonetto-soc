@@ -1246,6 +1246,19 @@ otherwise noted.
   520.29 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Do not repeat this as a
   standalone timing fix; the accept/stall cut needs to be local to the DDR3
   scheduler/runtime path, not a top-level debug bridge.
+- Registering the JTAG Wishbone master's view of `i_wb_stall` with an opt-in
+  `DDR3_JTAG_REGISTER_STALL` / `JTAG_WB_REGISTER_STALL` diagnostic was also
+  tested and reverted. The change kept default behavior unchanged and passed
+  `make -C ip/jtag-uart/sim -f Makefile.jwb`,
+  `JTAG_WB_DEFINES=-DJTAG_WB_REGISTER_STALL make -C ip/jtag-uart/sim -f
+  Makefile.jwb SIM_BUILD=sim_build_jwb_regstall`, and `make -C ip/ddr3
+  sim-runtime-addr sim`. It removed the immediate combinational stall sample
+  from the JTAG master, but placement and route regressed badly:
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_regstall_lateflat_seed1_route.log`
+  reported final timing of 147.71 MHz `u_blu.i_clk_50`, 123.99 MHz `clk_sys`,
+  531.63 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. This confirms the local
+  stall sampler is another placement perturbation, not a useful route to the
+  200 MHz controller target.
 - Registering runtime ownership one command-clock cycle after init and
   replacing the fast full-width read-select helper with the existing static
   one-hot read word selector were tested and reverted. The registered-init
