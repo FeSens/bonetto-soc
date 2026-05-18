@@ -13,7 +13,8 @@ module ddr3_phy_lane_array #(
     parameter integer WR_DQS_DELAY_CK = 4,
     parameter integer WR_DQ_OE_DELAY_SYS = 0,
     parameter integer WR_DQ_OE_HOLD_SYS = 4,
-    parameter integer RD_VALID_REQUIRE_ALL = 1
+    parameter integer RD_VALID_REQUIRE_ALL = 1,
+    parameter integer USE_IDELAYCTRL = 1
 ) (
     // -------- Clocks --------
     input  wire                              i_clk_sys,
@@ -48,6 +49,7 @@ module ddr3_phy_lane_array #(
     input  wire [NUM_BYTE_LANES-1:0]         i_cal_dqs_toggle_en_lane,
 
     // -------- IDELAYCTRL ready --------
+    input  wire                              i_idelay_ready_ext,
     output wire                              o_idelay_ready,
 
     // -------- DDR3 chip-side pins --------
@@ -73,13 +75,21 @@ module ddr3_phy_lane_array #(
                 i_cal_dq_load_lane, i_cal_dq_sel, i_cal_dq_tap,
                 i_cal_dqs_in_load_lane, i_cal_dqs_in_tap,
                 i_cal_dqs_out_load_lane, i_cal_dqs_out_tap,
-                i_cal_dqs_toggle_en_lane,
+                i_cal_dqs_toggle_en_lane, i_idelay_ready_ext,
                 1'b0};
     /* verilator lint_on UNUSED */
 `else
-    // The current YPCB-00338 bring-up lane uses fabric I/O rather than
-    // IDELAYE2/ISERDESE2 resources, so no IDELAYCTRL is required.
-    assign o_idelay_ready = ~i_rst;
+    generate
+        if (USE_IDELAYCTRL) begin : g_idelayctrl
+            IDELAYCTRL u_idelayctrl (
+                .RDY    (o_idelay_ready),
+                .REFCLK (i_clk_ref_200),
+                .RST    (i_rst)
+            );
+        end else begin : g_idelayctrl_ext
+            assign o_idelay_ready = i_idelay_ready_ext;
+        end
+    endgenerate
 
     reg [NUM_BYTE_LANES-1:0] rd_capture_lane = {NUM_BYTE_LANES{1'b0}};
     always @(posedge i_clk_sys or posedge i_rst) begin
@@ -138,7 +148,8 @@ module ddr3_phy_lane_array #(
                            i_cal_dq_load_lane, i_cal_dq_sel, i_cal_dq_tap,
                            i_cal_dqs_in_load_lane, i_cal_dqs_in_tap,
                            i_cal_dqs_out_load_lane, i_cal_dqs_out_tap,
-                           i_cal_dqs_toggle_en_lane, 1'b0};
+                           i_cal_dqs_toggle_en_lane, i_idelay_ready_ext,
+                           1'b0};
     /* verilator lint_on UNUSED */
 `endif
 endmodule

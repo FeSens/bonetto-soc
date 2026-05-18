@@ -145,11 +145,15 @@ module ddr3_phy #(
     wire   mmcm_clkout_sys;       // 100 MHz
     wire   mmcm_clkout_phy_x4;    // 400 MHz
     wire   mmcm_clkout_dq;        // 400 MHz, +90 deg
+    wire   mmcm_clkout_ref_200;   // 200 MHz IDELAYCTRL reference
+    wire   clk_ref_200;
 
 `ifdef BONETTO_SOC_SIM
     assign mmcm_clkout_sys    = i_clk_ref;
     assign mmcm_clkout_phy_x4 = i_clk_ref;
     assign mmcm_clkout_dq     = i_clk_ref;
+    assign mmcm_clkout_ref_200 = i_clk_ref;
+    assign clk_ref_200        = i_clk_ref;
     assign o_locked           = ~i_rst_ref;
     assign o_clk_sys          = mmcm_clkout_sys;
     assign o_clk_phy_x4       = mmcm_clkout_phy_x4;
@@ -168,6 +172,8 @@ module ddr3_phy #(
         assign mmcm_clkout_sys    = i_clk_sys_ext;
         assign mmcm_clkout_phy_x4 = i_clk_phy_x4_ext;
         assign mmcm_clkout_dq     = i_clk_dq_ext;
+        assign mmcm_clkout_ref_200 = i_clk_sys_ext;
+        assign clk_ref_200        = i_clk_sys_ext;
         assign o_clk_sys          = i_clk_sys_ext;
         assign o_clk_phy_x4       = i_clk_phy_x4_ext;
         assign o_clk_dq           = i_clk_dq_ext;
@@ -219,6 +225,7 @@ module ddr3_phy #(
         .CLKOUT0_DIVIDE         (PLL_CLKOUT0_DIVIDE),
         .CLKOUT1_DIVIDE         (PLL_CLKOUT1_DIVIDE),
         .CLKOUT2_DIVIDE         (PLL_CLKOUT2_DIVIDE),
+        .CLKOUT3_DIVIDE         (4),
         .CLKOUT2_PHASE          (90.0),
         .COMPENSATION           ("INTERNAL"),
         .STARTUP_WAIT           ("FALSE")
@@ -233,7 +240,7 @@ module ddr3_phy #(
         .CLKOUT0    (mmcm_clkout_sys),
         .CLKOUT1    (mmcm_clkout_phy_x4),
         .CLKOUT2    (mmcm_clkout_dq),
-        .CLKOUT3    (),
+        .CLKOUT3    (mmcm_clkout_ref_200),
         .CLKOUT4    (),
         .CLKOUT5    (),
         .LOCKED     (o_locked),
@@ -244,6 +251,7 @@ module ddr3_phy #(
     BUFG u_bufg_sys    (.I(mmcm_clkout_sys),    .O(o_clk_sys));
     BUFG u_bufg_phy_x4 (.I(mmcm_clkout_phy_x4), .O(o_clk_phy_x4));
     BUFG u_bufg_dq     (.I(mmcm_clkout_dq),     .O(o_clk_dq));
+    BUFG u_bufg_ref_200(.I(mmcm_clkout_ref_200), .O(clk_ref_200));
     end
     endgenerate
 `endif
@@ -414,12 +422,13 @@ module ddr3_phy #(
         .WR_DQS_DELAY_CK(WR_DQS_DELAY_CK),
         .WR_DQ_OE_DELAY_SYS(WR_DQ_OE_DELAY_SYS),
         .WR_DQ_OE_HOLD_SYS (WR_DQ_OE_HOLD_SYS),
-        .RD_VALID_REQUIRE_ALL(RD_VALID_REQUIRE_ALL)
+        .RD_VALID_REQUIRE_ALL(RD_VALID_REQUIRE_ALL),
+        .USE_IDELAYCTRL(!USE_EXTERNAL_CLOCKS)
     ) u_lanes (
         .i_clk_sys                (o_clk_sys),
         .i_clk_phy_x4             (o_clk_phy_x4),
         .i_clk_dq                 (o_clk_dq),
-        .i_clk_ref_200            (o_clk_sys),
+        .i_clk_ref_200            (clk_ref_200),
         .i_rst                    (phy_io_rst),
 
         .i_wr_en                  (wr_cmd_launch_q),
@@ -442,6 +451,7 @@ module ddr3_phy #(
         .i_cal_dqs_out_tap        (wlvl_dqs_out_tap),
         .i_cal_dqs_toggle_en_lane (wlvl_dqs_toggle_en),
 
+        .i_idelay_ready_ext       (i_idelay_ready_ext),
         .o_idelay_ready           (o_idelay_ready),
 
         .io_ddr3_dq               (io_ddr3_dq),

@@ -262,6 +262,7 @@ module ddr3_phy_dq #(
     // No ODELAYE2 (HR-bank-only constraint on YPCB-00338).
     // DQS-out timing is fixed at 90° from CK via clk_dq.
     // ===========================================================
+    wire dqs_in_ibuf;
     wire dqs_in_raw;
 
     wire dqs_drive  = dqs_drive_window | i_cal_dqs_toggle_en;
@@ -283,11 +284,35 @@ module ddr3_phy_dq #(
     );
 
     IOBUFDS #(.SLEW("FAST")) u_dqs_iobuf (
-        .O   (dqs_in_raw),
+        .O   (dqs_in_ibuf),
         .IO  (io_ddr3_dqs_p),
         .IOB (io_ddr3_dqs_n),
         .I   (dqs_out),
         .T   (~dqs_drive)
+    );
+
+    IDELAYE2 #(
+        .CINVCTRL_SEL          ("FALSE"),
+        .DELAY_SRC             ("IDATAIN"),
+        .HIGH_PERFORMANCE_MODE ("TRUE"),
+        .IDELAY_TYPE           ("VAR_LOAD"),
+        .IDELAY_VALUE          (0),
+        .PIPE_SEL              ("FALSE"),
+        .REFCLK_FREQUENCY      (200.0),
+        .SIGNAL_PATTERN        ("CLOCK")
+    ) u_dqs_idelay (
+        .CNTVALUEOUT (),
+        .DATAOUT     (dqs_in_raw),
+        .C           (i_clk_sys),
+        .CE          (1'b0),
+        .CINVCTRL    (1'b0),
+        .CNTVALUEIN  (i_cal_dqs_in_tap),
+        .DATAIN      (1'b0),
+        .IDATAIN     (dqs_in_ibuf),
+        .INC         (1'b0),
+        .LD          (i_cal_dqs_in_load),
+        .LDPIPEEN    (1'b0),
+        .REGRST      (i_rst)
     );
 
     reg [DQ_BITS*RATIO-1:0] rd_data_dqs = {(DQ_BITS*RATIO){1'b0}};
