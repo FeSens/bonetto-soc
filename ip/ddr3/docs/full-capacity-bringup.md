@@ -456,6 +456,26 @@ moved into top-level/JTAG address decode feeding CH1 `burst_byte_mask`. This
 confirms that moving the refresh/stall guard alone does not solve the 200 MHz
 runtime scheduling path.
 
+Adding `-dff` to the late-flatten `synth_xilinx -abc9` flow was tested as a
+pure synthesis diagnostic and not carried. The JSON build did not explode:
+`full-2ch-ddr1600-serdescmd-jtagonly-lateflat_dff` reported 11,542 cells /
+2,494 estimated logic cells, with `ddr3_runtime` at 2,368 cells / 841
+estimated logic cells. The seed-1 route still regressed versus the clean
+late-flat baseline, however: final timing was 159.80 MHz `u_blu.i_clk_50`,
+117.14 MHz `clk_sys`, 916.59 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+The `clk_sys` critical path moved from JTAG address/channel decode through
+CH1 runtime enable logic, while reset fanout into the PHY became the dominant
+cross-domain route. This proves `-dff` is not a timing-closure fix for the
+200 MHz controller path.
+
+The clean late-flat hard-command JTAG-only image was also spot-checked with
+seed 2. It failed worse than the seed-1 comparison point: final timing was
+146.20 MHz `u_blu.i_clk_50`, 114.22 MHz `clk_sys`, 977.52 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. The `clk_sys` critical path was a long route from
+`ddr3_runtime.state[21]` to a runtime state/data flop. Seed 1 remains the
+fixed comparison seed; seed hunting does not address the structural 200 MHz
+controller-clock problem.
+
 Pipelining the full-BL8 write-data bus at the PHY lane-array boundary plus a
 one-cycle runtime `S_WR_PREP` state was tested and reverted. Fast checks still
 passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
