@@ -786,6 +786,20 @@ critical path moved to `rst_bram` through runtime reset/SR routing with
 8.1 ns route delay. Do not repeat split accept-CE duplication as a standalone
 timing fix.
 
+An opt-in `DDR3_CH1_LOCAL_CLOCKS` diagnostic was tested and reverted. It added
+a single-outstanding Wishbone CDC bridge and ran the CH1 controller/calibration
+logic from a second local PHY PLL instead of sharing CH0's `clk_sys`,
+`clk_phy_x4`, and `clk_dq`. The first route failed with multiple default
+`IDELAYCTRL` cells; after sharing CH0's IDELAYCTRL ready signal, the JSON image
+reported 11,766 cells / 2,653 estimated logic cells, with 26 `BUFG`, 2
+`PLLE2_ADV`, 1 `IDELAYCTRL`, and one `wb_cdc_single`. Seed-1 late-flat route
+still failed: 148.06 MHz `u_blu.i_clk_50`, 130.28 MHz `clk_sys`,
+140.94 MHz `ch1_clk_sys`, 726.22 MHz `clk_dq`, 662.69 MHz `clk_dq_ch1`, and
+1557.63 MHz `clk_phy_x4`. Both controller domains still hit runtime
+`wait_ctr[6]` through pattern-cache/control CE paths, and the high-speed DQ
+domains lost the 800 MHz DDR3-1600 margin. Do not repeat CH1 local clocks as a
+standalone timing split.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
