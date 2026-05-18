@@ -1212,6 +1212,19 @@ otherwise noted.
   `rst_bram` and onto runtime `beat_ctr`/FSM clock-enable routing, which makes
   this useful progress for the 200 MHz controller target despite the worse
   diagnostic JTAG/50 MHz clock estimate.
+- Narrowing the runtime `beat_ctr` to the exact read-timeout width passed
+  `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 sim`,
+  and the late-flat JSON synthesis gate. Synthesis reported 3,705 total cells /
+  2,392 estimated LCs, with `ddr3_runtime` at 893 cells / 826 estimated LCs.
+  The seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_lateflat_beatw_seed1_route.log`
+  still failed timing, but nudged `clk_sys` to 143.97 MHz and recovered the
+  diagnostic `u_blu.i_clk_50` path to 175.13 MHz. Final route timing was
+  175.13 MHz `u_blu.i_clk_50`, 143.97 MHz `clk_sys`, 820.34 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`. The tradeoff is reduced DQ margin, though it still
+  clears the DDR3-1600 800 MHz intent. The new `clk_sys` critical path is now
+  CH1 init-done/stall propagation into the JTAG Wishbone CE, so the next
+  structural lever is a registered stall/accept boundary.
 
 ## Validation Gates
 

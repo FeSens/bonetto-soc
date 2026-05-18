@@ -164,6 +164,21 @@ module ddr3_runtime #(
     localparam integer READ_SETTLE_SYS_CYCLES = 4;
     localparam integer READ_TIMEOUT_SYS_CYCLES =
         READ_CAPTURE_SYS_CYCLES + READ_SETTLE_SYS_CYCLES + 16;
+    function integer clog2_int;
+        input integer value;
+        integer work;
+        begin
+            clog2_int = 0;
+            work = value - 1;
+            while (work > 0) begin
+                clog2_int = clog2_int + 1;
+                work = work >> 1;
+            end
+        end
+    endfunction
+    localparam integer BEAT_CTR_W =
+        (clog2_int(READ_TIMEOUT_SYS_CYCLES) < 1) ? 1 :
+        clog2_int(READ_TIMEOUT_SYS_CYCLES);
     localparam integer TREFI_SYS = tck_to_sys(`DDR3_TREFI);
     localparam integer TRCD_WAIT = wait_limit(tck_to_sys(`DDR3_TRCD));
     localparam integer TRP_WAIT  = wait_limit(tck_to_sys(`DDR3_TRP));
@@ -267,7 +282,7 @@ module ddr3_runtime #(
     end
 
     assign o_mrs_busy = mrs_pending || (state == S_MRS) || (state == S_MRS_WAIT);
-    reg [7:0]  beat_ctr;                   // BL8 beat counter (0..7)
+    reg [BEAT_CTR_W-1:0] beat_ctr;         // BL8 / read-timeout counter
     reg [7:0]  wait_ctr;                   // generic wait counter
     reg [BANK_BITS-1:0]  saved_bank;
     reg [ROW_BITS-1:0]   saved_row;
