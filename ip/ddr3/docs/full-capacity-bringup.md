@@ -134,12 +134,21 @@ is route-failure evidence only; there is no full-speed hardware bitstream.
 
 `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagonly-bitstream` removes the
 autonomous memtest master and keeps only JTAG/Wishbone access for a full-speed
-timing diagnostic. Seed 1 still fails timing, but improves the routed estimates
-to 136.69 MHz for `u_blu.i_clk_50`, 114.43 MHz for `clk_sys`, 285.55 MHz for
-`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. This shows that memtest/status
-fabric is meaningful load, but the dual-runtime and read-capture PHY
-architecture still do not meet the 200 MHz controller target or the 800 MHz
-DDR3-1600 CK/DQS intent.
+timing diagnostic while preserving the same read-modify-write datapath used by
+the autonomous target. Seed 1 still fails timing: final nextpnr estimates are
+123.03 MHz for `u_blu.i_clk_50`, 95.02 MHz for `clk_sys`, 409.00 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. The critical `clk_sys` path is in
+the RMW merge around `saved_burst_word_onehot`, and the slow-net report is
+still dominated by reset/control fanout, `phy_*_valid`, lane read-capture
+controls, and both runtime instances.
+
+`make -C boards/ypcb-00338 full-2ch-ddr1600-jtagdirect-bitstream` is the older
+JTAG-only diagnostic that explicitly defines `DDR3_DIRECT_WRITE_NO_RMW` and
+writes a selected 32-bit word inside a BL8 burst without preserving the rest of
+the burst. The last seed-1 direct-write diagnostic reached 136.69 MHz for
+`u_blu.i_clk_50`, 114.43 MHz for `clk_sys`, 285.55 MHz for `clk_dq`, and
+1557.63 MHz for `clk_phy_x4`, but it is no longer representative of the normal
+full-speed write path.
 
 The local XDC pin maps were compared against the online raw UCFs on
 2026-05-17. CH0 and CH1 package pins matched the public references; the only
@@ -239,6 +248,8 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | CH0 full-width DDR3-800 route | `make -C boards/ypcb-00338 full-ch0-ddr800-bitstream` passes with seed 2 |
 | Dual-channel DDR3-800 staging route | `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` passes with seed 1 |
 | Dual-channel DDR3-1600 target route | `make -C boards/ypcb-00338 full-2ch-ddr1600-bitstream` currently fails timing with seed 1 |
+| Dual-channel DDR3-1600 JTAG-only route | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagonly-bitstream` currently fails timing with seed 1 while preserving RMW |
+| Dual-channel DDR3-1600 direct-write diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagdirect-bitstream` isolates the old no-RMW write path |
 | CH0 64-bit DDR3-800 | currently fails direct hardware validation at address zero |
 | CH1 64-bit DDR3-800 | same checks on the second channel |
 | Dual-channel address map | boundary tests across the channel-select bit and top-of-memory |

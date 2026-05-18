@@ -146,9 +146,11 @@ module top (
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_WR_SAMPLE_OFFSET_MAP =
         {DDR3_ACTIVE_BYTE_LANES{4'd0}};
 `endif
-`ifdef DDR3_JTAG_ONLY
+`ifdef DDR3_DIRECT_WRITE_NO_RMW
     // Debug-only isolation mode: write one selected 32-bit word inside a BL8
     // burst without first preserving the rest of the burst through RMW.
+    // Keep this independent from DDR3_JTAG_ONLY so JTAG-only timing diagnostics
+    // can exercise the same RMW datapath as the autonomous full-speed target.
     localparam integer DDR3_BURST_WRITE_RMW = 0;
 `else
     localparam integer DDR3_BURST_WRITE_RMW = 1;
