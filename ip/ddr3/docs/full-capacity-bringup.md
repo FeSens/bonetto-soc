@@ -404,6 +404,25 @@ pin with 8.4 ns routing, while the slow-net list still included runtime state
 and lane-local capture logic. The DQ margin was good, but the 200 MHz
 controller target moved backward, so the RTL was reverted.
 
+A follow-on reset-less runtime datapath split was tested and reverted. The
+change moved saved request fields plus the wide read-data/sample/word registers
+out of the reset branch, while keeping reset on the control/output FSM. The
+intent was to remove the board reset replica from wide runtime datapath flops.
+Fast checks passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`,
+`make -C ip/ddr3 sim-init`, `make -C ip/ddr3 sim-micron`, and `make -C ip/ddr3
+formal DEPTH=20`. The late-flat hard-command synthesis image reported 10,321
+cells / 2,528 estimated logic cells, with `ddr3_runtime` at 1,779 cells / 855
+estimated logic cells. The seed-1 late-flat route still failed timing and
+regressed the controller/50 MHz clocks: placement reported 104.38 MHz
+`u_blu.i_clk_50`, 85.14 MHz `clk_sys`, 826.45 MHz `clk_dq`, and 2500.00 MHz
+`clk_phy_x4`; final route reported 137.27 MHz `u_blu.i_clk_50`, 113.70 MHz
+`clk_sys`, 961.54 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final
+`clk_sys` critical path moved from reset into CH1 request-accept logic:
+`jwb_grant`/`d3_ch1_stb` through runtime logic to a runtime set/reset pin with
+7.6 ns routing. This again improves DQ margin but moves the 200 MHz controller
+target backward, so do not repeat reset-less datapath splitting as a standalone
+fix.
+
 Pipelining the full-BL8 write-data bus at the PHY lane-array boundary plus a
 one-cycle runtime `S_WR_PREP` state was tested and reverted. Fast checks still
 passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
