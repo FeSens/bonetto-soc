@@ -503,6 +503,16 @@ same 11,484 cells / 2,633 estimated logic cells as the baseline. Since the
 netlist summary did not move, this is a neutral synthesis-control diagnostic,
 not a route-worthy timing fix.
 
+Removing the redundant `!o_wb_stall` self-reference from the `S_IDLE`
+Wishbone-accept condition was tested and reverted. The narrow runtime
+address/RMW sim passed and the late-flatten diagnostic shrank to 11,475 cells
+/ 2,494 estimated logic cells, but seed-1 routing regressed to 143.76 MHz
+`u_blu.i_clk_50`, 96.26 MHz `clk_sys`, 934.58 MHz `clk_dq`, and 1557.63 MHz
+`clk_phy_x4`. A seed-2 spot check still failed at 149.43 MHz `u_blu.i_clk_50`,
+126.37 MHz `clk_sys`, 679.81 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+This removes one reported path in synthesis, but it perturbs placement badly
+enough that it should not be carried without a larger reset/control split.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
