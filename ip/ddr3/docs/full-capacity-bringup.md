@@ -132,6 +132,15 @@ global reset/control fanout, `saved_burst_word_onehot` fanout in both runtime
 instances, `phy_*_valid`, memtest state, and fabric read-capture paths. This
 is route-failure evidence only; there is no full-speed hardware bitstream.
 
+`make -C boards/ypcb-00338 full-2ch-ddr1600-jtagonly-bitstream` removes the
+autonomous memtest master and keeps only JTAG/Wishbone access for a full-speed
+timing diagnostic. Seed 1 still fails timing, but improves the routed estimates
+to 136.69 MHz for `u_blu.i_clk_50`, 114.43 MHz for `clk_sys`, 285.55 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. This shows that memtest/status
+fabric is meaningful load, but the dual-runtime and read-capture PHY
+architecture still do not meet the 200 MHz controller target or the 800 MHz
+DDR3-1600 CK/DQS intent.
+
 The local XDC pin maps were compared against the online raw UCFs on
 2026-05-17. CH0 and CH1 package pins matched the public references; the only
 expected differences were scalar local ports for single-bit nets such as
