@@ -1373,6 +1373,20 @@ otherwise noted.
   168.35 MHz `u_blu.i_clk_50`, 116.63 MHz `clk_sys`, 826.45 MHz `clk_dq`, and
   1557.63 MHz `clk_phy_x4`; keep the request buffer, but do not reintroduce
   lane-select duplication as the next lever.
+- Forcing the runtime to treat every Wishbone write as full-word selected under
+  a temporary `DDR3_FORCE_FULL_WB_SEL` diagnostic was tested and reverted. The
+  intent was to see whether the remaining request-buffer route was dominated
+  specifically by byte-enable state. Default `make -C ip/ddr3 sim-runtime-addr`
+  passed, and the opt-in late-flat board JSON build synthesized to 10,410 cells
+  / 2,514 estimated logic cells, essentially the same size as the keeper. The
+  seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_fullsel_lateflat_seed1_route.log`
+  regressed to 158.33 MHz `u_blu.i_clk_50`, 148.30 MHz `clk_sys`,
+  379.94 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final `clk_sys`
+  path moved from `saved_sel` to `saved_wdat`/`lane_byte` feeding
+  `phy_wr_data[88]`, still with 6.3 ns routing into a PHY lane flop. This
+  confirms the blocker is the broader runtime-to-PHY write-data placement path,
+  not only byte-enable fanout.
 - Adding an opt-in one-entry Wishbone request pipe in `ddr3_ctrl`, ahead of
   the existing `DDR3_RUNTIME_REQ_BUFFER`, was tested and reverted. The intent
   was to mimic the frontend buffering used by pipelined DDR controllers while
