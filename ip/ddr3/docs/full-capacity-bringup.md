@@ -339,6 +339,15 @@ the diagnostic-only build split and higher LUT pressure; the slow-net list
 moved to reset/VCC/runtime state, burst-offset, lane `i_rd_capture`, and
 lane-local write strobes.
 
+Predecoding the BL8 read-sample select into a saved 8-bit one-hot was also
+tested and reverted. It passed `make -C ip/ddr3 sim-runtime-addr`, and
+`full-2ch-serdescmd-json` synthesized, but it grew the hard-command image to
+13,674 cells / 3,227 estimated logic cells. The seed-1 hard-command JTAG-only
+route regressed to 125.08 MHz for `u_blu.i_clk_50`, 110.73 MHz for `clk_sys`,
+774.59 MHz for `clk_dq`, and 1557.63 MHz for `clk_phy_x4`. The new one-hot
+nets became visible in the slow-net list at 64 sinks each, so the change adds
+fanout without solving the 200 MHz controller-clock blocker.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
