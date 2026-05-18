@@ -656,6 +656,21 @@ phase boundary: phase 0 must reproduce today's scalar command behavior with
 phases 1-3 as NOP, then later the runtime can move to per-bank/refresh command
 sources that fill those slots without changing the locked Wishbone port set.
 
+A no-refresh late-flat timing diagnostic was tested and reverted. The invalid
+build defined `DDR3_DISABLE_RUNTIME_REFRESH` to force `ref_pending` low and
+isolate whether the current refresh feedback path was the remaining 200 MHz
+blocker. `git diff --check`, `make -C ip/ddr3 sim-runtime-addr
+DDR3_DEFINES=-DDDR3_DISABLE_RUNTIME_REFRESH`, and `make -C ip/ddr3 sim
+DDR3_DEFINES=-DDDR3_DISABLE_RUNTIME_REFRESH` passed. The late-flat JSON image
+reported 4,862 packed cells / 2,507 estimated logic cells, and the seed-1
+late-flat route still failed at 135.61 MHz `u_blu.i_clk_50`, 124.21 MHz
+`clk_sys`, 903.34 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The `clk_sys`
+critical path was `jwb_grant` / DDR fabric decode into CH1 runtime FSM CE
+pattern-cache logic, with 1.4 ns logic and 6.7 ns routing. This rules out
+removing refresh as a standalone fix: the DQ side can stay healthy, but the
+controller path still needs the scheduler/request boundary to move the live
+fabric grant and runtime state CE apart.
+
 A PHY-local phase-0 pack refactor of `DDR3_SERDES_CMD` was tested and reverted.
 The change rewired the command OSERDES inputs through explicit four-phase
 vectors while keeping phase 0 identical to today's command and phases 1-3 as
