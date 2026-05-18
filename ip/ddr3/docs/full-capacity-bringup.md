@@ -951,6 +951,25 @@ the existing FSM as the next step; a useful LiteDRAM/UberDDR3-style direction
 needs a real registered scheduler/data pipeline boundary, not a wider encoding
 of the same control cone.
 
+A kept-hierarchy `ddr3_read_capture` helper diagnostic was tested and reverted.
+The intent was to move the full BL8 read-data capture and valid-arming logic
+out of the main runtime FSM without changing the `ddr3_ctrl` port contract.
+After fixing a first-cycle start-pulse bug, the default `sim-runtime-addr`
+check and `make -C ip/ddr3 sim` passed. The late-flat helper JSON stayed in
+range at about 11,509 cells / 2,512 estimated logic cells, and Yosys preserved
+the helper through flatten. Route timing still regressed. With `o_data` masked
+by `seen`, seed-1 late-flat route ended at 157.55 MHz `u_blu.i_clk_50`,
+113.75 MHz `clk_sys`, 706.71 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`;
+`rd_cap_seen` became a 516-sink mux-control net. Clearing the wide data
+register on read start improved only to 122.67 MHz `clk_sys` and 728.33 MHz
+`clk_dq`, with reset/clear routing into the helper's wide register. Removing
+the wide data reset/clear reached 171.32 MHz `u_blu.i_clk_50`, 124.69 MHz
+`clk_sys`, 603.86 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. This confirms
+that wrapping the existing read capture in its own module is not the needed
+boundary; the next cut has to change ownership and placement of the full-burst
+buffer and command scheduler rather than only where the current capture flops
+are declared.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
