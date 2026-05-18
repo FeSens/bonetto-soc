@@ -1351,6 +1351,21 @@ otherwise noted.
   `rmw_replace_bit` with 0.6 ns logic and 8.9 ns routing. This confirms that
   the RMW payload placement problem is broader than the final `saved_sel` to
   PHY write-data leg; do not keep this as a narrow staging fix.
+- A PHY-local RMW sideband experiment was tested and reverted. It moved the
+  BL8 read/modify merge out of `ddr3_runtime`, added compact write-word
+  sideband signals, and rebuilt the full write burst inside
+  `ddr3_phy_lane_array`, inspired by DFI-style separation of command and write
+  data. Default `make -C ip/ddr3 sim-runtime-addr sim` and opt-in
+  `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER -DDDR3_PHY_LOCAL_RMW" sim-runtime-addr sim`
+  passed after the runtime test was adjusted to validate the sideband contract.
+  Route timing did not follow. The seed-1 full-sideband route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_phyrmw_nrdata_lateflat_seed1_route.log`
+  reported 153.68 MHz `u_blu.i_clk_50`, 152.72 MHz `clk_sys`, 699.30 MHz
+  `clk_dq`, and 1557.63 MHz `clk_phy_x4`; the reduced sideband variant was
+  worse at 163.83 MHz `u_blu.i_clk_50`, 112.41 MHz `clk_sys`, 299.49 MHz
+  `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The slow-net lists were dominated by
+  PHY-side word-offset/sideband fanout and lane write-data mux LUTs, so this is
+  not a useful timing direction without a much deeper PHY datapath redesign.
 
 ## Validation Gates
 
