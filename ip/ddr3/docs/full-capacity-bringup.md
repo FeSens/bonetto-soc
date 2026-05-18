@@ -1162,6 +1162,30 @@ Hardware observations and current status for the four-lane CH0 DDR3-800
   routing enough to invalidate direct comparison with the narrower diagnostic
   images. Do not treat that image as validation evidence.
 
+## DDR3-1600 Timing Diagnostics
+
+The current full-capacity target is still the dual-channel DDR3-1600
+hard-command JTAG-only late-flatten build: 200 MHz `clk_sys`, 800 MHz `clk_dq`,
+and 1600 MT/s data on both 64-bit channels. Seed 1 is the comparison seed unless
+otherwise noted.
+
+- Rebuilding the clean late-flatten source after the BL8 bridge diagnostics gave
+  4,876 total cells / 2,517 estimated LCs after synthesis. The route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_lateflat_clean_reroute_seed1_route.log`
+  failed at 143.76 MHz `u_blu.i_clk_50`, 104.62 MHz `clk_sys`,
+  794.28 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The top `clk_sys`
+  path ran from the JTAG/BRAM address accept path into the runtime's
+  64-bit saved BL8 byte-mask register.
+- Removing the runtime's saved 64-bit BL8 byte-mask register and deriving the
+  RMW replacement bit from the saved one-hot word offset plus saved byte select
+  reduced synthesis to 4,746 total cells / 2,388 estimated LCs. The route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_lateflat_nomask_seed1_route.log`
+  still failed timing, but improved to 156.59 MHz `u_blu.i_clk_50`,
+  126.31 MHz `clk_sys`, 803.86 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+  The new top `clk_sys` path is CH1 runtime wait-counter/state-enable logic,
+  and the slow-net list is dominated by runtime state and saved BL8 select
+  fanout rather than the old byte-mask accept path.
+
 ## Validation Gates
 
 Full-capacity signoff requires hardware evidence, not just simulation:
