@@ -1200,6 +1200,18 @@ otherwise noted.
   `rd_capture_fire` enable at 513 sinks per channel plus `rst_bram` and saved
   word/select fanout, so the next useful experiment is localizing or
   partitioning those enables rather than adding more data muxing.
+- Making the board-level `clk_sys` reset replicas physically distinct with
+  small release pipes passed `git diff --check` and the same late-flat JSON
+  synthesis gate. Synthesis reported 3,729 total cells / 2,386 estimated LCs,
+  with `ddr3_runtime` at 900 cells / 825 estimated LCs. The seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_lateflat_resetpipe_seed1_route.log`
+  still failed timing, but improved the main DDR controller path to
+  143.12 MHz `clk_sys` and 984.25 MHz `clk_dq`; final route timing was
+  134.32 MHz `u_blu.i_clk_50`, 143.12 MHz `clk_sys`, 984.25 MHz `clk_dq`,
+  and 1557.63 MHz `clk_phy_x4`. The top `clk_sys` critical path moved off
+  `rst_bram` and onto runtime `beat_ctr`/FSM clock-enable routing, which makes
+  this useful progress for the 200 MHz controller target despite the worse
+  diagnostic JTAG/50 MHz clock estimate.
 
 ## Validation Gates
 

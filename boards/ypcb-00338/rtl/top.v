@@ -87,45 +87,57 @@ module top (
     wire rst_sys = rst_sync_sys[2];
 
     // Keep the synchronized system reset from becoming one board-wide
-    // high-fanout control net. These replicas assert with rst_sys and release
-    // together one clk_sys edge later, but each drives only a local region.
-    (* keep = "true" *) reg rst_mtest = 1'b1;
-    (* keep = "true" *) reg rst_host = 1'b1;
-    (* keep = "true" *) reg rst_jtag = 1'b1;
-    (* keep = "true" *) reg rst_bus = 1'b1;
-    (* keep = "true" *) reg rst_bram = 1'b1;
-    (* keep = "true" *) reg rst_dbg = 1'b1;
-    (* keep = "true" *) reg rst_status = 1'b1;
-    (* keep = "true" *) reg rst_ddr3_ch0 = 1'b1;
-    (* keep = "true" *) reg rst_cal_ch0 = 1'b1;
-    (* keep = "true" *) reg rst_ddr3_ch1 = 1'b1;
-    (* keep = "true" *) reg rst_cal_ch1 = 1'b1;
+    // high-fanout control net. The small release-pipe skews make the replicas
+    // logically distinct so synthesis cannot merge them back together.
+    (* keep = "true", dont_touch = "true" *) reg [1:0]  rst_mtest_pipe   = 2'b11;
+    (* keep = "true", dont_touch = "true" *) reg [2:0]  rst_host_pipe    = 3'b111;
+    (* keep = "true", dont_touch = "true" *) reg [3:0]  rst_jtag_pipe    = 4'b1111;
+    (* keep = "true", dont_touch = "true" *) reg [4:0]  rst_bus_pipe     = 5'b1_1111;
+    (* keep = "true", dont_touch = "true" *) reg [5:0]  rst_bram_pipe    = 6'b11_1111;
+    (* keep = "true", dont_touch = "true" *) reg [6:0]  rst_dbg_pipe     = 7'b111_1111;
+    (* keep = "true", dont_touch = "true" *) reg [7:0]  rst_status_pipe  = 8'hff;
+    (* keep = "true", dont_touch = "true" *) reg [8:0]  rst_ddr3_ch0_pipe = 9'h1ff;
+    (* keep = "true", dont_touch = "true" *) reg [9:0]  rst_cal_ch0_pipe = 10'h3ff;
+    (* keep = "true", dont_touch = "true" *) reg [10:0] rst_ddr3_ch1_pipe = 11'h7ff;
+    (* keep = "true", dont_touch = "true" *) reg [11:0] rst_cal_ch1_pipe = 12'hfff;
+
+    wire rst_mtest    = rst_mtest_pipe[1];
+    wire rst_host     = rst_host_pipe[2];
+    wire rst_jtag     = rst_jtag_pipe[3];
+    wire rst_bus      = rst_bus_pipe[4];
+    wire rst_bram     = rst_bram_pipe[5];
+    wire rst_dbg      = rst_dbg_pipe[6];
+    wire rst_status   = rst_status_pipe[7];
+    wire rst_ddr3_ch0 = rst_ddr3_ch0_pipe[8];
+    wire rst_cal_ch0  = rst_cal_ch0_pipe[9];
+    wire rst_ddr3_ch1 = rst_ddr3_ch1_pipe[10];
+    wire rst_cal_ch1  = rst_cal_ch1_pipe[11];
 
     always @(posedge clk_sys or posedge rst_sys) begin
         if (rst_sys) begin
-            rst_mtest   <= 1'b1;
-            rst_host    <= 1'b1;
-            rst_jtag    <= 1'b1;
-            rst_bus     <= 1'b1;
-            rst_bram    <= 1'b1;
-            rst_dbg     <= 1'b1;
-            rst_status  <= 1'b1;
-            rst_ddr3_ch0 <= 1'b1;
-            rst_cal_ch0 <= 1'b1;
-            rst_ddr3_ch1 <= 1'b1;
-            rst_cal_ch1 <= 1'b1;
+            rst_mtest_pipe   <= 2'b11;
+            rst_host_pipe    <= 3'b111;
+            rst_jtag_pipe    <= 4'b1111;
+            rst_bus_pipe     <= 5'b1_1111;
+            rst_bram_pipe    <= 6'b11_1111;
+            rst_dbg_pipe     <= 7'b111_1111;
+            rst_status_pipe  <= 8'hff;
+            rst_ddr3_ch0_pipe <= 9'h1ff;
+            rst_cal_ch0_pipe <= 10'h3ff;
+            rst_ddr3_ch1_pipe <= 11'h7ff;
+            rst_cal_ch1_pipe <= 12'hfff;
         end else begin
-            rst_mtest   <= 1'b0;
-            rst_host    <= 1'b0;
-            rst_jtag    <= 1'b0;
-            rst_bus     <= 1'b0;
-            rst_bram    <= 1'b0;
-            rst_dbg     <= 1'b0;
-            rst_status  <= 1'b0;
-            rst_ddr3_ch0 <= 1'b0;
-            rst_cal_ch0 <= 1'b0;
-            rst_ddr3_ch1 <= 1'b0;
-            rst_cal_ch1 <= 1'b0;
+            rst_mtest_pipe   <= {rst_mtest_pipe[0], 1'b0};
+            rst_host_pipe    <= {rst_host_pipe[1:0], 1'b0};
+            rst_jtag_pipe    <= {rst_jtag_pipe[2:0], 1'b0};
+            rst_bus_pipe     <= {rst_bus_pipe[3:0], 1'b0};
+            rst_bram_pipe    <= {rst_bram_pipe[4:0], 1'b0};
+            rst_dbg_pipe     <= {rst_dbg_pipe[5:0], 1'b0};
+            rst_status_pipe  <= {rst_status_pipe[6:0], 1'b0};
+            rst_ddr3_ch0_pipe <= {rst_ddr3_ch0_pipe[7:0], 1'b0};
+            rst_cal_ch0_pipe <= {rst_cal_ch0_pipe[8:0], 1'b0};
+            rst_ddr3_ch1_pipe <= {rst_ddr3_ch1_pipe[9:0], 1'b0};
+            rst_cal_ch1_pipe <= {rst_cal_ch1_pipe[10:0], 1'b0};
         end
     end
 
