@@ -458,6 +458,13 @@ and `make -C ip/ddr3 sim` passed, and `full-2ch-serdescmd-json` improved to
 `clk_dq` dropped below the DDR3-1600 800 MHz intent, so do not repeat this as
 a standalone wait-counter cleanup.
 
+The same restored baseline was also routed with nextpnr's
+`--placer-budgets` timing-budget placer option. This did not help: final
+timing regressed to 143.66 MHz `u_blu.i_clk_50`, 125.19 MHz `clk_sys`,
+752.45 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Keep the default heap
+placer settings unless a larger floorplanning or clock-domain split gives the
+placer a structurally easier problem.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
