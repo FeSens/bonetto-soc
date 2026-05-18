@@ -114,7 +114,8 @@ module ddr3_phy_dq #(
             wr_data_sys_q <= {(DQ_BITS*RATIO){1'b0}};
             wr_oe_sys_sr  <= 3'b000;
         end else begin
-            wr_data_sys_q <= i_wr_data;
+            if (i_wr_dqs_en)
+                wr_data_sys_q <= i_wr_data;
             wr_oe_sys_sr <= {wr_oe_sys_sr[1:0], i_wr_dqs_en};
         end
     end
