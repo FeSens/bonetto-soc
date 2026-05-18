@@ -218,9 +218,8 @@ module ddr3_runtime #(
         S_WR_RECOV  = 5'd19,
         S_MPR_WAIT_CL = 5'd20,
         S_MPR_DATA  = 5'd21,
-        S_RMW_LATCH = 5'd22,
-        S_RD_SELECT = 5'd23,
-        S_RD_ACK    = 5'd24;
+        S_RD_SELECT = 5'd22,
+        S_RD_ACK    = 5'd23;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -279,7 +278,6 @@ module ddr3_runtime #(
     reg [WB_BURST_WORD_W-1:0] saved_burst_word_offset;
     reg [15:0]           saved_burst_word_onehot;
     (* keep = "true" *) reg [63:0] saved_burst_byte_mask;
-    reg [PHY_DATA_W-1:0] rmw_wr_data;
     reg [PHY_DATA_W-1:0] rd_data_q;
     reg [63:0]           rd_sample_q;
     reg [WB_DATA_W-1:0]  rd_word_q;
@@ -605,7 +603,9 @@ module ddr3_runtime #(
             end
         end
     endgenerate
-    assign o_wr_data = USE_BURST_WORD_OFFSET ? rmw_wr_data : legacy_wr_data;
+    assign o_wr_data = USE_BURST_WORD_OFFSET ?
+        ((BURST_WRITE_RMW != 0) ? rmw_wr_data_next : direct_wr_data_next) :
+        legacy_wr_data;
 
     // Default mode acks each WB write/read after one BL8 command. Offset mode
     // first reads the whole BL8 payload for writes, merges the selected WB
@@ -626,7 +626,6 @@ module ddr3_runtime #(
             saved_burst_word_onehot <= 16'd1;
             saved_burst_byte_mask <= 64'd0;
             saved_sel   <= {WB_BYTES{1'b0}};
-            rmw_wr_data <= {PHY_DATA_W{1'b0}};
             rd_data_q   <= {PHY_DATA_W{1'b0}};
             rd_sample_q <= 64'd0;
             rd_word_q   <= {WB_DATA_W{1'b0}};
@@ -682,7 +681,6 @@ module ddr3_runtime #(
                     if (wait_ctr == TRCD_WAIT) begin
                         wait_ctr <= 8'd0;
                         if (saved_we && USE_BURST_WORD_OFFSET && !BURST_WRITE_RMW) begin
-                            rmw_wr_data <= direct_wr_data_next;
                             state       <= S_WR;
                         end else begin
                             state <= (saved_we && !USE_BURST_WORD_OFFSET) ? S_WR : S_RD;
@@ -726,7 +724,7 @@ module ddr3_runtime #(
                         beat_ctr <= 8'd0;
                         if (saved_we && USE_BURST_WORD_OFFSET && BURST_WRITE_RMW) begin
                             wait_ctr <= 8'd0;
-                            state    <= S_RMW_LATCH;
+                            state    <= S_WR;
                         end else begin
                             if (USE_FAST_BURST_WORD) begin
                                 rd_sample_q <= burst_get_sample64(
@@ -759,12 +757,6 @@ module ddr3_runtime #(
                     o_wb_dat <= rd_word_q;
                     o_wb_ack <= 1'b1;
                     state    <= S_PRE;
-                end
-
-                S_RMW_LATCH: begin
-                    rmw_wr_data <= rmw_wr_data_next;
-                    wait_ctr <= 8'd0;
-                    state    <= S_WR;
                 end
 
                 S_WR: begin

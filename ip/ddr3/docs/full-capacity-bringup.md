@@ -199,6 +199,18 @@ timing, with 142.76 MHz for `u_blu.i_clk_50`, 110.41 MHz for `clk_sys`,
 cleanup checkpoint: resource use is much lower and `clk_dq` remains above the
 DDR3-1600 800 MHz intent, but `clk_sys` still blocks signoff.
 
+Removing the redundant 512-bit `rmw_wr_data` staging register and its
+`S_RMW_LATCH` state keeps the RMW behavior intact while reducing the full
+hard-command image. `make -C ip/ddr3 sim-runtime-addr` still passes, and
+`make -C boards/ypcb-00338 full-2ch-serdescmd-json` drops to 13,202 cells /
+3,077 estimated logic cells, mainly by removing about one thousand FFs. This is
+not a timing-signoff fix: the paired seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route still fails at 138.89 MHz
+`u_blu.i_clk_50`, 111.40 MHz `clk_sys`, 788.02 MHz `clk_dq`, and 1557.63 MHz
+`clk_phy_x4`. The final `clk_sys` critical path is again lane-0
+`i_rd_capture`, and the slow-net list still shows `phy_wr_valid`, burst-offset,
+and RMW mask fanout.
+
 `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-ddronly-json` and the
 paired bitstream target add `DDR3_JTAG_DDR_ONLY`, a narrow diagnostic that
 keeps the hard-serialized command/address path but removes BRAM and the
