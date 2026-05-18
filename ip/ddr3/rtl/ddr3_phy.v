@@ -332,6 +332,16 @@ module ddr3_phy #(
 `else
     localparam integer WR_DQS_DELAY_CK = 2;
 `endif
+`ifdef DDR3_WR_DQ_OE_DELAY_SYS
+    localparam integer WR_DQ_OE_DELAY_SYS = `DDR3_WR_DQ_OE_DELAY_SYS;
+`else
+    localparam integer WR_DQ_OE_DELAY_SYS = 0;
+`endif
+`ifdef DDR3_WR_DQ_OE_HOLD_SYS
+    localparam integer WR_DQ_OE_HOLD_SYS = `DDR3_WR_DQ_OE_HOLD_SYS;
+`else
+    localparam integer WR_DQ_OE_HOLD_SYS = 4;
+`endif
 
     always @(posedge o_clk_dq or posedge phy_io_rst) begin
         if (phy_io_rst) begin
@@ -402,6 +412,8 @@ module ddr3_phy #(
         .DQ_BITS        (DQ_BITS),
         .RATIO          (SERDES_RATIO),
         .WR_DQS_DELAY_CK(WR_DQS_DELAY_CK),
+        .WR_DQ_OE_DELAY_SYS(WR_DQ_OE_DELAY_SYS),
+        .WR_DQ_OE_HOLD_SYS (WR_DQ_OE_HOLD_SYS),
         .RD_VALID_REQUIRE_ALL(RD_VALID_REQUIRE_ALL)
     ) u_lanes (
         .i_clk_sys                (o_clk_sys),

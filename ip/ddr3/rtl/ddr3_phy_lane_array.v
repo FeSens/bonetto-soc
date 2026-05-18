@@ -11,6 +11,8 @@ module ddr3_phy_lane_array #(
     parameter integer DQ_BITS        = 8,
     parameter integer RATIO          = 4,
     parameter integer WR_DQS_DELAY_CK = 4,
+    parameter integer WR_DQ_OE_DELAY_SYS = 0,
+    parameter integer WR_DQ_OE_HOLD_SYS = 4,
     parameter integer RD_VALID_REQUIRE_ALL = 1
 ) (
     // -------- Clocks --------
@@ -93,7 +95,9 @@ module ddr3_phy_lane_array #(
             ddr3_phy_dq #(
                 .DQ_BITS (DQ_BITS),
                 .RATIO   (RATIO),
-                .WR_DQS_DELAY_CK (WR_DQS_DELAY_CK)
+                .WR_DQS_DELAY_CK (WR_DQS_DELAY_CK),
+                .WR_DQ_OE_DELAY_SYS (WR_DQ_OE_DELAY_SYS),
+                .WR_DQ_OE_HOLD_SYS  (WR_DQ_OE_HOLD_SYS)
             ) u_lane (
                 .i_clk_sys           (i_clk_sys),
                 .i_clk_phy_x4        (i_clk_phy_x4),

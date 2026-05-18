@@ -24,7 +24,9 @@
 module ddr3_phy_dq #(
     parameter integer DQ_BITS = 8,
     parameter integer RATIO   = 4,
-    parameter integer WR_DQS_DELAY_CK = 4
+    parameter integer WR_DQS_DELAY_CK = 4,
+    parameter integer WR_DQ_OE_DELAY_SYS = 0,
+    parameter integer WR_DQ_OE_HOLD_SYS = 4
 ) (
     input  wire                     i_clk_sys,
     input  wire                     i_clk_phy_x4,
@@ -89,7 +91,14 @@ module ddr3_phy_dq #(
     reg  [DQ_BITS-1:0] dq_fall_q;
     reg  [DQ_BITS*RATIO-1:0] wr_data_q;
     reg  [DQ_BITS*RATIO-1:0] wr_data_sys_q = {(DQ_BITS*RATIO){1'b0}};
-    reg  [2:0] wr_oe_sys_sr = 3'b000;
+    localparam integer WR_DQ_OE_PIPE_BITS =
+        WR_DQ_OE_DELAY_SYS + WR_DQ_OE_HOLD_SYS;
+    localparam integer WR_DQ_OE_WINDOW_START =
+        (WR_DQ_OE_DELAY_SYS > 0) ? (WR_DQ_OE_DELAY_SYS - 1) : 0;
+    localparam integer WR_DQ_OE_SHIFT_HOLD =
+        (WR_DQ_OE_DELAY_SYS > 0) ? WR_DQ_OE_HOLD_SYS : (WR_DQ_OE_HOLD_SYS - 1);
+
+    reg  [WR_DQ_OE_PIPE_BITS-1:0] wr_oe_sys_sr = {WR_DQ_OE_PIPE_BITS{1'b0}};
     wire [DQ_BITS-1:0] dq_out_ddr;
     wire [DQ_BITS-1:0] dq_in_raw;
 
@@ -105,18 +114,20 @@ module ddr3_phy_dq #(
     wire       dqs_drive_window = |dqs_seq_sr;
     wire       dqs_burst = |dqs_seq_sr[4:1];
     wire       dqs_seq_done = dqs_seq_sr[5];
-    wire       dq_drive_oserdes = i_wr_dqs_en | (|wr_oe_sys_sr);
+    wire       dq_drive_oserdes =
+        ((WR_DQ_OE_DELAY_SYS == 0) ? i_wr_dqs_en : 1'b0) |
+        (|wr_oe_sys_sr[WR_DQ_OE_WINDOW_START +: WR_DQ_OE_SHIFT_HOLD]);
     wire [DQ_BITS*RATIO-1:0] wr_data_oserdes = wr_data_sys_q;
 
     integer j;
     always @(posedge i_clk_sys or posedge i_rst) begin
         if (i_rst) begin
             wr_data_sys_q <= {(DQ_BITS*RATIO){1'b0}};
-            wr_oe_sys_sr  <= 3'b000;
+            wr_oe_sys_sr  <= {WR_DQ_OE_PIPE_BITS{1'b0}};
         end else begin
             if (i_wr_dqs_en)
                 wr_data_sys_q <= i_wr_data;
-            wr_oe_sys_sr <= {wr_oe_sys_sr[1:0], i_wr_dqs_en};
+            wr_oe_sys_sr <= {wr_oe_sys_sr[WR_DQ_OE_PIPE_BITS-2:0], i_wr_dqs_en};
         end
     end
 
