@@ -938,6 +938,26 @@ both controllers. Do not repeat this as a simple width-adapter diagnostic; a
 future native-burst direction needs a real registered bridge/FIFO or cacheline
 boundary instead of fanning a 32-bit JTAG word across the full PHY payload.
 
+A second native-BL8 bridge diagnostic was tested and reverted. This split the
+controller into a 32-bit Wishbone-to-BL8 adapter plus a native full-BL8 runtime,
+with the runtime owning only ACT/RD/WR/PRE, refresh, MPR, and MRS sequencing.
+The architectural boundary is closer to the LiteDRAM/UberDDR3 direction, and
+`make -C ip/ddr3 sim-init DDR3_DEFINES="-DDDR3_BL8_BRIDGE"` plus
+`make -C ip/ddr3 sim-micron DDR3_DEFINES="-DDDR3_BL8_BRIDGE"` passed. Cocotb
+aborted in the simulator/VPI startup path (`Abort trap: 6`), so it provided no
+useful behavioral evidence. The opt-in late-flat JSON image synthesized to
+15,379 cells / 3,324 estimated logic cells, with `ddr3_runtime_bl8` alone at
+2,848 cells / 600 estimated logic cells; packing used 6,099 LUTs, 9,272 FFs,
+178 `OSERDESE2`, 16 `IDELAYE2`, 6 `IDELAYCTRL`, 22 `BUFGCTRL`, and 16
+`RAMB36E1`. Seed-1 late-flat route regressed to 168.29 MHz
+`u_blu.i_clk_50`, 108.13 MHz `clk_sys`, 423.91 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. Router slow-net output showed the bridge's dynamic
+full-burst word extraction/merge functions creating wide `$shiftx`/mux logic
+around `burst_put_word`, `saved_word_offset`, and `saved_sel`. Do not carry
+this bridge as-is; if revisiting the native-burst boundary, replace the dynamic
+512-bit word mux/merge functions with static per-word buffer banks or generated
+lane/sample muxes before spending more route time.
+
 A full-width CH0-only DDR3-1600 hard-command isolation route was also run to
 separate per-channel timing from dual-channel congestion. The seed-1
 `bonetto_soc_ypcb00338_full_ch0_ddr1600_serdescmd_jtagonly` image used the
