@@ -176,6 +176,17 @@ fails timing, but `clk_sys` improves to 107.22 MHz while `clk_dq` reports
 datapath, but still does not meet the 200 MHz controller target or the 800 MHz
 DDR3-1600 CK/DQ intent.
 
+Registering the aggregate lane read-valid signal for full BL8 images keeps the
+validated ratio-4 path unchanged and changes the full-speed seed-1 route
+profile. `full-2ch-serdescmd-json` synthesizes to 16,847 cells with 22 `BUFG`,
+178 `OSERDESE2`, 128 `IDDR`, 16 `IDELAYE2`, no `ISERDESE2`, 16 `RAMB36E1`, and
+an estimated 3,811 logic cells. The paired
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route still fails timing, with
+142.03 MHz for `u_blu.i_clk_50`, 107.40 MHz for `clk_sys`, 818.33 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. This recovers the reported
+high-speed DQ estimate above the 800 MHz DDR3-1600 intent, but the controller
+clock remains the hard blocker.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It

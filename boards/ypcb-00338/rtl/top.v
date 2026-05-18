@@ -168,6 +168,8 @@ module top (
     localparam integer JWB_LOCAL_ADDR_W = 15;
     localparam integer JWB_DDR3_LOCAL_W = 14;
     localparam integer JWB_DDR3_HI_W = FABRIC_ADDR_W - JWB_DDR3_LOCAL_W;
+    localparam integer DDR3_REGISTER_RD_VALID =
+        (DDR3_WB_BURST_WORD_BITS != 0);
 
     wire        m_cyc, m_stb, m_we;
     wire [FABRIC_ADDR_W-1:0] m_adr;
@@ -812,7 +814,8 @@ module top (
         .DQ_BITS(DDR3_DQ_BITS),
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
-        .USE_EXTERNAL_CLOCKS(0)
+        .USE_EXTERNAL_CLOCKS(0),
+        .REGISTER_RD_VALID(DDR3_REGISTER_RD_VALID)
     ) u_ddr3_phy (
         .i_clk_ref      (clk_50),
         .i_rst_ref      (por_rst_50),
@@ -1005,7 +1008,8 @@ module top (
         .DQ_BITS(DDR3_DQ_BITS),
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
-        .USE_EXTERNAL_CLOCKS(1)
+        .USE_EXTERNAL_CLOCKS(1),
+        .REGISTER_RD_VALID(DDR3_REGISTER_RD_VALID)
     ) u_ddr3_phy_ch1 (
         .i_clk_ref      (clk_50),
         .i_rst_ref      (por_rst_50),

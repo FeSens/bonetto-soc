@@ -14,6 +14,7 @@ module ddr3_phy_lane_array #(
     parameter integer WR_DQ_OE_DELAY_SYS = 0,
     parameter integer WR_DQ_OE_HOLD_SYS = 4,
     parameter integer RD_VALID_REQUIRE_ALL = 1,
+    parameter integer REGISTER_RD_VALID = 0,
     parameter integer USE_IDELAYCTRL = 1
 ) (
     // -------- Clocks --------
@@ -141,7 +142,22 @@ module ddr3_phy_lane_array #(
         end
     endgenerate
 
-    assign o_rd_valid_all = RD_VALID_REQUIRE_ALL ? (&o_rd_valid_lane) : (|o_rd_valid_lane);
+    wire rd_valid_all_comb = RD_VALID_REQUIRE_ALL ? (&o_rd_valid_lane) :
+                                                    (|o_rd_valid_lane);
+    generate
+        if (REGISTER_RD_VALID) begin : g_registered_rd_valid
+            reg rd_valid_all_q = 1'b0;
+            always @(posedge i_clk_sys or posedge i_rst) begin
+                if (i_rst)
+                    rd_valid_all_q <= 1'b0;
+                else
+                    rd_valid_all_q <= rd_valid_all_comb;
+            end
+            assign o_rd_valid_all = rd_valid_all_q;
+        end else begin : g_comb_rd_valid
+            assign o_rd_valid_all = rd_valid_all_comb;
+        end
+    endgenerate
 
     /* verilator lint_off UNUSED */
     wire _u_lane_array = &{1'b0, i_clk_ref_200,

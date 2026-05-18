@@ -41,7 +41,8 @@ module ddr3_phy #(
     parameter integer BANK_BITS      = `DDR3_BANK_BITS,
     parameter integer SERDES_RATIO   = 4,
     parameter integer USE_EXTERNAL_CLOCKS = 0,
-    parameter integer RD_VALID_REQUIRE_ALL = 1
+    parameter integer RD_VALID_REQUIRE_ALL = 1,
+    parameter integer REGISTER_RD_VALID = 0
 ) (
     // Reference clock from board (50 MHz on YPCB-00338).
     input  wire                            i_clk_ref,
@@ -520,6 +521,7 @@ module ddr3_phy #(
         .WR_DQ_OE_DELAY_SYS(WR_DQ_OE_DELAY_SYS),
         .WR_DQ_OE_HOLD_SYS (WR_DQ_OE_HOLD_SYS),
         .RD_VALID_REQUIRE_ALL(RD_VALID_REQUIRE_ALL),
+        .REGISTER_RD_VALID(REGISTER_RD_VALID),
         .USE_IDELAYCTRL(!USE_EXTERNAL_CLOCKS)
     ) u_lanes (
         .i_clk_sys                (o_clk_sys),
