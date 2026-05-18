@@ -551,6 +551,18 @@ phase boundary: phase 0 must reproduce today's scalar command behavior with
 phases 1-3 as NOP, then later the runtime can move to per-bank/refresh command
 sources that fill those slots without changing the locked Wishbone port set.
 
+A PHY-local phase-0 pack refactor of `DDR3_SERDES_CMD` was tested and reverted.
+The change rewired the command OSERDES inputs through explicit four-phase
+vectors while keeping phase 0 identical to today's command and phases 1-3 as
+NOP. It passed `make -C ip/ddr3 sim-runtime-addr` and the late-flatten
+diagnostic synthesized close to baseline at 11,472 cells / 2,636 estimated
+logic cells, but the fixed seed-1 late-flat route regressed the system clock:
+165.92 MHz `u_blu.i_clk_50`, 124.72 MHz `clk_sys`, 888.89 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. The DQ-side improvement is useful signal, but the
+200 MHz controller path still got worse. Do not carry a standalone PHY pack
+refactor; the phase boundary needs to arrive with a real scheduler/control
+split that removes the runtime CE path.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
