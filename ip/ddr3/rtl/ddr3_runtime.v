@@ -276,7 +276,7 @@ module ddr3_runtime #(
     reg [WB_BYTES-1:0]   saved_sel;
     reg [WB_BURST_WORD_W-1:0] saved_burst_word_offset;
     reg [15:0]           saved_burst_word_onehot;
-    reg [63:0]           saved_burst_byte_mask;
+    (* keep = "true" *) reg [63:0] saved_burst_byte_mask;
     reg [PHY_DATA_W-1:0] rmw_wr_data;
     reg [PHY_DATA_W-1:0] rd_data_q;
     reg                  rd_seen;

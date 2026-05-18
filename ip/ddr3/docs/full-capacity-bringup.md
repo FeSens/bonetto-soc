@@ -147,16 +147,22 @@ experimental ISERDES read-capture path, so it keeps the default DQS-clocked
 IDDR read path and isolates the value of hard-serializing the command/control
 pins. It synthesizes to 16,731 cells with 22 `BUFG`, 178 `OSERDESE2`, 128
 `IDDR`, 16 `IDELAYE2`, no `ISERDESE2`, 16 `RAMB36E1`, and an estimated 3,890
-logic cells. The paired seed-1 JTAG-only route target,
+logic cells before preserving the RMW byte-mask register, and 16,742 cells /
+3,900 estimated logic cells after preserving it. The paired seed-1 JTAG-only
+route target,
 `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-bitstream`,
-routes to completion but still fails timing: final nextpnr estimates are
-137.61 MHz for `u_blu.i_clk_50`, 96.62 MHz for `clk_sys`, 521.10 MHz for
-`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. The DQS raw clocks all pass the
-current 200 MHz nextpnr check, with final estimates from 357.14 MHz to
-638.16 MHz, but `clk_dq` remains below the 800 MHz DDR3-1600 intent. Compared
-with the non-serialized JTAG-only RMW target, this improves the final `clk_dq`
-estimate from 409.00 MHz to 521.10 MHz and avoids the ISERDES overuse plateau;
-it is still route-failure evidence, not a hardware-signoff bitstream.
+routes to completion but still fails timing. Before preserving the RMW byte
+mask, final nextpnr estimates were 137.61 MHz for `u_blu.i_clk_50`, 96.62 MHz
+for `clk_sys`, 521.10 MHz for `clk_dq`, and 1557.63 MHz for `clk_phy_x4`.
+After preserving the byte mask, the same target reports 171.23 MHz for
+`u_blu.i_clk_50`, 97.25 MHz for `clk_sys`, 914.91 MHz for `clk_dq`, and
+1557.63 MHz for `clk_phy_x4`. The DQS raw clocks all pass the current 200 MHz
+nextpnr check. Compared with the non-serialized JTAG-only RMW target, this
+avoids the ISERDES overuse plateau and closes the reported `clk_dq` estimate
+above 800 MHz, but `clk_sys` is still far below the 200 MHz controller target.
+The new `clk_sys` critical path moved from `saved_burst_word_onehot` RMW merge
+logic to read-capture control fanout around lane-0 `i_rd_capture`; it is still
+route-failure evidence, not a hardware-signoff bitstream.
 
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
