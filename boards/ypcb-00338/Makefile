@@ -57,7 +57,7 @@ YOSYS_SYNTH_ARGS ?= -flatten -abc9
 YOSYS_POST_SYNTH ?=
 DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
-.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-serdescmd-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-lateflat-json full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagdirect-bitstream full-2ch-ddr1600-serdescmd-ddronly-json full-2ch-ddr1600-serdescmd-ddronly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
+.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-serdescmd-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-lateflat-json full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagdirect-bitstream full-2ch-ddr1600-serdescmd-ddronly-json full-2ch-ddr1600-serdescmd-ddronly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -236,6 +236,30 @@ full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream:
 	  NEXTPNR_FREQ=200 \
 	  NEXTPNR_ARGS="--seed 1 --log build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_nrdata_lateflat_seed1_route.log" \
 	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_nrdata_lateflat.bit
+
+full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-lateflat-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_lateflat \
+	  DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600 -DDDR3_JTAG_ONLY -DDDR3_SERDES_CMD -DDDR3_RUNTIME_REQ_BUFFER -DDDR3_RUNTIME_RMW_INPLACE" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  YOSYS_SYNTH_ARGS="-abc9" \
+	  YOSYS_POST_SYNTH="flatten;" \
+	  NEXTPNR_FREQ=200 \
+	  NEXTPNR_ARGS="--seed 1 --log build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_lateflat_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_lateflat.bit
+
+full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-topreq-lateflat-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_topreq_lateflat \
+	  DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600 -DDDR3_JTAG_ONLY -DDDR3_SERDES_CMD -DDDR3_RUNTIME_REQ_BUFFER -DDDR3_RUNTIME_RMW_INPLACE -DDDR3_TOP_REQ_REG" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  YOSYS_SYNTH_ARGS="-abc9" \
+	  YOSYS_POST_SYNTH="flatten;" \
+	  NEXTPNR_FREQ=200 \
+	  NEXTPNR_ARGS="--seed 1 --log build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_topreq_lateflat_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_topreq_lateflat.bit
 
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream:
 	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagdirect \

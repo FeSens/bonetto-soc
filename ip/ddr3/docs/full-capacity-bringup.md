@@ -1545,6 +1545,46 @@ otherwise noted.
   runtime BL8 cache as a timing fix; the future scheduler boundary has to
   reduce control fanout and placement pressure rather than add another wide
   per-controller line register bank.
+- An in-place RMW patch diagnostic, `DDR3_RUNTIME_RMW_INPLACE`, is now kept as
+  an opt-in timing experiment. It is only enabled when the burst word-offset
+  map is active, BL8 RMW writes are enabled, and the read/write sample maps are
+  identical. Instead of driving `o_wr_data` through a live `saved_sel`/
+  `saved_wdat`/`saved_burst_word_offset` merge, the runtime mutates the
+  captured `rd_data_q` BL8 register in `S_RMW_PATCH` and then writes the static
+  patched payload. `git diff --check`, default `make -C ip/ddr3
+  sim-runtime-addr`, opt-in `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_RUNTIME_RMW_INPLACE" sim-runtime-addr`, and opt-in
+  `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER
+  -DDDR3_RUNTIME_RMW_INPLACE" sim-runtime-addr sim-init` passed. The board
+  target is
+  `make -C boards/ypcb-00338
+  full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-lateflat-bitstream`.
+  Seed 2 reached 136.28 MHz `u_blu.i_clk_50`, 166.50 MHz `clk_sys`,
+  998.00 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`; seed 3 reached
+  161.08 MHz `u_blu.i_clk_50`, 173.25 MHz `clk_sys`, 649.35 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`. The old seed-1 `saved_sel[0]` to PHY write-data
+  critical path is gone; the new limiter is the JTAG/top request path into the
+  CH1 runtime request capture clock-enable.
+- A top-level one-outstanding DDR3 request register diagnostic,
+  `DDR3_TOP_REQ_REG`, is also kept as an opt-in target layered on top of
+  `DDR3_RUNTIME_RMW_INPLACE`. The target is
+  `make -C boards/ypcb-00338
+  full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-topreq-lateflat-bitstream`.
+  Fresh restored-code route logs for seeds 1 through 4 show:
+  seed 1 = 138.29 MHz `u_blu.i_clk_50`, 160.64 MHz `clk_sys`,
+  838.22 MHz `clk_dq`; seed 2 = 142.55 MHz `u_blu.i_clk_50`,
+  165.76 MHz `clk_sys`, 947.87 MHz `clk_dq`; seed 3 = 154.49 MHz
+  `u_blu.i_clk_50`, 189.43 MHz `clk_sys`, 841.75 MHz `clk_dq`; seed 4 =
+  135.26 MHz `u_blu.i_clk_50`, 173.52 MHz `clk_sys`, 870.32 MHz `clk_dq`.
+  All seeds keep `clk_phy_x4` at 1557.63 MHz. Seed 3 is the current best
+  full-capacity DDR3-1600-adjacent diagnostic: the DDR DQ domain clears the
+  800 MHz intent and `clk_sys` is within about 5.6% of 200 MHz. The remaining
+  `clk_sys` path is still frontend request/control routing into CH1 runtime
+  request capture (`d3_req_ch_sel -> d3_ch1_cyc/stb -> wb_req_fire ->
+  request CE`), about 1.0 ns logic and 4.3 ns routing. The next useful change
+  should cut that request-capture/CE fanout or move the Wishbone-to-runtime
+  acceptance boundary closer to each controller; another wide BL8 data cache is
+  not the right direction.
 
 ## Validation Gates
 

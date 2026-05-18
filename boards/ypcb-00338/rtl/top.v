@@ -673,30 +673,115 @@ module top (
     // =================================================================
     // DDR3 stack on clk_sys
     // =================================================================
-    wire        d3_ch0_cyc = d3_cyc & ~d3_ch_sel;
-    wire        d3_ch0_stb = d3_stb & ~d3_ch_sel;
-    wire        d3_ch0_we  = d3_we;
-    wire [FABRIC_ADDR_W-1:0] d3_ch0_adr = d3_ctrl_adr;
-    wire [31:0] d3_ch0_dat_w = d3_dat_w;
-    wire [3:0]  d3_ch0_sel = d3_sel;
+    wire        d3_ch0_cyc;
+    wire        d3_ch0_stb;
+    wire        d3_ch0_we;
+    wire [FABRIC_ADDR_W-1:0] d3_ch0_adr;
+    wire [31:0] d3_ch0_dat_w;
+    wire [3:0]  d3_ch0_sel;
     wire        d3_ch0_stall, d3_ch0_ack, d3_ch0_err;
     wire [31:0] d3_ch0_dat_r;
 
 `ifdef DDR3_FULL_2CH
-    wire        d3_ch1_cyc = d3_cyc & d3_ch_sel;
-    wire        d3_ch1_stb = d3_stb & d3_ch_sel;
-    wire        d3_ch1_we  = d3_we;
-    wire [FABRIC_ADDR_W-1:0] d3_ch1_adr = d3_ctrl_adr;
-    wire [31:0] d3_ch1_dat_w = d3_dat_w;
-    wire [3:0]  d3_ch1_sel = d3_sel;
+    wire        d3_ch1_cyc;
+    wire        d3_ch1_stb;
+    wire        d3_ch1_we;
+    wire [FABRIC_ADDR_W-1:0] d3_ch1_adr;
+    wire [31:0] d3_ch1_dat_w;
+    wire [3:0]  d3_ch1_sel;
     wire        d3_ch1_stall, d3_ch1_ack, d3_ch1_err;
     wire [31:0] d3_ch1_dat_r;
+
+`ifdef DDR3_TOP_REQ_REG
+    reg        d3_req_valid = 1'b0;
+    reg        d3_req_issued = 1'b0;
+    reg        d3_req_ch_sel = 1'b0;
+    reg        d3_req_we = 1'b0;
+    reg [FABRIC_ADDR_W-1:0] d3_req_adr = {FABRIC_ADDR_W{1'b0}};
+    reg [31:0] d3_req_dat_w = 32'd0;
+    reg [3:0]  d3_req_sel = 4'h0;
+
+    wire d3_req_target_stall = d3_req_ch_sel ? d3_ch1_stall : d3_ch0_stall;
+    wire d3_req_target_ack   = d3_req_ch_sel ? d3_ch1_ack   : d3_ch0_ack;
+    wire d3_req_target_err   = d3_req_ch_sel ? d3_ch1_err   : d3_ch0_err;
+    wire [31:0] d3_req_target_dat_r =
+        d3_req_ch_sel ? d3_ch1_dat_r : d3_ch0_dat_r;
+
+    always @(posedge clk_sys) begin
+        if (rst_bus) begin
+            d3_req_valid  <= 1'b0;
+            d3_req_issued <= 1'b0;
+            d3_req_ch_sel <= 1'b0;
+            d3_req_we     <= 1'b0;
+            d3_req_adr    <= {FABRIC_ADDR_W{1'b0}};
+            d3_req_dat_w  <= 32'd0;
+            d3_req_sel    <= 4'h0;
+        end else begin
+            if (d3_req_valid && (d3_req_target_ack || d3_req_target_err)) begin
+                d3_req_valid  <= 1'b0;
+                d3_req_issued <= 1'b0;
+            end else if (d3_req_valid && !d3_req_issued && !d3_req_target_stall) begin
+                d3_req_issued <= 1'b1;
+            end
+
+            if (!d3_req_valid && d3_cyc && d3_stb) begin
+                d3_req_valid  <= 1'b1;
+                d3_req_issued <= 1'b0;
+                d3_req_ch_sel <= d3_ch_sel;
+                d3_req_we     <= d3_we;
+                d3_req_adr    <= d3_ctrl_adr;
+                d3_req_dat_w  <= d3_dat_w;
+                d3_req_sel    <= d3_sel;
+            end
+        end
+    end
+
+    assign d3_ch0_cyc   = d3_req_valid & ~d3_req_ch_sel;
+    assign d3_ch0_stb   = d3_ch0_cyc & ~d3_req_issued;
+    assign d3_ch0_we    = d3_req_we;
+    assign d3_ch0_adr   = d3_req_adr;
+    assign d3_ch0_dat_w = d3_req_dat_w;
+    assign d3_ch0_sel   = d3_req_sel;
+
+    assign d3_ch1_cyc   = d3_req_valid & d3_req_ch_sel;
+    assign d3_ch1_stb   = d3_ch1_cyc & ~d3_req_issued;
+    assign d3_ch1_we    = d3_req_we;
+    assign d3_ch1_adr   = d3_req_adr;
+    assign d3_ch1_dat_w = d3_req_dat_w;
+    assign d3_ch1_sel   = d3_req_sel;
+
+    assign d3_stall = d3_req_valid;
+    assign d3_ack   = d3_req_valid & d3_req_target_ack;
+    assign d3_err   = d3_req_valid & d3_req_target_err;
+    assign d3_dat_r = d3_req_target_dat_r;
+`else
+    assign d3_ch0_cyc   = d3_cyc & ~d3_ch_sel;
+    assign d3_ch0_stb   = d3_stb & ~d3_ch_sel;
+    assign d3_ch0_we    = d3_we;
+    assign d3_ch0_adr   = d3_ctrl_adr;
+    assign d3_ch0_dat_w = d3_dat_w;
+    assign d3_ch0_sel   = d3_sel;
+
+    assign d3_ch1_cyc   = d3_cyc & d3_ch_sel;
+    assign d3_ch1_stb   = d3_stb & d3_ch_sel;
+    assign d3_ch1_we    = d3_we;
+    assign d3_ch1_adr   = d3_ctrl_adr;
+    assign d3_ch1_dat_w = d3_dat_w;
+    assign d3_ch1_sel   = d3_sel;
 
     assign d3_stall = d3_ch_sel ? d3_ch1_stall : d3_ch0_stall;
     assign d3_ack   = d3_ch_sel ? d3_ch1_ack   : d3_ch0_ack;
     assign d3_err   = d3_ch_sel ? d3_ch1_err   : d3_ch0_err;
     assign d3_dat_r = d3_ch_sel ? d3_ch1_dat_r : d3_ch0_dat_r;
+`endif
 `else
+    assign d3_ch0_cyc   = d3_cyc & ~d3_ch_sel;
+    assign d3_ch0_stb   = d3_stb & ~d3_ch_sel;
+    assign d3_ch0_we    = d3_we;
+    assign d3_ch0_adr   = d3_ctrl_adr;
+    assign d3_ch0_dat_w = d3_dat_w;
+    assign d3_ch0_sel   = d3_sel;
+
     assign d3_stall = d3_ch0_stall;
     assign d3_ack   = d3_ch0_ack;
     assign d3_err   = d3_ch0_err;

@@ -107,6 +107,13 @@ module ddr3_runtime #(
     localparam integer USE_FAST_BURST_WORD =
         (WB_BURST_WORD_BITS == 4) && (NUM_BYTE_LANES == 8) &&
         (SERDES_RATIO == 8) && (WB_DATA_W == 32) && (DQ_BITS == 8);
+`ifdef DDR3_RUNTIME_RMW_INPLACE
+    localparam integer USE_RMW_INPLACE =
+        USE_BURST_WORD_OFFSET && (BURST_WRITE_RMW != 0) &&
+        (RD_SAMPLE_OFFSET_MAP == WR_SAMPLE_OFFSET_MAP);
+`else
+    localparam integer USE_RMW_INPLACE = 0;
+`endif
 
     // ---- WB address split ----
     // Default validated CH0 mode consumes one WB word per BL8 command:
@@ -234,7 +241,8 @@ module ddr3_runtime #(
         S_MPR_WAIT_CL = 5'd20,
         S_MPR_DATA  = 5'd21,
         S_RD_SELECT = 5'd22,
-        S_RD_ACK    = 5'd23;
+        S_RD_ACK    = 5'd23,
+        S_RMW_PATCH = 5'd24;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -642,7 +650,9 @@ module ddr3_runtime #(
         end
     endgenerate
     assign o_wr_data = USE_BURST_WORD_OFFSET ?
-        ((BURST_WRITE_RMW != 0) ? rmw_wr_data_next : direct_wr_data_next) :
+        ((BURST_WRITE_RMW != 0) ?
+            (USE_RMW_INPLACE ? rd_data_q : rmw_wr_data_next) :
+            direct_wr_data_next) :
         legacy_wr_data;
 
     wire rd_capture_fire = (state == S_DATA_RD) && rd_armed && i_rd_valid && !rd_seen;
@@ -780,7 +790,7 @@ module ddr3_runtime #(
                         if (saved_we && USE_BURST_WORD_OFFSET && BURST_WRITE_RMW) begin
                             if (rd_seen) begin
                                 wait_ctr <= 8'd0;
-                                state    <= S_WR;
+                                state    <= USE_RMW_INPLACE ? S_RMW_PATCH : S_WR;
                             end else begin
                                 o_wb_ack <= 1'b1;
                                 wait_ctr <= 8'd0;
@@ -818,6 +828,17 @@ module ddr3_runtime #(
                     o_wb_dat <= rd_word_q;
                     o_wb_ack <= 1'b1;
                     state    <= S_PRE;
+                end
+
+                S_RMW_PATCH: begin
+                    rd_data_q <= burst_put_word(
+                        rd_data_q,
+                        saved_burst_word_offset,
+                        saved_wdat,
+                        saved_sel
+                    );
+                    wait_ctr <= 8'd0;
+                    state    <= S_WR;
                 end
 
                 S_WR: begin
