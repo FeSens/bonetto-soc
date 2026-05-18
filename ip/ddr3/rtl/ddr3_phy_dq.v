@@ -14,7 +14,9 @@
 //
 // DQ INPUT path: per-bit IDELAYE2 (rdlvl).
 // DQS INPUT path: per-lane IDELAYE2 (rdlvl, gate-train).
-// DQ OUTPUT path: RATIO4 uses fabric ODDR; RATIO8 uses OSERDESE2.
+// DQ OUTPUT path: RATIO4 uses fabric ODDR; RATIO8 normally uses OSERDESE2.
+// `DDR3_RATIO8_ODDR_WR` keeps the RATIO8 read/capture path but forces the
+// repeated-data diagnostic write path through the legacy ODDR launcher.
 // DQS OUTPUT path: direct ODDR on clk_dq (no programmable delay).
 
 `default_nettype none
@@ -72,7 +74,12 @@ module ddr3_phy_dq #(
                 1'b0};
     /* verilator lint_on UNUSED */
 `else
-    localparam integer FULL_BL8_SERDES = (RATIO >= 8);
+    localparam integer FULL_BL8_MODE = (RATIO >= 8);
+`ifdef DDR3_RATIO8_ODDR_WR
+    localparam integer USE_DQ_OSERDES = 0;
+`else
+    localparam integer USE_DQ_OSERDES = FULL_BL8_MODE;
+`endif
 
     // Board bring-up path. The legacy RATIO=4 mode keeps one stable DQ value
     // per bit for the validated narrow image. RATIO>=8 uses hard output
@@ -115,14 +122,14 @@ module ddr3_phy_dq #(
                 wr_data_q <= i_wr_data;
                 for (j = 0; j < DQ_BITS; j = j + 1) begin
                     dq_rise_q[j] <= i_wr_data[j*RATIO + 0];
-                    dq_fall_q[j] <= FULL_BL8_SERDES ? i_wr_data[j*RATIO + 1] :
-                                                       i_wr_data[j*RATIO + 0];
+                    dq_fall_q[j] <= FULL_BL8_MODE ? i_wr_data[j*RATIO + 1] :
+                                                     i_wr_data[j*RATIO + 0];
                 end
             end
 
             if (wr_delay_fire) begin
                 dqs_seq_sr <= 6'b000001;
-                if (FULL_BL8_SERDES) begin
+                if (FULL_BL8_MODE) begin
                     for (j = 0; j < DQ_BITS; j = j + 1) begin
                         dq_rise_q[j] <= wr_data_q[j*RATIO + 0];
                         dq_fall_q[j] <= wr_data_q[j*RATIO + 1];
@@ -131,7 +138,7 @@ module ddr3_phy_dq #(
             end else begin
                 dqs_seq_sr <= {dqs_seq_sr[4:0], 1'b0};
             end
-            if (FULL_BL8_SERDES) begin
+            if (FULL_BL8_MODE) begin
                 if (dqs_seq_sr[1]) begin
                     for (j = 0; j < DQ_BITS; j = j + 1) begin
                         dq_rise_q[j] <= wr_data_q[j*RATIO + 2];
@@ -157,7 +164,7 @@ module ddr3_phy_dq #(
     genvar i;
     generate
         for (i = 0; i < DQ_BITS; i = i + 1) begin : g_dq
-            if (FULL_BL8_SERDES) begin : g_dq_oserdes
+            if (USE_DQ_OSERDES) begin : g_dq_oserdes
                 OSERDESE2 #(
                     .SERDES_MODE ("MASTER"),
                     .DATA_WIDTH  (8),
@@ -269,7 +276,7 @@ module ddr3_phy_dq #(
             wire rd_rise;
             wire rd_fall;
 
-            if (FULL_BL8_SERDES) begin : g_rd_complete_full
+            if (FULL_BL8_MODE) begin : g_rd_complete_full
                 assign rd_data_complete[i*RATIO + 0] = rd_data_dqs[i*RATIO + 0];
                 assign rd_data_complete[i*RATIO + 1] = rd_data_dqs[i*RATIO + 1];
                 assign rd_data_complete[i*RATIO + 2] = rd_data_dqs[i*RATIO + 2];
@@ -302,7 +309,7 @@ module ddr3_phy_dq #(
                 if (i_rst) begin
                     rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
                 end else if (i_rd_capture && !dqs_drive) begin
-                    if (FULL_BL8_SERDES) begin
+                    if (FULL_BL8_MODE) begin
                         case (dqs_edges_dqs[1:0])
                             2'd1: begin
                                 rd_data_dqs[i*RATIO + 0] <= rd_rise;
@@ -354,7 +361,7 @@ module ddr3_phy_dq #(
                 rd_valid_q  <= 1'b0;
                 dqs_seen_q  <= 1'b0;
             end else begin
-                if (FULL_BL8_SERDES) begin
+                if (FULL_BL8_MODE) begin
                     if (dqs_event_sys)
                         rd_data_sys <= rd_data_complete;
                 end else if (i_rd_capture || rd_capture_q || dqs_event_sys) begin
@@ -384,7 +391,7 @@ module ddr3_phy_dq #(
         if (i_rst) begin
             dqs_event_toggle <= 1'b0;
         end else if (i_rd_capture && !dqs_drive &&
-                     (!FULL_BL8_SERDES || (dqs_edges_dqs[1:0] == 2'd3))) begin
+                     (!FULL_BL8_MODE || (dqs_edges_dqs[1:0] == 2'd3))) begin
             dqs_event_toggle <= ~dqs_event_toggle;
         end
     end

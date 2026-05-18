@@ -162,6 +162,16 @@ image:
   the PLLE2 clocking path; it does not physically move DQS phase until the MMCM
   path is restored. Do not use a phase-sweep failure as evidence that global
   DQS phase is correct.
+- `make -C boards/ypcb-00338 ratio8-ch0-oddrwr-ddr800-bitstream` forces the
+  RATIO8 repeated-data diagnostic write path back through the legacy ODDR
+  launcher while keeping the RATIO8 read/sample path. Seed 2 routed and
+  programmed, but `clk_dq` estimated only 312.89 MHz, below the 400 MHz
+  DDR3-800 operating point. Direct JTAG/Wishbone validation passed the
+  deterministic, address-walking, data-bit/byte-lane, contiguous-window,
+  1024-word XOR checksum, and 128-random-address checks. Autonomous soak still
+  failed with a rising memtest error counter. This localizes the latest
+  repeated-write failure to the OSERDESE2 DQ write path or its OE/load behavior,
+  but it is not timing-clean validation evidence.
 - A wide raw-`phy_rd_data` status latch was useful for diagnosis but perturbed
   routing enough to invalidate direct comparison with the narrower diagnostic
   images. Do not treat that image as validation evidence.

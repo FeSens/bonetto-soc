@@ -55,7 +55,7 @@ NEXTPNR_ARGS ?=
 DDR3_DEFINES ?=
 DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
-.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-2ch-json full-2ch-ddr800-bitstream clean help
+.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-2ch-json full-2ch-ddr800-bitstream clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -100,6 +100,16 @@ ratio8-ch0-ddr800-bitstream:
 	  NEXTPNR_FREQ=100 \
 	  NEXTPNR_ARGS="--seed 2 --log build/ratio8_ch0_ddr800_seed2_route.log" \
 	  build/bonetto_soc_ypcb00338_ratio8_ch0_ddr800.bit
+
+ratio8-ch0-oddrwr-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ratio8_ch0_oddrwr_ddr800 \
+	  DDR3_DEFINES="-DDDR3_RATIO8_CH0 -DDDR3_RATIO8_ODDR_WR" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=39 \
+	  DDR3_ACTIVE_DQS_MAX=4 \
+	  NEXTPNR_FREQ=100 \
+	  NEXTPNR_ARGS="--seed 2 --log build/ratio8_ch0_oddrwr_ddr800_seed2_route.log" \
+	  build/bonetto_soc_ypcb00338_ratio8_ch0_oddrwr_ddr800.bit
 
 full-2ch-json:
 	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch \
@@ -239,6 +249,7 @@ help:
 	@echo "  make validate-ddr3-full-ch0  validate 29-bit full-width CH0 map"
 	@echo "  make validate-ddr3-full-2ch  validate 30-bit global DDR3 address map"
 	@echo "  make ratio8-ch0-ddr800-bitstream  route 4-lane CH0 with RATIO8 PHY"
+	@echo "  make ratio8-ch0-oddrwr-ddr800-bitstream  route RATIO8 CH0 with legacy repeated ODDR writes"
 	@echo "  make full-ch0-json   synth build-only 64-bit CH0 / BL8 image"
 	@echo "  make full-ch0-ddr800-bitstream  route seeded 64-bit CH0 DDR3-800 image"
 	@echo "  make full-2ch-json   synth build-only 2-channel 4 GiB DDR3-1600 image"
