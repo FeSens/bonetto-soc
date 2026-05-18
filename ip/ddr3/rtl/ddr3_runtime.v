@@ -217,7 +217,8 @@ module ddr3_runtime #(
         S_MRS_WAIT  = 5'd18,
         S_WR_RECOV  = 5'd19,
         S_MPR_WAIT_CL = 5'd20,
-        S_MPR_DATA  = 5'd21;
+        S_MPR_DATA  = 5'd21,
+        S_RMW_LATCH = 5'd22;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -683,9 +684,8 @@ module ddr3_runtime #(
                     if (rd_seen || (beat_ctr == READ_TIMEOUT_SYS_CYCLES - 1)) begin
                         beat_ctr <= 8'd0;
                         if (saved_we && USE_BURST_WORD_OFFSET && BURST_WRITE_RMW) begin
-                            rmw_wr_data <= rmw_wr_data_next;
                             wait_ctr <= 8'd0;
-                            state    <= S_WR;
+                            state    <= S_RMW_LATCH;
                         end else begin
                             o_wb_dat <= rd_seen ? phy_rd_word : 32'hBAD0_BAD0;
                             o_wb_ack <= 1'b1;
@@ -694,6 +694,12 @@ module ddr3_runtime #(
                     end else begin
                         beat_ctr <= beat_ctr + 1'b1;
                     end
+                end
+
+                S_RMW_LATCH: begin
+                    rmw_wr_data <= rmw_wr_data_next;
+                    wait_ctr <= 8'd0;
+                    state    <= S_WR;
                 end
 
                 S_WR: begin
