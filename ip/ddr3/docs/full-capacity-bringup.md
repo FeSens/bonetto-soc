@@ -528,6 +528,29 @@ worse than baseline at 138.47 MHz `u_blu.i_clk_50`, 123.66 MHz `clk_sys`,
 the current late-flat `clk_sys` and `clk_dq` margins, do not repeat WB request
 buffering as a standalone timing fix.
 
+An unconditional `state <= state` default assignment in `ddr3_runtime` was
+also tested and reverted. The intent was to stop the `S_IDLE` arbitration from
+inferring a long state-register CE path. `make -C ip/ddr3 sim-runtime-addr`
+passed, and the late-flatten diagnostic synthesized slightly smaller at 11,480
+cells / 2,631 estimated logic cells, but the seed-1 route regressed to 152.25
+MHz `u_blu.i_clk_50`, 120.12 MHz `clk_sys`, 833.33 MHz `clk_dq`, and 1557.63
+MHz `clk_phy_x4`. The `clk_sys` critical path moved onto a reset/SR route into
+`ddr3_runtime`, so this synthesis-style CE reshaping should not be repeated as
+a standalone timing fix.
+
+The next full-speed focus is the 1600/800/200 1:4 architecture, not more
+standalone reshaping of the current monolithic runtime FSM. LiteDRAM and
+UberDDR3 both keep the slow controller domain as a four-slot command/data
+producer: command/address/control are packed into four DDR command phases per
+controller cycle, read/write strobes are delay-line events, and refresh/bank
+timing are scheduled before the PHY serializer boundary. Our PHY already has
+the hard OSERDES pieces for command and DQ writes, but the controller still
+presents one global `ref_pending -> wb_stall -> state CE` feedback path at
+200 MHz. The next RTL step should therefore be a Bonetto-specific DFI-lite
+phase boundary: phase 0 must reproduce today's scalar command behavior with
+phases 1-3 as NOP, then later the runtime can move to per-bank/refresh command
+sources that fill those slots without changing the locked Wishbone port set.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
