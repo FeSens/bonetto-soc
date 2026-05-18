@@ -859,6 +859,22 @@ checkpoint, but the paired seed-1 hard-command JTAG-only route still failed at
 the controller-clock blocker and also loses the current `clk_dq` margin, the
 split is not worth keeping as-is.
 
+A `DDR3_REGISTERED_WAIT_DONE` experiment in `ddr3_runtime` was also tested and
+reverted. The change registered long JEDEC wait expirations before state
+transitions so shared `wait_ctr` equality logic would not feed runtime control
+enables in the same cycle. Fast checks passed with the define:
+`make -C ip/ddr3 sim-runtime-addr`,
+`make -C ip/ddr3 sim`, and
+`make -C ip/ddr3 formal DEPTH=20`. The late-flat hard-command synthesis image
+reported 4,880 hierarchy cells / 2,515 estimated logic cells, with
+`ddr3_runtime` at 1,473 cells / 848 estimated logic cells. Route timing did not
+follow: the seed-1 late-flat route regressed to 142.43 MHz `u_blu.i_clk_50`,
+111.67 MHz `clk_sys`, 755.86 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The
+final `clk_sys` critical path moved from JTAG address/channel decode through
+CH1 runtime pattern-cache/state CE routing. This loses both controller timing
+and the DDR3-1600 `clk_dq` margin, so do not repeat registered wait expiry as a
+standalone timing fix.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
