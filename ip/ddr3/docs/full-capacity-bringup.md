@@ -251,6 +251,19 @@ changed upstream logic; the post-route critical path still reported
 per-lane `i_rd_capture` fanout. Do not keep this without a lane-local capture
 control split.
 
+Moving the read-capture staging from `ddr3_phy_lane_array` into each
+`ddr3_phy_dq` byte lane was then tested and reverted. The idea was to place the
+`clk_sys` capture-enable source closer to each DQS-domain sink while preserving
+the existing one-cycle staging latency. It passed `make -C ip/ddr3
+sim-runtime-addr`, `make -C ip/ddr3 synth-phy-dq-ratio8`, and `make -C
+boards/ypcb-00338 full-2ch-serdescmd-json`; full-image synthesis was 14,254
+cells / 3,083 estimated logic cells. Seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` still failed: final estimates
+were 150.67 MHz for `u_blu.i_clk_50`, 116.58 MHz for `clk_sys`, 632.51 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. The old fanout issue simply moved
+to the new kept `rd_capture_lane_q` nets, and `clk_dq` regressed below the
+DDR3-1600 800 MHz intent, so this is not a viable full-speed path as-is.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
