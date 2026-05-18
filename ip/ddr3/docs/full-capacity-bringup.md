@@ -1373,6 +1373,16 @@ otherwise noted.
   168.35 MHz `u_blu.i_clk_50`, 116.63 MHz `clk_sys`, 826.45 MHz `clk_dq`, and
   1557.63 MHz `clk_phy_x4`; keep the request buffer, but do not reintroduce
   lane-select duplication as the next lever.
+- Route-only nextpnr option probes on the same request-buffer late-flat JSON did
+  not uncover a 200 MHz path. `--placer sa` failed placement validity checking
+  before route, so it produced no timing evidence. `--router router1` completed
+  and slightly improved the controller estimate to 171.17 MHz
+  `u_blu.i_clk_50`, 153.21 MHz `clk_sys`, 915.75 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`, but it is still far short of the 200 MHz
+  controller target. Its final `clk_sys` path moved to `jwb_grant` /
+  `bram_adr[2]` feeding CH1 runtime burst-word onehot/request logic, which
+  confirms that fixing only the current write-data leg just exposes the next
+  top-to-runtime request path.
 - Forcing the runtime to treat every Wishbone write as full-word selected under
   a temporary `DDR3_FORCE_FULL_WB_SEL` diagnostic was tested and reverted. The
   intent was to see whether the remaining request-buffer route was dominated
@@ -1387,6 +1397,14 @@ otherwise noted.
   `phy_wr_data[88]`, still with 6.3 ns routing into a PHY lane flop. This
   confirms the blocker is the broader runtime-to-PHY write-data placement path,
   not only byte-enable fanout.
+- An opt-in PHY write-data register slice, `DDR3_PHY_WR_DATA_PIPE`, was also
+  tested and reverted. It inserted a 512-bit `clk_sys` register at each
+  `ddr3_phy` boundary before the lane array; the route still showed
+  `saved_sel` fanout and regressed to 143.53 MHz `u_blu.i_clk_50`,
+  143.53 MHz `clk_sys`, 951.47 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+  This proves the standalone PHY-boundary register is not the missing pipeline
+  stage; the useful split needs to change where requests and write payloads are
+  owned, not just add flops at the existing PHY input.
 - Adding an opt-in one-entry Wishbone request pipe in `ddr3_ctrl`, ahead of
   the existing `DDR3_RUNTIME_REQ_BUFFER`, was tested and reverted. The intent
   was to mimic the frontend buffering used by pipelined DDR controllers while
