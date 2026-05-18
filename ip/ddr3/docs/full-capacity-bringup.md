@@ -671,6 +671,21 @@ removing refresh as a standalone fix: the DQ side can stay healthy, but the
 controller path still needs the scheduler/request boundary to move the live
 fabric grant and runtime state CE apart.
 
+A JTAG-only constant-grant cleanup was tested and reverted. The idea was to
+make `DDR3_JTAG_ONLY` behave like `DDR3_JTAG_DDR_ONLY` at the top arbiter,
+since memtest is tied off and the priority-grant register should not be needed.
+This removed the live `jwb_grant` mux from JTAG-only routing while preserving
+BRAM/DDR address decode. `git diff --check` passed and the normal late-flat
+JTAG-only hard-command route was rebuilt through `nix develop`. The change
+regressed seed-1 timing: final estimates were 159.72 MHz `u_blu.i_clk_50`,
+106.84 MHz `clk_sys`, 794.91 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+The `clk_sys` critical path moved wholly inside CH0 runtime state fanout,
+from `u_ddr3_ctrl.u_runtime.state[21]` through pattern-cache/procmux logic,
+with 0.4 ns logic and 9.0 ns routing. This is worse than the clean late-flat
+baseline, so the top-level arbiter should not be simplified as a standalone
+timing cleanup; the scheduler/request boundary still needs to absorb the
+fabric request and runtime state fanout together.
+
 A PHY-local phase-0 pack refactor of `DDR3_SERDES_CMD` was tested and reverted.
 The change rewired the command OSERDES inputs through explicit four-phase
 vectors while keeping phase 0 identical to today's command and phases 1-3 as
