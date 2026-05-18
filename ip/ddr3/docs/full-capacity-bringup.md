@@ -576,6 +576,22 @@ route reported 136.28 MHz `u_blu.i_clk_50`, 102.86 MHz `clk_sys`, 843.88 MHz
 runtime state, burst-offset, and saved byte-mask nets, so a registered stall
 alone is another local reshaping that should not be carried.
 
+A one-entry Wishbone front-end split in `ddr3_ctrl` was tested and reverted.
+The change moved the external WB stall decision into `ddr3_ctrl` and presented
+`ddr3_runtime` with a queued local request so runtime readiness did not feed
+directly back into the interconnect. `git diff --check`,
+`make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 sim-init sim-micron`,
+`make -C ip/ddr3 formal DEPTH=20`, and the late-flat JSON target all passed.
+The late-flatten diagnostic synthesized to 11,644 cells / 2,509 estimated
+logic cells. Route timing still regressed: placement reported 119.55 MHz
+`u_blu.i_clk_50`, 103.73 MHz `clk_sys`, 662.25 MHz `clk_dq`, and 2500.00 MHz
+`clk_phy_x4`; final route reported 133.69 MHz `u_blu.i_clk_50`, 117.65 MHz
+`clk_sys`, 877.96 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final
+`clk_sys` critical path ran through `rst_bram` into a runtime FSM CE with 7.9
+ns routing. This confirms that decoupling external WB stall alone can help DQ
+placement but does not solve the controller scheduling path. Do not keep this
+front-end split without a deeper scheduler/per-bank/timing pipeline split.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
