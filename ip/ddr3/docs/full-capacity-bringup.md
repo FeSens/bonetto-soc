@@ -348,6 +348,17 @@ route regressed to 125.08 MHz for `u_blu.i_clk_50`, 110.73 MHz for `clk_sys`,
 nets became visible in the slow-net list at 64 sinks each, so the change adds
 fanout without solving the 200 MHz controller-clock blocker.
 
+A hard-command-only PHY reset fanout split was also tested and reverted. The
+experiment kept the validated non-serialized path unchanged and inserted kept
+`LUT1` reset copies for the CK, command-shadow, command-SERDES, and lane reset
+paths under `DDR3_SERDES_CMD`. `full-2ch-serdescmd-json` synthesized to 13,572
+cells / 3,152 estimated logic cells, slightly smaller than the current
+checkpoint, but the paired seed-1 hard-command JTAG-only route still failed at
+127.26 MHz for `u_blu.i_clk_50`, 116.78 MHz for `clk_sys`, 798.72 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. Since the route does not improve
+the controller-clock blocker and also loses the current `clk_dq` margin, the
+split is not worth keeping as-is.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
