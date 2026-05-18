@@ -379,6 +379,31 @@ improves to 160.44 MHz `u_blu.i_clk_50`, 127.02 MHz `clk_sys`, 813.67 MHz
 read-capture control and into CH1 runtime wait-counter/control logic. This is
 useful route progress, not DDR3-1600 signoff.
 
+Pipelining the full-BL8 write-data bus at the PHY lane-array boundary and
+adding a one-cycle runtime `S_WR_PREP` state was kept as the next incremental
+timing checkpoint. The extra cycle lets the runtime's 512-bit RMW/direct write
+payload settle before the WRITE command, while the lane-array register removes
+the direct controller-to-lane write-data fanout. `git diff --check`,
+`make -C ip/ddr3 sim-runtime-addr`, and `make -C ip/ddr3 sim` pass. The
+`full-2ch-serdescmd-json` image reports 13,647 cells / 2,936 estimated logic
+cells, with 22 `BUFG`, 136 `CARRY4`, 2,479 `FDCE`, 5,699 `FDRE`, 128 `IDDR`,
+16 `IDELAYE2`, 178 `OSERDESE2`, 1 `IDELAYCTRL`, 1 `PLLE2_ADV`, and
+16 `RAMB36E1`. The paired seed-1
+`full-2ch-ddr1600-serdescmd-ddronly-bitstream` route still fails timing, but
+improves the DDR-only checkpoint to 148.06 MHz `u_blu.i_clk_50`, 136.13 MHz
+`clk_sys`, 885.74 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`; all DQS raw
+clocks pass the current 200 MHz nextpnr check. The old write-data fanout path
+is gone; the new `clk_sys` critical path is runtime `wait_ctr[5]`/state-control
+fanout into CE logic. This is useful route progress, not DDR3-1600 signoff.
+
+A follow-on attempt to move the long refresh wait off `wait_ctr[5]` and onto a
+small shift timer was tested and reverted. `git diff --check`,
+`make -C ip/ddr3 sim-runtime-addr`, and `make -C ip/ddr3 sim` passed, but the
+same DDR-only seed-1 route regressed to 156.62 MHz `u_blu.i_clk_50`,
+127.70 MHz `clk_sys`, 838.93 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`, with
+a reset-dominated `clk_sys` critical path. Do not repeat this as a standalone
+cleanup.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
