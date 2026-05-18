@@ -1286,6 +1286,15 @@ otherwise noted.
   logic through `d3_stb`, while `clk_dq` margin collapsed. Do not repeat this
   as a board-top queue; the next useful cut needs to be inside the DDR
   controller/scheduler boundary.
+- Removing the post-init gate from the Wishbone stall cone with an opt-in
+  diagnostic parameter was tested and reverted. Default `make -C ip/ddr3
+  sim-runtime-addr sim` still passed, but the seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_noinitstall_lateflat_seed1_route.log`
+  regressed to 159.77 MHz `u_blu.i_clk_50`, 136.33 MHz `clk_sys`, 436.87 MHz
+  `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final `clk_sys` critical path
+  moved to `saved_sel[2]` through `o_wr_data[136]` into a PHY lane flop with
+  6.9 ns routing, so the init-done appearance in the previous critical path
+  was not a safe standalone timing target.
 
 ## Validation Gates
 
