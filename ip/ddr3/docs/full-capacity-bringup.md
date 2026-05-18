@@ -1366,6 +1366,22 @@ otherwise noted.
   `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The slow-net lists were dominated by
   PHY-side word-offset/sideband fanout and lane write-data mux LUTs, so this is
   not a useful timing direction without a much deeper PHY datapath redesign.
+- A narrower PHY-local write-buffer variant was also tested and reverted. The
+  runtime emitted load/update sideband pulses after the RMW read, each
+  `ddr3_phy_dq` lane kept a local BL8 write buffer, and the controller no
+  longer drove the merged 512-bit write payload into the PHY during the WRITE
+  command. Default `make -C ip/ddr3 sim-runtime-addr` passed, and opt-in
+  `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER -DDDR3_PHY_WRITE_BUFFER_RMW" sim-runtime-addr`
+  passed after the testbench was adjusted to check the sideband contract. The
+  late-flat board synthesis also passed at 10,861 cells / 2,896 estimated logic
+  cells, but the seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_wrbuf_lateflat_seed1_route.log`
+  regressed to 142.47 MHz `u_blu.i_clk_50`, 137.48 MHz `clk_sys`,
+  896.86 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The new `clk_sys`
+  critical path moved back to CH1 init-done / request-buffer accept logic with
+  0.8 ns logic and 6.5 ns routing. This confirms that localizing only the final
+  write-payload merge is still a local minimum; the next useful change needs a
+  deeper controller/scheduler boundary split.
 
 ## Validation Gates
 
