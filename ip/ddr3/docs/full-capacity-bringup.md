@@ -126,6 +126,19 @@ points to missing/incorrect 7-series IO-clock packing for the ISERDES cut, so
 the normal full-speed bitstream targets intentionally remain on the existing
 fabric read-capture path until the hard-IO clocking is solved.
 
+`make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
+`DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
+BUFIO per active byte lane for the experimental ISERDES read clock. It
+synthesizes to 15,457 cells with 16 `BUFIO`, 128 `ISERDESE2`, 128 DQ
+`IDELAYE2`, 128 `OSERDESE2`, and an estimated 4,609 logic cells. This does not
+fix the route: `make -C boards/ypcb-00338
+full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream` fails during placement with
+`Unable to place cell 'u_ddr3_phy.u_lanes.g_lane[0].u_lane.g_read_iserdes.u_rd_iserdes_bufio',
+no Bels remaining of type 'BUFIO'`. That rules out simply dropping lane-local
+BUFIOs behind the existing global `clk_phy_x4`; the next hard-IO attempt needs
+to originate the ISERDES clock from the CMT/HPC side and likely partition it by
+7-series IO clock region.
+
 `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` is the current
 dual-channel staging gate. It uses both online CH0/CH1 DDR3 pin maps and the
 same 30-bit global address decode, but keeps the DDR3-800 timing profile.
@@ -199,8 +212,9 @@ expected differences were scalar local ports for single-bit nets such as
    for DQ writes. The `DDR3_RATIO8_ISERDES_RD` experiment proves the read path
    can synthesize as hard IO, but it does not route yet in openXC7 because the
    ISERDES high-speed clocking still needs the right 7-series IO clock network.
-   LiteDRAM/MIG-style hard-IO serialization and read capture remains the right
-   next architecture.
+   A lane-local BUFIO behind the existing global clock is not legal/placeable in
+   nextpnr; LiteDRAM/MIG-style hard-IO serialization and read capture with CMT
+   or IO-region clocking remains the right next architecture.
 6. Re-enable real write/read leveling for full-speed operation. The fixed
    DDR3-800 lane map is not sufficient evidence for DDR3-1600.
 

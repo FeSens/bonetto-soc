@@ -20,6 +20,8 @@
 // `DDR3_RATIO8_ISERDES_RD` switches RATIO8 reads to the LiteDRAM-style
 // IDELAYE2 + ISERDESE2 path clocked from the PHY high-speed clock. This avoids
 // routing DQS as a fabric clock in the full-speed build.
+// `DDR3_RATIO8_ISERDES_BUFIO_RDCLK` additionally inserts one BUFIO per byte
+// lane for the ISERDES high-speed read clock as a routing diagnostic.
 // DQS OUTPUT path: direct ODDR on clk_dq (no programmable delay).
 
 `default_nettype none
@@ -326,9 +328,19 @@ module ddr3_phy_dq #(
     generate
         if (USE_ISERDES_RD) begin : g_read_iserdes
             wire [DQ_BITS*RATIO-1:0] rd_data_iserdes;
+            wire                     rd_iserdes_clk;
             reg  [DQ_BITS*RATIO-1:0] rd_data_sys = {(DQ_BITS*RATIO){1'b0}};
             reg                      rd_capture_q = 1'b0;
             reg                      rd_valid_q = 1'b0;
+
+`ifdef DDR3_RATIO8_ISERDES_BUFIO_RDCLK
+            BUFIO u_rd_iserdes_bufio (
+                .O (rd_iserdes_clk),
+                .I (i_clk_phy_x4)
+            );
+`else
+            assign rd_iserdes_clk = i_clk_phy_x4;
+`endif
 
             for (i = 0; i < DQ_BITS; i = i + 1) begin : g_rd_iserdes_bit
                 wire       dq_in_delayed;
@@ -389,8 +401,8 @@ module ddr3_phy_dq #(
                     .BITSLIP    (1'b0),
                     .CE1        (1'b1),
                     .CE2        (1'b1),
-                    .CLK        (i_clk_phy_x4),
-                    .CLKB       (i_clk_phy_x4),
+                    .CLK        (rd_iserdes_clk),
+                    .CLKB       (rd_iserdes_clk),
                     .CLKDIV     (i_clk_sys),
                     .D          (1'b0),
                     .DDLY       (dq_in_delayed),
