@@ -755,6 +755,21 @@ that merely moving transaction-register enables off the WB accept path is not
 enough; the next structural step needs to reduce the reset/control fanout and
 scheduler state boundary together.
 
+A local runtime-reset handoff experiment in `ddr3_ctrl` was also tested and
+reverted. The change held `ddr3_runtime` in reset until init completed, then
+presented the runtime with `i_init_done=1'b1` so wide runtime logic no longer
+depended directly on the init-done input. Fast checks passed:
+`git diff --check`, `make -C ip/ddr3 sim-runtime-addr`,
+`make -C ip/ddr3 sim`, and `make -C ip/ddr3 formal DEPTH=20`. The late-flat
+hard-command synthesis image reported 11,480 cells / 2,629 estimated logic
+cells, with `ddr3_runtime` at 2,360 cells / 903 estimated logic cells. The
+seed-1 late-flat route regressed badly: final timing was 146.80 MHz
+`u_blu.i_clk_50`, 121.08 MHz `clk_sys`, 594.88 MHz `clk_dq`, and 1557.63 MHz
+`clk_phy_x4`. The final `clk_sys` critical path moved into CH1 runtime
+`wait_ctr[4]` to pattern-cache/control CE routing. This is worse than the clean
+late-flat baseline, so do not repeat local runtime reset handoff as a
+standalone timing fix.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
