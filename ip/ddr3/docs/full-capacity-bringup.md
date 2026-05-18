@@ -1225,6 +1225,17 @@ otherwise noted.
   clears the DDR3-1600 800 MHz intent. The new `clk_sys` critical path is now
   CH1 init-done/stall propagation into the JTAG Wishbone CE, so the next
   structural lever is a registered stall/accept boundary.
+- Moving the JTAG Wishbone parser back to `clk_50` and adding an opt-in
+  single-outstanding CDC bridge into `clk_sys` was tested and reverted. The
+  bridge did remove the old direct JTAG CE path, but it added 419 CDC
+  flip-flops and damaged placement enough that seed-1 route regressed badly.
+  The route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagcdc_lateflat_seed1_route.log`
+  failed at 136.15 MHz `jwb_master_clk` (the 50 MHz JTAG parser clock still
+  checked against the global 200 MHz constraint), 106.78 MHz `clk_sys`,
+  520.29 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Do not repeat this as a
+  standalone timing fix; the accept/stall cut needs to be local to the DDR3
+  scheduler/runtime path, not a top-level debug bridge.
 
 ## Validation Gates
 
