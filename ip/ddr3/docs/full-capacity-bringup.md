@@ -379,6 +379,12 @@ improves to 160.44 MHz `u_blu.i_clk_50`, 127.02 MHz `clk_sys`, 813.67 MHz
 read-capture control and into CH1 runtime wait-counter/control logic. This is
 useful route progress, not DDR3-1600 signoff.
 
+Repeating the same hard-command JTAG-only diagnostic with seed 2 was worse:
+final route timing was 136.84 MHz `u_blu.i_clk_50`, 111.53 MHz `clk_sys`,
+761.61 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Treat seed 1 as the current
+best fixed-seed baseline unless a later source change invalidates this
+comparison.
+
 Pipelining the full-BL8 write-data bus at the PHY lane-array boundary plus a
 one-cycle runtime `S_WR_PREP` state was tested and reverted. Fast checks still
 passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
