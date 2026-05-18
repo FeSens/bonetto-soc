@@ -786,6 +786,23 @@ critical path moved to `rst_bram` through runtime reset/SR routing with
 8.1 ns route delay. Do not repeat split accept-CE duplication as a standalone
 timing fix.
 
+A two-process next-state rewrite of `ddr3_runtime` was tested and reverted.
+The change moved the large runtime case body into a combinational next-state
+block and kept a smaller clocked register-update block. Fast checks passed:
+`git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 sim`,
+and `make -C ip/ddr3 formal DEPTH=20`. Synthesis looked attractive: the
+late-flat hard-command image reported 4,878 hierarchy cells / 2,454 estimated
+logic cells, with `ddr3_runtime` at 1,472 cells / 825 estimated logic cells.
+Route timing did not follow. Seed-1 late-flat placement was already worse at
+116.82 MHz `u_blu.i_clk_50`, 87.30 MHz `clk_sys`, 625.00 MHz `clk_dq`, and
+2500.00 MHz `clk_phy_x4`; final route failed at 150.40 MHz `u_blu.i_clk_50`,
+119.13 MHz `clk_sys`, 875.66 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The
+slow-net list moved to broad `*_next` runtime nets such as `rd_armed_next`,
+pattern-cache logic, and `saved_burst_word_offset`. This is lower synthesis
+area but worse 200 MHz controller timing than the clean late-flat baseline, so
+do not repeat a generic two-process FSM rewrite without a real scheduler
+partition.
+
 An opt-in `DDR3_CH1_LOCAL_CLOCKS` diagnostic was tested and reverted. It added
 a single-outstanding Wishbone CDC bridge and ran the CH1 controller/calibration
 logic from a second local PHY PLL instead of sharing CH0's `clk_sys`,
