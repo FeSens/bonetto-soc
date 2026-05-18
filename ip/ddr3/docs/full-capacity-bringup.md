@@ -385,6 +385,25 @@ final route timing was 136.84 MHz `u_blu.i_clk_50`, 111.53 MHz `clk_sys`,
 best fixed-seed baseline unless a later source change invalidates this
 comparison.
 
+A follow-on experiment made the full-BL8 runtime emit a one-cycle
+read-capture request and moved the read-capture window stretcher into
+`ddr3_phy_lane_array` for RATIO8 builds. The intent was to keep the full-rate
+capture control local to the PHY and remove the runtime's long level-style
+`i_rd_capture` fanout. Fast checks passed: `git diff --check`,
+`make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 synth-phy-dq-ratio8`,
+`make -C ip/ddr3 sim-init`, `make -C ip/ddr3 sim-micron`, and
+`make -C ip/ddr3 formal DEPTH=20`. The late-flat hard-command synthesis target
+reported 11,562 cells / 2,641 estimated logic cells. The paired seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream` route still failed
+and regressed the controller clock: placement was 110.93 MHz
+`u_blu.i_clk_50`, 73.91 MHz `clk_sys`, 662.25 MHz `clk_dq`, and 2500.00 MHz
+`clk_phy_x4`; final timing was 140.31 MHz `u_blu.i_clk_50`, 113.20 MHz
+`clk_sys`, 969.93 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final
+`clk_sys` critical path returned to `rst_bram` into a runtime register set/reset
+pin with 8.4 ns routing, while the slow-net list still included runtime state
+and lane-local capture logic. The DQ margin was good, but the 200 MHz
+controller target moved backward, so the RTL was reverted.
+
 Pipelining the full-BL8 write-data bus at the PHY lane-array boundary plus a
 one-cycle runtime `S_WR_PREP` state was tested and reverted. Fast checks still
 passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
