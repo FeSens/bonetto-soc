@@ -908,6 +908,32 @@ both controllers. Do not repeat this as a simple width-adapter diagnostic; a
 future native-burst direction needs a real registered bridge/FIFO or cacheline
 boundary instead of fanning a 32-bit JTAG word across the full PHY payload.
 
+A full-width CH0-only DDR3-1600 hard-command isolation route was also run to
+separate per-channel timing from dual-channel congestion. The seed-1
+`bonetto_soc_ypcb00338_full_ch0_ddr1600_serdescmd_jtagonly` image used the
+online CH0 pin map, `DDR3_FULL_CH0`, `DDR3_RATE_1600`, `DDR3_JTAG_ONLY`,
+`DDR3_SERDES_CMD`, `-abc9`, and the late flatten pass. Route still failed at
+183.35 MHz `u_blu.i_clk_50`, 154.77 MHz `clk_sys`, 783.09 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. This shows dual-channel duplication and congestion
+cost roughly 27 MHz of `clk_sys` versus the current full-2ch hard-command
+checkpoint, but one full-width channel still misses both the 200 MHz controller
+target and the DDR3-1600 DQ target. The next useful work is therefore not a
+pure two-channel floorplan tweak; the per-channel runtime/PHY-control boundary
+also needs to be shortened.
+
+A broader `DDR3_DISABLE_RUNTIME_MPR_MRS` diagnostic that pruned both runtime
+MPR and MRS pending latches was tested and reverted. Default and opt-in
+`make -C ip/ddr3 sim-runtime-addr` checks passed. The clean late-flat JSON
+image reported 4,874 hierarchy cells / 2,452 estimated logic cells, while the
+opt-in no-MPR/MRS JSON image reported 4,846 hierarchy cells / 2,504 estimated
+logic cells, so the small cell-count drop did not translate into lower LUT
+pressure. Seed-1 late-flat route regressed badly: final timing was
+149.68 MHz `u_blu.i_clk_50`, 112.16 MHz `clk_sys`, 667.56 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. The `clk_sys` critical path was top-level JTAG
+grant/address decode into CH1 runtime `burst_byte_mask` logic, with 1.0 ns
+logic and 7.9 ns routing. This confirms calibration-latch pruning is not a
+standalone timing fix for the 1:4 DDR3-1600 target.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
