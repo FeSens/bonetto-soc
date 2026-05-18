@@ -587,6 +587,13 @@ module ddr3_runtime #(
         ((BURST_WRITE_RMW != 0) ? rmw_wr_data_next : direct_wr_data_next) :
         legacy_wr_data;
 
+    wire rd_capture_fire = (state == S_DATA_RD) && rd_armed && i_rd_valid && !rd_seen;
+
+    always @(posedge i_clk_phy) begin
+        if (rd_capture_fire)
+            rd_data_q <= i_rd_data;
+    end
+
     // Default mode acks each WB write/read after one BL8 command. Offset mode
     // first reads the whole BL8 payload for writes, merges the selected WB
     // bytes into the requested word offset, then writes the full burst back.
@@ -605,7 +612,6 @@ module ddr3_runtime #(
             saved_burst_word_offset <= {WB_BURST_WORD_W{1'b0}};
             saved_burst_word_onehot <= 16'd1;
             saved_sel   <= {WB_BYTES{1'b0}};
-            rd_data_q   <= {PHY_DATA_W{1'b0}};
             rd_sample_q <= 64'd0;
             rd_word_q   <= {WB_DATA_W{1'b0}};
             rd_seen     <= 1'b0;
@@ -681,7 +687,6 @@ module ddr3_runtime #(
                     if (wait_ctr == CL_SYS - 2) begin
                         wait_ctr <= 8'd0;
                         beat_ctr <= 8'd0;
-                        rd_data_q <= {PHY_DATA_W{1'b0}};
                         rd_seen   <= 1'b0;
                         rd_armed  <= 1'b0;
                         state    <= S_DATA_RD;
@@ -693,16 +698,21 @@ module ddr3_runtime #(
                 S_DATA_RD: begin
                     if (!i_rd_valid)
                         rd_armed <= 1'b1;
-                    if (rd_armed && i_rd_valid && !rd_seen) begin
-                        rd_data_q <= i_rd_data;
+                    if (rd_capture_fire) begin
                         rd_seen   <= 1'b1;
                     end
 
                     if (rd_seen || (beat_ctr == READ_TIMEOUT_SYS_CYCLES - 1)) begin
                         beat_ctr <= 8'd0;
                         if (saved_we && USE_BURST_WORD_OFFSET && BURST_WRITE_RMW) begin
-                            wait_ctr <= 8'd0;
-                            state    <= S_WR;
+                            if (rd_seen) begin
+                                wait_ctr <= 8'd0;
+                                state    <= S_WR;
+                            end else begin
+                                o_wb_ack <= 1'b1;
+                                wait_ctr <= 8'd0;
+                                state    <= S_PRE;
+                            end
                         end else begin
                             if (USE_FAST_BURST_WORD) begin
                                 rd_sample_q <= burst_get_sample64(

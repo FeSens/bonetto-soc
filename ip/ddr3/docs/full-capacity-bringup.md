@@ -1185,6 +1185,21 @@ otherwise noted.
   The new top `clk_sys` path is CH1 runtime wait-counter/state-enable logic,
   and the slow-net list is dominated by runtime state and saved BL8 select
   fanout rather than the old byte-mask accept path.
+- Splitting the captured BL8 read buffer into its own narrow-enable always
+  block, removing the reset/clear on that 512-bit data register, and refusing
+  to launch an RMW write after a read-timeout miss passed `git diff --check`,
+  `make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 sim`, and the late-flat
+  JSON synthesis gate. Synthesis reported 3,736 total cells / 2,388 estimated
+  LCs, with `ddr3_runtime` at 901 cells / 825 estimated LCs. The seed-1 route
+  log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_lateflat_rdcapfire_seed1_route.log`
+  still failed timing, but moved `clk_sys` forward to 136.20 MHz and restored
+  high-speed margin to 970.87 MHz `clk_dq`; final route timing was 146.61 MHz
+  `u_blu.i_clk_50`, 136.20 MHz `clk_sys`, 970.87 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`. The remaining slow nets are now the global
+  `rd_capture_fire` enable at 513 sinks per channel plus `rst_bram` and saved
+  word/select fanout, so the next useful experiment is localizing or
+  partitioning those enables rather than adding more data muxing.
 
 ## Validation Gates
 
