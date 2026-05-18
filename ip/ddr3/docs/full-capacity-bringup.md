@@ -875,6 +875,18 @@ CH1 runtime pattern-cache/state CE routing. This loses both controller timing
 and the DDR3-1600 `clk_dq` margin, so do not repeat registered wait expiry as a
 standalone timing fix.
 
+A `DDR3_JTAG_DDR_ONLY_PIPELINED` top-level diagnostic was also tested and
+reverted. The change added a one-entry request stage between JTAG/Wishbone and
+the DDR3-only fabric bus, keeping the default no-define late-flat image
+unchanged. The opt-in late-flat JSON image synthesized to 4,876 hierarchy cells
+/ 2,517 estimated logic cells, but route timing moved backward: the seed-1
+late-flat route ended at 143.76 MHz `u_blu.i_clk_50`, 104.62 MHz `clk_sys`,
+794.28 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final `clk_sys`
+critical path became top-level JTAG grant/address decode into CH1 runtime
+burst-byte-mask/pattern logic, with 1.0 ns logic and 8.6 ns routing. This loses
+controller-clock timing and drops below the DDR3-1600 `clk_dq` target, so do
+not repeat JTAG-only request pipelining as a standalone timing fix.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
