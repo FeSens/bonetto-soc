@@ -402,6 +402,16 @@ same DDR-only seed-1 route regressed to 156.62 MHz `u_blu.i_clk_50`,
 a reset-dominated `clk_sys` critical path. Do not repeat this as a standalone
 cleanup.
 
+A read-side selector split that duplicated `saved_burst_word_offset[3:1]` into
+per-lane sample selectors was tested and reverted. `git diff --check`,
+`make -C ip/ddr3 sim-runtime-addr`, and `make -C ip/ddr3 sim` passed, and
+`full-2ch-serdescmd-json` reported 12,632 cells / 2,910 estimated logic cells.
+The normal seed-1 `full-2ch-ddr1600-serdescmd-jtagonly-bitstream` diagnostic
+regressed to 154.08 MHz `u_blu.i_clk_50`, 116.66 MHz `clk_sys`, 761.03 MHz
+`clk_dq`, and 1557.63 MHz `clk_phy_x4`. The duplicated selector costs little
+area but worsens both controller timing and high-speed DQ margin, so do not
+repeat it as a standalone offset-fanout cleanup.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
