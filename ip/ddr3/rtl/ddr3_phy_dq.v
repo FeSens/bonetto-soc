@@ -308,12 +308,20 @@ module ddr3_phy_dq #(
         end
     end
 
+    always @(posedge dqs_in_raw or posedge i_rst or negedge i_rd_capture) begin
+        if (i_rst) begin
+            dqs_edges_dqs <= 8'd0;
+        end else if (!i_rd_capture) begin
+            dqs_edges_dqs <= 8'd0;
+        end else if (!dqs_drive) begin
+            dqs_edges_dqs <= dqs_edges_dqs + 8'd1;
+        end
+    end
+
     always @(posedge dqs_in_raw or posedge i_rst) begin
         if (i_rst) begin
-            dqs_edges_dqs    <= 8'd0;
             dqs_event_toggle <= 1'b0;
         end else if (i_rd_capture && !dqs_drive) begin
-            dqs_edges_dqs    <= dqs_edges_dqs + 8'd1;
             dqs_event_toggle <= ~dqs_event_toggle;
         end
     end

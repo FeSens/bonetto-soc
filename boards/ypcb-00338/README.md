@@ -36,11 +36,17 @@ part of the current CH0-only `XDC_FILES` list.
 Build-only full-width gates are available for the next bring-up stages:
 
 ```sh
+make -C boards/ypcb-00338 ratio8-ch0-ddr800-bitstream
 make -C boards/ypcb-00338 full-ch0-json
 make -C boards/ypcb-00338 full-ch0-ddr800-bitstream
 make -C boards/ypcb-00338 full-2ch-json
 make -C boards/ypcb-00338 full-2ch-ddr800-bitstream
 ```
+
+The `ratio8-ch0-ddr800-bitstream` diagnostic target keeps the validated four
+physical byte lanes and 25-bit CH0 address map, but switches the PHY to the
+RATIO8 BL8 sequencer. It isolates the BL8 PHY path from the full-width lane map
+and read-modify-write burst offset path.
 
 The dual-channel target uses the online CH0 and CH1 memory pin maps and selects
 the DDR3-1600 timing/clocking profile. It is synthesis evidence only, not a

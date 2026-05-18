@@ -114,6 +114,14 @@ module top (
     localparam integer DDR3_SERDES_RATIO = 8;
     localparam integer DDR3_WB_BURST_WORD_BITS = 4;
     localparam integer DDR3_MEMTEST_DIRECT_ADDR = 0;
+`elsif DDR3_RATIO8_CH0
+    // Diagnostic isolation mode: keep the validated 4-lane CH0 slice and
+    // 25-bit address map, but exercise the RATIO=8 BL8 PHY sequencer.
+    localparam integer DDR3_MEMTEST_ADDR_W = 25;
+    localparam integer DDR3_ACTIVE_BYTE_LANES = 4;
+    localparam integer DDR3_SERDES_RATIO = 8;
+    localparam integer DDR3_WB_BURST_WORD_BITS = 0;
+    localparam integer DDR3_MEMTEST_DIRECT_ADDR = 0;
 `else
     localparam integer DDR3_MEMTEST_ADDR_W = 25;
     localparam integer DDR3_ACTIVE_BYTE_LANES = 4;
