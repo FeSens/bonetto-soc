@@ -328,6 +328,17 @@ the seed-1 hard-command JTAG-only route still fails at 145.22 MHz for
 signoff fix; the next cut still needs to reduce `state[21]`, burst-offset,
 lane `i_rd_capture`, and lane-local write-enable fanout.
 
+A hard-command-only `DDR3_DISABLE_MPR_RUNTIME` diagnostic that pruned the
+runtime MPR read states was tested and reverted. Default
+`make -C ip/ddr3 sim-runtime-addr` still passed, and the pruned
+`full-2ch-serdescmd-json` image synthesized to 13,481 cells / 3,185 estimated
+logic cells. The seed-1 hard-command JTAG-only route still failed at
+142.35 MHz for `u_blu.i_clk_50`, 119.83 MHz for `clk_sys`, 890.47 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. The small timing gain is not worth
+the diagnostic-only build split and higher LUT pressure; the slow-net list
+moved to reset/VCC/runtime state, burst-offset, lane `i_rd_capture`, and
+lane-local write strobes.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
