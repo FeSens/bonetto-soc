@@ -433,6 +433,24 @@ module top (
         .o_phase_inc     (jwb_phase_inc)
     );
 
+`ifdef DDR3_JTAG_DDR_ONLY
+    wire jwb_grant = 1'b1;
+
+    assign m_cyc   = jwb_cyc;
+    assign m_stb   = jwb_stb;
+    assign m_we    = jwb_we;
+    assign m_adr   = {{(FABRIC_ADDR_W-15){1'b0}}, jwb_adr};
+    assign m_dat_w = jwb_dat_w;
+    assign m_sel   = jwb_sel;
+
+    assign mt_stall = 1'b1;
+    assign mt_ack   = 1'b0;
+    assign mt_err   = 1'b0;
+
+    assign jwb_stall = m_stall;
+    assign jwb_ack   = m_ack;
+    assign jwb_err   = m_err;
+`else
     // Priority-grant arbiter. jwb_grant flips when jwb wants the bus and
     // memtest is idle; it stays asserted until jwb drops cyc, giving jwb
     // a clean WB cycle without ever interrupting an in-flight mt cycle.
@@ -460,6 +478,7 @@ module top (
     assign jwb_stall = jwb_grant ? m_stall : 1'b1;
     assign jwb_ack   = jwb_grant ? m_ack   : 1'b0;
     assign jwb_err   = jwb_grant ? m_err   : 1'b0;
+`endif
 
     wire        bram_cyc, bram_stb, bram_we;
     wire [FABRIC_ADDR_W-1:0] bram_adr;
@@ -475,6 +494,30 @@ module top (
     wire        d3_stall, d3_ack, d3_err;
     wire [31:0] d3_dat_r;
 `ifdef DDR3_FULL_2CH
+`ifdef DDR3_JTAG_DDR_ONLY
+    wire        d3_ch_sel = jwb_addr_hi_echo[15];
+    wire [FABRIC_ADDR_W-1:0] d3_ctrl_adr =
+        {{(FABRIC_ADDR_W-29){1'b0}}, jwb_addr_hi_echo[14:0], m_adr[JWB_DDR3_LOCAL_W-1:0]};
+
+    assign bram_cyc   = 1'b0;
+    assign bram_stb   = 1'b0;
+    assign bram_we    = 1'b0;
+    assign bram_adr   = {FABRIC_ADDR_W{1'b0}};
+    assign bram_dat_w = 32'd0;
+    assign bram_sel   = 4'h0;
+
+    assign d3_cyc   = m_cyc;
+    assign d3_stb   = m_stb;
+    assign d3_we    = m_we;
+    assign d3_adr   = {jwb_addr_hi_echo, m_adr[JWB_DDR3_LOCAL_W-1:0]};
+    assign d3_dat_w = m_dat_w;
+    assign d3_sel   = m_sel;
+
+    assign m_stall = d3_stall;
+    assign m_ack   = d3_ack;
+    assign m_err   = d3_err;
+    assign m_dat_r = d3_dat_r;
+`else
     wire        full2ch_d3_select = jwb_grant ? m_adr[14] : mtest_target;
     wire [FABRIC_ADDR_W-1:0] d3_global_adr = jwb_grant ?
         {jwb_addr_hi_echo, m_adr[JWB_DDR3_LOCAL_W-1:0]} :
@@ -501,6 +544,7 @@ module top (
     assign m_ack   = full2ch_d3_select ? d3_ack   : bram_ack;
     assign m_err   = full2ch_d3_select ? d3_err   : bram_err;
     assign m_dat_r = full2ch_d3_select ? d3_dat_r : bram_dat_r;
+`endif
 `else
     wire [FABRIC_ADDR_W-1:0] d3_ctrl_adr = (jwb_grant && m_adr[14]) ?
         {jwb_addr_hi_echo, d3_adr[JWB_DDR3_LOCAL_W-1:0]} :
@@ -549,6 +593,12 @@ module top (
     );
 `endif
 
+`ifdef DDR3_JTAG_DDR_ONLY
+    assign bram_stall = 1'b1;
+    assign bram_ack   = 1'b0;
+    assign bram_dat_r = 32'd0;
+    assign bram_err   = 1'b0;
+`else
     wb_memory #(.WB_DATA_W(32), .WB_ADDR_W(14)) mem (
         .i_clk      (clk_sys),
         .i_rst      (rst_sys),
@@ -563,6 +613,7 @@ module top (
         .o_wb_dat   (bram_dat_r),
         .o_wb_err   (bram_err)
     );
+`endif
 
     // =================================================================
     // DDR3 stack on clk_sys
