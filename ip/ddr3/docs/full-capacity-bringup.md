@@ -141,6 +141,23 @@ hard-serialization is syntactically viable and reduces high-speed fabric
 pressure, but it is not enough without a legal 7-series IO-clock partition for
 the ISERDES/DQS side and further `clk_sys` cleanup.
 
+`make -C boards/ypcb-00338 full-2ch-serdescmd-json` is the matching
+command/address-only diagnostic. It defines `DDR3_SERDES_CMD` without the
+experimental ISERDES read-capture path, so it keeps the default DQS-clocked
+IDDR read path and isolates the value of hard-serializing the command/control
+pins. It synthesizes to 16,731 cells with 22 `BUFG`, 178 `OSERDESE2`, 128
+`IDDR`, 16 `IDELAYE2`, no `ISERDESE2`, 16 `RAMB36E1`, and an estimated 3,890
+logic cells. The paired seed-1 JTAG-only route target,
+`make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-bitstream`,
+routes to completion but still fails timing: final nextpnr estimates are
+137.61 MHz for `u_blu.i_clk_50`, 96.62 MHz for `clk_sys`, 521.10 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. The DQS raw clocks all pass the
+current 200 MHz nextpnr check, with final estimates from 357.14 MHz to
+638.16 MHz, but `clk_dq` remains below the 800 MHz DDR3-1600 intent. Compared
+with the non-serialized JTAG-only RMW target, this improves the final `clk_dq`
+estimate from 409.00 MHz to 521.10 MHz and avoids the ISERDES overuse plateau;
+it is still route-failure evidence, not a hardware-signoff bitstream.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
@@ -296,6 +313,8 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | Dual-channel DDR3-800 staging route | `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` passes with seed 1 |
 | Dual-channel DDR3-1600 target route | `make -C boards/ypcb-00338 full-2ch-ddr1600-bitstream` currently fails timing with seed 1 |
 | Dual-channel DDR3-1600 JTAG-only route | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagonly-bitstream` currently fails timing with seed 1 while preserving RMW |
+| Dual-channel DDR3-1600 hard-command diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-bitstream` routes to completion but fails timing with seed 1 |
+| Dual-channel DDR3-1600 hard-command/ISERDES diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream` still hits the ISERDES overuse plateau |
 | Dual-channel DDR3-1600 direct-write diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagdirect-bitstream` isolates the old no-RMW write path |
 | CH0 64-bit DDR3-800 | currently fails direct hardware validation at address zero |
 | CH1 64-bit DDR3-800 | same checks on the second channel |
