@@ -219,8 +219,7 @@ module ddr3_runtime #(
         S_MPR_WAIT_CL = 5'd20,
         S_MPR_DATA  = 5'd21,
         S_RD_SELECT = 5'd22,
-        S_RD_ACK    = 5'd23,
-        S_WR_PREP   = 5'd24;
+        S_RD_ACK    = 5'd23;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -682,9 +681,9 @@ module ddr3_runtime #(
                     if (wait_ctr == TRCD_WAIT) begin
                         wait_ctr <= 8'd0;
                         if (saved_we && USE_BURST_WORD_OFFSET && !BURST_WRITE_RMW) begin
-                            state       <= S_WR_PREP;
+                            state       <= S_WR;
                         end else begin
-                            state <= (saved_we && !USE_BURST_WORD_OFFSET) ? S_WR_PREP : S_RD;
+                            state <= (saved_we && !USE_BURST_WORD_OFFSET) ? S_WR : S_RD;
                         end
                     end else begin
                         wait_ctr <= wait_ctr + 1'b1;
@@ -725,7 +724,7 @@ module ddr3_runtime #(
                         beat_ctr <= 8'd0;
                         if (saved_we && USE_BURST_WORD_OFFSET && BURST_WRITE_RMW) begin
                             wait_ctr <= 8'd0;
-                            state    <= S_WR_PREP;
+                            state    <= S_WR;
                         end else begin
                             if (USE_FAST_BURST_WORD) begin
                                 rd_sample_q <= burst_get_sample64(
@@ -758,10 +757,6 @@ module ddr3_runtime #(
                     o_wb_dat <= rd_word_q;
                     o_wb_ack <= 1'b1;
                     state    <= S_PRE;
-                end
-
-                S_WR_PREP: begin
-                    state <= S_WR;
                 end
 
                 S_WR: begin

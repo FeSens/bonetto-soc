@@ -102,11 +102,6 @@ module ddr3_phy_lane_array #(
 
     wire [NUM_BYTE_LANES-1:0] wr_en_lane;
     wire [NUM_BYTE_LANES-1:0] wr_dqs_en_lane;
-    reg [NUM_BYTE_LANES*DQ_BITS*RATIO-1:0] wr_data_pipe_q;
-
-    always @(posedge i_clk_sys) begin
-        wr_data_pipe_q <= i_wr_data;
-    end
 
     genvar wv;
     generate
@@ -142,7 +137,7 @@ module ddr3_phy_lane_array #(
                 .i_rst               (i_rst),
 
                 .i_wr_en             (wr_en_lane[bl]),
-                .i_wr_data           (wr_data_pipe_q[bl*DQ_BITS*RATIO +: DQ_BITS*RATIO]),
+                .i_wr_data           (i_wr_data[bl*DQ_BITS*RATIO +: DQ_BITS*RATIO]),
                 .i_wr_dqs_en         (wr_dqs_en_lane[bl]),
                 .i_rd_capture        (rd_capture_lane[bl]),
 
