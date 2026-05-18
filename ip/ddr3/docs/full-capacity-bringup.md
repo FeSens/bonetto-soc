@@ -44,6 +44,10 @@ clock, which is a DDR3-1066-class reference rather than the 800 MHz CK /
 1600 MT/s target. The pin and geometry data are still useful; the full-speed
 PLL/MMCM, timing, and hardware validation need to be proven in this repo.
 
+When changing DDR3 pin maps or lane constraints, re-fetch the online UCF/MIG
+references first and treat them as authoritative. Do not infer new pin mappings
+from local XDC files alone.
+
 ## Current Validated State
 
 The hardware-proven image is intentionally narrower:
@@ -147,6 +151,17 @@ image:
   stale `0x55`.
 - A constant lane sample map of `16'h0777` changed behavior but still failed:
   bytes 1-2 tracked, bytes 0 and 3 read back as stale `0x55`.
+- With the wide debug status path gated back off, seed 2 routes at 123.87 MHz
+  `clk_sys`, 580.38 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`, but direct
+  writes still fail. Bytes 0, 1, and 3 track the write, while logical byte 2
+  reads the autonomous-pattern value `0xA5 ^ addr[7:0]`; for example,
+  address `0x1234`, write `0x11111111`, read `0x11911111`.
+- A host-driven logical lane-2 DQS-input IDELAY sweep across taps 0-31 found no
+  passing tap in the current RATIO8 image.
+- `tools/phase_sweep.py` currently increments only the visible phase counter in
+  the PLLE2 clocking path; it does not physically move DQS phase until the MMCM
+  path is restored. Do not use a phase-sweep failure as evidence that global
+  DQS phase is correct.
 - A wide raw-`phy_rd_data` status latch was useful for diagnosis but perturbed
   routing enough to invalidate direct comparison with the narrower diagnostic
   images. Do not treat that image as validation evidence.
