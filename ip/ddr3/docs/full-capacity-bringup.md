@@ -1295,6 +1295,19 @@ otherwise noted.
   moved to `saved_sel[2]` through `o_wr_data[136]` into a PHY lane flop with
   6.9 ns routing, so the init-done appearance in the previous critical path
   was not a safe standalone timing target.
+- Duplicating the saved Wishbone byte enables into lane-local select flops was
+  tested and reverted. The intent was to reduce the `saved_sel` fanout exposed
+  by the no-init-stall diagnostic without reintroducing a full-width byte mask.
+  Default `make -C ip/ddr3 sim-runtime-addr sim` passed, but the seed-1 route
+  log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_lanesel_lateflat_seed1_route.log`
+  reported 182.92 MHz `u_blu.i_clk_50`, 137.23 MHz `clk_sys`, 972.76 MHz
+  `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The DQ margin improved, but the
+  controller clock regressed below the 143.97 MHz late-flat baseline. The
+  final `clk_sys` critical path was still JTAG/Wishbone grant/strobe into CH1
+  runtime CE, with 1.4 ns logic and 5.9 ns routing. Do not repeat this as a
+  standalone byte-enable fix; any write-data fanout work needs to be paired
+  with a scheduler/runtime command boundary split.
 
 ## Validation Gates
 
