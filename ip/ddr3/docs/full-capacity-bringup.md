@@ -732,6 +732,29 @@ fell back to `rst_bram` through runtime FSM pattern-cache CE with 7.1 ns
 routing. The request decode stage is conceptually correct for a larger
 scheduler, but it should not be carried as a standalone timing fix.
 
+An idle-prefetch transaction-register experiment in `ddr3_runtime` was tested
+and reverted. The change continuously preloaded the visible WB address, data,
+select, burst offset, one-hot, and byte-mask fields while the scheduler was
+idle, then let the accept branch only start ACT. This removed the clean
+baseline's `ref_pending -> rt_wb_stall -> runtime CE` critical path, but it
+only moved the route bottleneck. The resettable-preload variant passed
+`git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 sim`,
+`make -C ip/ddr3 sim-init sim-micron`, and `make -C ip/ddr3 formal DEPTH=20`.
+The late-flat JSON target reported 11,496 cells / 2,638 estimated logic cells,
+and the seed-1 late-flat route regressed to 163.03 MHz `u_blu.i_clk_50`,
+122.37 MHz `clk_sys`, 684.46 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`, with
+the final `clk_sys` path dominated by reset into a runtime SR input. A
+resetless-preload follow-up also passed `git diff --check`, `make -C ip/ddr3
+sim-runtime-addr`, `make -C ip/ddr3 sim`, and `make -C ip/ddr3 formal
+DEPTH=20`, and it shrank synthesis to 11,337 cells / 2,543 estimated logic
+cells with `ddr3_runtime` at 2,290 cells / 858 estimated logic cells. Route
+still regressed versus the clean late-flat baseline: 163.40 MHz
+`u_blu.i_clk_50`, 128.53 MHz `clk_sys`, 747.94 MHz `clk_dq`, and 1557.63 MHz
+`clk_phy_x4`, again with a reset-dominated runtime SR path. This confirms
+that merely moving transaction-register enables off the WB accept path is not
+enough; the next structural step needs to reduce the reset/control fanout and
+scheduler state boundary together.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
