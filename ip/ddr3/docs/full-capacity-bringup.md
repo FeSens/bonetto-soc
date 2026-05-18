@@ -430,6 +430,18 @@ cells. Although the current failed route can show `ctrl_init_done` in a
 critical `clk_sys` SR path, moving that gating into local hold logic explodes
 LUT pressure and is not a useful standalone fix.
 
+Changing the shared runtime wait counter from count-up/equality-to-constant to
+load-and-count-down was also tested and reverted. `git diff --check`, `make -C
+ip/ddr3 sim-runtime-addr`, and `make -C ip/ddr3 sim` passed, and
+`full-2ch-serdescmd-json` improved slightly to 12,613 cells / 2,911 estimated
+logic cells. The paired seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route still regressed to
+151.42 MHz `u_blu.i_clk_50`, 121.14 MHz `clk_sys`, 895.26 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. The higher DQ margin and small area reduction do not
+compensate for the lower controller and 50 MHz clock timing, so keep the
+current count-up wait FSM until the runtime control path is restructured more
+deeply.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
