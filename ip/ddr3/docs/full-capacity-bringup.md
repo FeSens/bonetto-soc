@@ -275,6 +275,17 @@ Forcing `ddr3_runtime.state` to binary FSM encoding with
 state fanout. Keep the default Yosys encoding unless a broader controller
 pipeline split accompanies it.
 
+An experimental `DDR3_RATIO8_CONTINUOUS_DQS_CAPTURE` define was tried and
+reverted in the DQS-clocked RATIO8 read path. It removed the full-rate
+`i_rd_capture` fanout from the per-bit IDDR/data-sampler enables while leaving
+the ratio-4 default untouched. `make -C ip/ddr3 synth-phy-dq-ratio8` passed and
+the full hard-command image synthesized to 14,235 cells / 3,090 estimated logic
+cells. The seed-1 JTAG-only route still failed: final estimates were 138.45 MHz
+for `u_blu.i_clk_50`, 112.55 MHz for `clk_sys`, 722.02 MHz for `clk_dq`, and
+1557.63 MHz for `clk_phy_x4`. The main `clk_sys` critical path moved to
+`ddr3_runtime.state[22]`, but the `clk_dq` regression below the DDR3-1600
+800 MHz intent makes this a diagnostic only.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
