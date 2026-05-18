@@ -215,7 +215,9 @@ module ddr3_runtime #(
         S_MPR_WAIT  = 5'd16,
         S_MRS       = 5'd17,
         S_MRS_WAIT  = 5'd18,
-        S_WR_RECOV  = 5'd19;
+        S_WR_RECOV  = 5'd19,
+        S_MPR_WAIT_CL = 5'd20,
+        S_MPR_DATA  = 5'd21;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -237,7 +239,10 @@ module ddr3_runtime #(
         end
     end
 
-    assign o_mpr_busy = mpr_pending || (state == S_MPR_RD) || (state == S_MPR_WAIT);
+    assign o_mpr_busy = mpr_pending || (state == S_MPR_RD) ||
+                        (state == S_MPR_WAIT_CL) ||
+                        (state == S_MPR_DATA) ||
+                        (state == S_MPR_WAIT);
 
     // ---- MRS-rewrite latch (single-shot; cleared when FSM emits MRS) ----
     reg                       mrs_pending;
@@ -281,7 +286,9 @@ module ddr3_runtime #(
     assign o_wb_err   = 1'b0;
     assign o_rd_capture =
         ((state == S_WAIT_CL) && (wait_ctr == CL_SYS - 2)) ||
-        ((state == S_DATA_RD) && (beat_ctr < READ_CAPTURE_SYS_CYCLES));
+        ((state == S_DATA_RD) && (beat_ctr < READ_CAPTURE_SYS_CYCLES)) ||
+        ((state == S_MPR_WAIT_CL) && (wait_ctr == CL_SYS - 2)) ||
+        ((state == S_MPR_DATA) && (beat_ctr < READ_CAPTURE_SYS_CYCLES));
     assign o_cmd_odt = (state == S_WR) || (state == S_WAIT_CWL) ||
                        (state == S_DATA_WR) || (state == S_WR_RECOV);
 
@@ -759,14 +766,34 @@ module ddr3_runtime #(
                     o_cmd_addr  <= { {(ROW_BITS-13){1'b0}}, mpr_addr_q };
                     mpr_clear   <= 1'b1;        // ack the request
                     wait_ctr    <= 8'd0;
-                    state       <= S_MPR_WAIT;
+                    state       <= S_MPR_WAIT_CL;
+                end
+
+                S_MPR_WAIT_CL: begin
+                    if (wait_ctr == CL_SYS - 2) begin
+                        wait_ctr <= 8'd0;
+                        beat_ctr <= 8'd0;
+                        state    <= S_MPR_DATA;
+                    end else begin
+                        wait_ctr <= wait_ctr + 1'b1;
+                    end
+                end
+
+                S_MPR_DATA: begin
+                    if (i_rd_valid || (beat_ctr == READ_TIMEOUT_SYS_CYCLES - 1)) begin
+                        beat_ctr <= 8'd0;
+                        wait_ctr <= 8'd0;
+                        state    <= S_MPR_WAIT;
+                    end else begin
+                        beat_ctr <= beat_ctr + 1'b1;
+                    end
                 end
 
                 S_MPR_WAIT: begin
-                    // tCCD = 4 tCK minimum between back-to-back reads
-                    // (BL8 occupies 4 tCK on the bus). After tCCD the
-                    // next RD command can issue; rdlvl gates that by
-                    // its own SETTLE_CYCLES + READ_LATENCY logic.
+                    // tCCD = 4 tCK minimum between back-to-back reads.
+                    // The capture window above is longer than tCCD, but keep
+                    // this explicit recovery state so the MPR path mirrors the
+                    // normal read path's "command, capture, return idle" shape.
                     if (wait_ctr == TCCD_WAIT) begin
                         wait_ctr <= 8'd0;
                         state    <= S_IDLE;
