@@ -479,6 +479,15 @@ and 1557.63 MHz `clk_phy_x4`, but still misses the 200 MHz controller target.
 Treat it as a comparison point for larger runtime/PHY-control changes, not as
 a timing-closure fix.
 
+A runtime experiment that registered the full BL8 write payload before issuing
+WRITE was tested and reverted. The intent was to remove the always-live
+512-bit RMW/direct-write merge from the PHY input path, but it increased the
+late-flatten diagnostic to 12,528 cells / 3,013 estimated logic cells and
+regressed the seed-1 route to 157.55 MHz `u_blu.i_clk_50`, 105.86 MHz
+`clk_sys`, 593.82 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The extra
+payload registers made congestion worse, so do not repeat this as a standalone
+timing fix.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
