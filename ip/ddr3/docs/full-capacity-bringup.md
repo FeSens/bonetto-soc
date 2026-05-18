@@ -465,6 +465,20 @@ timing regressed to 143.66 MHz `u_blu.i_clk_50`, 125.19 MHz `clk_sys`,
 placer settings unless a larger floorplanning or clock-domain split gives the
 placer a structurally easier problem.
 
+The hard-command JTAG-only image was also synthesized without the usual
+`synth_xilinx -flatten` pass to check whether preserving hierarchy through
+synthesis would help placement. A pure hierarchical JSON crashed
+nextpnr-xilinx before placement with `std::out_of_range: vector`, so it is not
+a usable flow today. A late-flatten diagnostic that runs `synth_xilinx -abc9`
+and then `flatten` before `write_json` is reproducible with `make -C
+boards/ypcb-00338
+full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream`. It reduced synthesis
+to 11,484 cells / 2,633 estimated logic cells and improved the seed-1 route
+to 167.98 MHz `u_blu.i_clk_50`, 132.68 MHz `clk_sys`, 829.19 MHz `clk_dq`,
+and 1557.63 MHz `clk_phy_x4`, but still misses the 200 MHz controller target.
+Treat it as a comparison point for larger runtime/PHY-control changes, not as
+a timing-closure fix.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with

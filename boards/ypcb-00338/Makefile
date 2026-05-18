@@ -53,9 +53,11 @@ PYPY3  ?= pypy3
 NEXTPNR_FREQ ?= 100
 NEXTPNR_ARGS ?=
 DDR3_DEFINES ?=
+YOSYS_SYNTH_ARGS ?= -flatten -abc9
+YOSYS_POST_SYNTH ?=
 DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
-.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-serdescmd-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagdirect-bitstream full-2ch-ddr1600-serdescmd-ddronly-json full-2ch-ddr1600-serdescmd-ddronly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
+.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-serdescmd-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-lateflat-json full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagdirect-bitstream full-2ch-ddr1600-serdescmd-ddronly-json full-2ch-ddr1600-serdescmd-ddronly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -72,7 +74,7 @@ $(DDR3_DEFINES_FILE): FORCE | $(BUILD)
 	if ! cmp -s $$tmp $@; then mv $$tmp $@; else rm $$tmp; fi
 
 $(BUILD)/$(PROJECT).json: $(RTL) $(DDR3_DEFINES_FILE) | $(BUILD)
-	yosys -p "read_verilog $(INCDIRS) $(DDR3_DEFINES) $(RTL); synth_xilinx -flatten -abc9 -arch xc7 -top $(TOP); chformal -remove; clean -purge; write_json $@"
+	yosys -p "read_verilog $(INCDIRS) $(DDR3_DEFINES) $(RTL); synth_xilinx $(YOSYS_SYNTH_ARGS) -arch xc7 -top $(TOP); $(YOSYS_POST_SYNTH) chformal -remove; clean -purge; write_json $@"
 
 full-ch0-json:
 	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_ch0 \
@@ -200,6 +202,28 @@ full-2ch-ddr1600-serdescmd-jtagonly-bitstream:
 	  NEXTPNR_FREQ=200 \
 	  NEXTPNR_ARGS="--seed 1 --log build/full_2ch_ddr1600_serdescmd_jtagonly_seed1_route.log" \
 	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly.bit
+
+full-2ch-ddr1600-serdescmd-jtagonly-lateflat-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_lateflat \
+	  DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600 -DDDR3_JTAG_ONLY -DDDR3_SERDES_CMD" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  YOSYS_SYNTH_ARGS="-abc9" \
+	  YOSYS_POST_SYNTH="flatten;" \
+	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_lateflat.json
+
+full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_lateflat \
+	  DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600 -DDDR3_JTAG_ONLY -DDDR3_SERDES_CMD" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  YOSYS_SYNTH_ARGS="-abc9" \
+	  YOSYS_POST_SYNTH="flatten;" \
+	  NEXTPNR_FREQ=200 \
+	  NEXTPNR_ARGS="--seed 1 --log build/full_2ch_ddr1600_serdescmd_jtagonly_lateflat_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_lateflat.bit
 
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream:
 	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagdirect \
@@ -392,6 +416,7 @@ help:
 	@echo "  make full-2ch-ddr1600-bitstream  route seeded 2-channel DDR3-1600 target image"
 	@echo "  make full-2ch-ddr1600-jtagonly-bitstream  route target image without autonomous memtest"
 	@echo "  make full-2ch-ddr1600-serdescmd-jtagonly-bitstream  route hard-command diagnostic"
+	@echo "  make full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream  route hard-command diagnostic with late flatten"
 	@echo "  make full-2ch-ddr1600-serdescmd-jtagdirect-bitstream  route hard-command direct-write diagnostic"
 	@echo "  make full-2ch-ddr1600-serdescmd-ddronly-json  synth hard-command DDR-only diagnostic"
 	@echo "  make full-2ch-ddr1600-serdescmd-ddronly-bitstream  route hard-command diagnostic without BRAM/memtest bus mux"
