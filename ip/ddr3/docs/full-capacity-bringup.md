@@ -513,6 +513,21 @@ address/RMW sim passed and the late-flatten diagnostic shrank to 11,475 cells
 This removes one reported path in synthesis, but it perturbs placement badly
 enough that it should not be carried without a larger reset/control split.
 
+A one-entry Wishbone request buffer inside `ddr3_runtime` was also tested and
+reverted. The intent was to break the `ref_pending -> rt_wb_stall -> runtime
+state CE` path without changing the public WB port set. The predecoded-buffer
+variant passed `make -C ip/ddr3 sim-runtime-addr` and synthesized to 11,742
+cells / 2,620 estimated logic cells, but the seed-1 late-flat route regressed
+to 152.56 MHz `u_blu.i_clk_50`, 106.42 MHz `clk_sys`, 425.17 MHz `clk_dq`,
+and 1557.63 MHz `clk_phy_x4`; the new `clk_sys` critical path ran through
+top-level grant/address decode into the request buffer's burst-byte-mask
+registers. A narrower raw/sliced-buffer variant passed the same sim and
+synthesized to 11,626 cells / 2,508 estimated logic cells, but still routed
+worse than baseline at 138.47 MHz `u_blu.i_clk_50`, 123.66 MHz `clk_sys`,
+713.78 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Since both variants lose
+the current late-flat `clk_sys` and `clk_dq` margins, do not repeat WB request
+buffering as a standalone timing fix.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
