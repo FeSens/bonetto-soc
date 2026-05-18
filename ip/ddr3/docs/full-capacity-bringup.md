@@ -1499,6 +1499,21 @@ otherwise noted.
   0.8 ns logic and 6.5 ns routing. This confirms that localizing only the final
   write-payload merge is still a local minimum; the next useful change needs a
   deeper controller/scheduler boundary split.
+- Predecoding the Wishbone byte select plus BL8 word offset into a runtime
+  `saved_burst_byte_mask` was tested and reverted. This diagnostic targeted
+  the keeper route's `saved_sel[*]` fanout without adding another full 512-bit
+  write-payload register. Default `make -C ip/ddr3 sim-runtime-addr` and
+  opt-in `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER"
+  sim-runtime-addr sim-init` passed, and late-flat board synthesis passed, but
+  the seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_bytemask_lateflat_seed1_route.log`
+  regressed to 162.92 MHz `u_blu.i_clk_50`, 120.69 MHz `clk_sys`,
+  906.62 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The worst path moved to
+  CH1 reset/calibration gating through the runtime FSM set/reset path
+  (`rst_cal_ch1_pipe[10]` into a CH1 runtime FF `SR`) with 0.8 ns logic and
+  7.5 ns routing. This proves that removing the final `saved_sel` fanout alone
+  does not improve the 200 MHz controller target; keep the scheduler-boundary
+  refactor as the next direction instead of another local write-data tweak.
 
 ## Validation Gates
 
