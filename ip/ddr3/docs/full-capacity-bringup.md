@@ -164,6 +164,18 @@ The new `clk_sys` critical path moved from `saved_burst_word_onehot` RMW merge
 logic to read-capture control fanout around lane-0 `i_rd_capture`; it is still
 route-failure evidence, not a hardware-signoff bitstream.
 
+After splitting the fast full-width read select into two registered stages
+(first the 64-bit BL8 sample, then the 32-bit lane group), the same
+`full-2ch-serdescmd-json` diagnostic synthesizes to 16,826 cells with 22
+`BUFG`, 178 `OSERDESE2`, 128 `IDDR`, 16 `IDELAYE2`, no `ISERDESE2`, 16
+`RAMB36E1`, and an estimated 3,828 logic cells. The paired seed-1 route still
+fails timing, but `clk_sys` improves to 107.22 MHz while `clk_dq` reports
+651.04 MHz and `clk_phy_x4` remains 1557.63 MHz. This replaces the
+`saved_burst_word_onehot` read-select critical path with a `phy_rd_valid_ch1`
+/ read-capture fanout path. It is a useful routed checkpoint for the controller
+datapath, but still does not meet the 200 MHz controller target or the 800 MHz
+DDR3-1600 CK/DQ intent.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It

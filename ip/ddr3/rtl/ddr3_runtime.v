@@ -218,7 +218,9 @@ module ddr3_runtime #(
         S_WR_RECOV  = 5'd19,
         S_MPR_WAIT_CL = 5'd20,
         S_MPR_DATA  = 5'd21,
-        S_RMW_LATCH = 5'd22;
+        S_RMW_LATCH = 5'd22,
+        S_RD_SELECT = 5'd23,
+        S_RD_ACK    = 5'd24;
 
     // ---- MPR-request latch (single-shot; cleared on completion) ----
     reg        mpr_pending;
@@ -279,6 +281,8 @@ module ddr3_runtime #(
     (* keep = "true" *) reg [63:0] saved_burst_byte_mask;
     reg [PHY_DATA_W-1:0] rmw_wr_data;
     reg [PHY_DATA_W-1:0] rd_data_q;
+    reg [63:0]           rd_sample_q;
+    reg [WB_DATA_W-1:0]  rd_word_q;
     reg                  rd_seen;
     reg                  rd_armed;
 
@@ -378,6 +382,41 @@ module ddr3_runtime #(
                         end
                     end
                 end
+            end
+        end
+    endfunction
+
+    function [63:0] burst_get_sample64;
+        input [PHY_DATA_W-1:0] burst_data;
+        input [2:0] raw_sample_idx;
+        integer lane_idx;
+        integer bit_idx;
+        integer rd_sample_idx;
+        begin
+            burst_get_sample64 = 64'd0;
+            for (lane_idx = 0; lane_idx < 8; lane_idx = lane_idx + 1) begin
+                rd_sample_idx = rd_sample_for_lane(raw_sample_idx, lane_idx);
+                for (bit_idx = 0; bit_idx < 8; bit_idx = bit_idx + 1) begin
+                    burst_get_sample64[lane_idx*8 + bit_idx] =
+                        burst_data[lane_idx*DQ_BITS*SERDES_RATIO +
+                                   bit_idx*SERDES_RATIO +
+                                   rd_sample_idx];
+                end
+            end
+        end
+    endfunction
+
+    function [WB_DATA_W-1:0] sample64_get_word;
+        input [63:0] sample_data;
+        input high_lane_group;
+        integer byte_idx;
+        integer lane_idx;
+        begin
+            sample64_get_word = {WB_DATA_W{1'b0}};
+            for (byte_idx = 0; byte_idx < WB_BYTES; byte_idx = byte_idx + 1) begin
+                lane_idx = (high_lane_group ? 4 : 0) + byte_idx;
+                sample64_get_word[byte_idx*8 +: 8] =
+                    sample_data[lane_idx*8 +: 8];
             end
         end
     endfunction
@@ -589,6 +628,8 @@ module ddr3_runtime #(
             saved_sel   <= {WB_BYTES{1'b0}};
             rmw_wr_data <= {PHY_DATA_W{1'b0}};
             rd_data_q   <= {PHY_DATA_W{1'b0}};
+            rd_sample_q <= 64'd0;
+            rd_word_q   <= {WB_DATA_W{1'b0}};
             rd_seen     <= 1'b0;
             rd_armed    <= 1'b0;
             ref_clear   <= 1'b0;
@@ -687,13 +728,37 @@ module ddr3_runtime #(
                             wait_ctr <= 8'd0;
                             state    <= S_RMW_LATCH;
                         end else begin
-                            o_wb_dat <= rd_seen ? phy_rd_word : 32'hBAD0_BAD0;
-                            o_wb_ack <= 1'b1;
-                            state    <= S_PRE;
+                            if (USE_FAST_BURST_WORD) begin
+                                rd_sample_q <= burst_get_sample64(
+                                    rd_burst_data,
+                                    saved_burst_word_offset >> 1
+                                );
+                                rd_word_q <= 32'hBAD0_BAD0;
+                                state     <= S_RD_SELECT;
+                            end else begin
+                                o_wb_dat <= rd_seen ? phy_rd_word : 32'hBAD0_BAD0;
+                                o_wb_ack <= 1'b1;
+                                state    <= S_PRE;
+                            end
                         end
                     end else begin
                         beat_ctr <= beat_ctr + 1'b1;
                     end
+                end
+
+                S_RD_SELECT: begin
+                    if (rd_seen)
+                        rd_word_q <= sample64_get_word(
+                            rd_sample_q,
+                            saved_burst_word_offset[0]
+                        );
+                    state <= S_RD_ACK;
+                end
+
+                S_RD_ACK: begin
+                    o_wb_dat <= rd_word_q;
+                    o_wb_ack <= 1'b1;
+                    state    <= S_PRE;
                 end
 
                 S_RMW_LATCH: begin
