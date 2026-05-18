@@ -324,20 +324,23 @@ module ddr3_phy_dq #(
                     if (i_rst) begin
                         rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
                     end else if (i_rd_capture && !dqs_drive) begin
-                        case (dqs_edges_dqs[1:0])
-                            2'd0: begin
+                        // IDDR outputs are visible to fabric one DQS rising edge
+                        // after the corresponding input pair. Ignore edge 0 and
+                        // collect the four BL8 pairs on edges 1..4.
+                        case (dqs_edges_dqs[2:0])
+                            3'd1: begin
                                 rd_data_dqs[i*RATIO + 0] <= rd_rise;
                                 rd_data_dqs[i*RATIO + 1] <= rd_fall;
                             end
-                            2'd1: begin
+                            3'd2: begin
                                 rd_data_dqs[i*RATIO + 2] <= rd_rise;
                                 rd_data_dqs[i*RATIO + 3] <= rd_fall;
                             end
-                            2'd2: begin
+                            3'd3: begin
                                 rd_data_dqs[i*RATIO + 4] <= rd_rise;
                                 rd_data_dqs[i*RATIO + 5] <= rd_fall;
                             end
-                            2'd3: begin
+                            3'd4: begin
                                 rd_data_dqs[i*RATIO + 6] <= rd_rise;
                                 rd_data_dqs[i*RATIO + 7] <= rd_fall;
                             end
@@ -433,7 +436,7 @@ module ddr3_phy_dq #(
         if (i_rst) begin
             dqs_event_toggle <= 1'b0;
         end else if (i_rd_capture && !dqs_drive &&
-                     (!FULL_BL8_MODE || (dqs_edges_dqs[1:0] == 2'd3))) begin
+                     (!FULL_BL8_MODE || (dqs_edges_dqs[2:0] == 3'd4))) begin
             dqs_event_toggle <= ~dqs_event_toggle;
         end
     end
