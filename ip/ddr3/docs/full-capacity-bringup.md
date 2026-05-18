@@ -496,6 +496,13 @@ baseline: 167.98 MHz `u_blu.i_clk_50`, 132.68 MHz `clk_sys`, 829.19 MHz
 `clk_dq`, and 1557.63 MHz `clk_phy_x4`. This hint changes the runtime logic
 mix but does not move the actual route result.
 
+Disabling Yosys FSM extraction on `ddr3_runtime.state` with
+`fsm_extract = "no"` was also tested and reverted. The narrow runtime
+address/RMW sim passed, but the late-flatten diagnostic synthesized to the
+same 11,484 cells / 2,633 estimated logic cells as the baseline. Since the
+netlist summary did not move, this is a neutral synthesis-control diagnostic,
+not a route-worthy timing fix.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
