@@ -422,6 +422,14 @@ regressed the controller/50 MHz clocks to 141.26 MHz `u_blu.i_clk_50`,
 The better DQ margin does not compensate for the lower controller timing, so
 keep the preservation attribute until a broader RMW-mask rewrite is available.
 
+Splitting the runtime `!i_init_done` reset gating out of several always-block
+reset conditions was tested and reverted before route. `git diff --check`,
+`make -C ip/ddr3 sim-runtime-addr`, and `make -C ip/ddr3 sim` passed, but
+`full-2ch-serdescmd-json` jumped to 12,643 cells / 3,948 estimated logic
+cells. Although the current failed route can show `ctrl_init_done` in a
+critical `clk_sys` SR path, moving that gating into local hold logic explodes
+LUT pressure and is not a useful standalone fix.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
