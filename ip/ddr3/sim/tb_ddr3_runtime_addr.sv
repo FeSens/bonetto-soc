@@ -16,6 +16,7 @@ module tb_ddr3_runtime_addr;
     localparam integer COL_HI_BITS = COL_BITS - 3;
     localparam integer WB_ADDR_W = BANK_BITS + ROW_BITS + COL_HI_BITS + WB_BURST_WORD_BITS;
     localparam integer PHY_DATA_W = NUM_BYTE_LANES * DQ_BITS * SERDES_RATIO;
+    localparam [NUM_BYTE_LANES*4-1:0] RD_SAMPLE_OFFSET_MAP = 32'h0000_0777;
 
     reg clk = 1'b0;
     always #5 clk = ~clk;
@@ -64,7 +65,8 @@ module tb_ddr3_runtime_addr;
         .DQ_BITS(DQ_BITS),
         .NUM_BYTE_LANES(NUM_BYTE_LANES),
         .SERDES_RATIO(SERDES_RATIO),
-        .WB_BURST_WORD_BITS(WB_BURST_WORD_BITS)
+        .WB_BURST_WORD_BITS(WB_BURST_WORD_BITS),
+        .RD_SAMPLE_OFFSET_MAP(RD_SAMPLE_OFFSET_MAP)
     ) dut (
         .i_clk_phy(clk),
         .i_rst(rst),
@@ -155,6 +157,73 @@ module tb_ddr3_runtime_addr;
                         burst_data[lane_idx*DQ_BITS*SERDES_RATIO +
                                    bit_idx*SERDES_RATIO +
                                    sample_idx];
+                end
+            end
+        end
+    endfunction
+
+    function [3:0] rd_sample_for_lane;
+        input integer raw_sample_idx;
+        input integer lane_idx;
+        reg [4:0] shifted_sample;
+        begin
+            shifted_sample =
+                raw_sample_idx[3:0] + RD_SAMPLE_OFFSET_MAP[lane_idx*4 +: 4];
+            rd_sample_for_lane = shifted_sample % SERDES_RATIO;
+        end
+    endfunction
+
+    function [PHY_DATA_W-1:0] burst_put_word_capture;
+        input [PHY_DATA_W-1:0] burst_data;
+        input integer word_offset;
+        input [WB_DATA_W-1:0] word_data;
+        input [WB_BYTES-1:0] word_sel;
+        integer byte_idx;
+        integer bit_idx;
+        integer burst_byte;
+        integer lane_idx;
+        integer sample_idx;
+        integer rd_sample_idx;
+        begin
+            burst_put_word_capture = burst_data;
+            for (byte_idx = 0; byte_idx < WB_BYTES; byte_idx = byte_idx + 1) begin
+                if (word_sel[byte_idx]) begin
+                    burst_byte = (word_offset * WB_BYTES) + byte_idx;
+                    lane_idx   = burst_byte % NUM_BYTE_LANES;
+                    sample_idx = burst_byte / NUM_BYTE_LANES;
+                    rd_sample_idx = rd_sample_for_lane(sample_idx, lane_idx);
+                    for (bit_idx = 0; bit_idx < 8; bit_idx = bit_idx + 1) begin
+                        burst_put_word_capture[lane_idx*DQ_BITS*SERDES_RATIO +
+                                               bit_idx*SERDES_RATIO +
+                                               rd_sample_idx] =
+                            word_data[byte_idx*8 + bit_idx];
+                    end
+                end
+            end
+        end
+    endfunction
+
+    function [WB_DATA_W-1:0] burst_get_word_capture;
+        input [PHY_DATA_W-1:0] burst_data;
+        input integer word_offset;
+        integer byte_idx;
+        integer bit_idx;
+        integer burst_byte;
+        integer lane_idx;
+        integer sample_idx;
+        integer rd_sample_idx;
+        begin
+            burst_get_word_capture = {WB_DATA_W{1'b0}};
+            for (byte_idx = 0; byte_idx < WB_BYTES; byte_idx = byte_idx + 1) begin
+                burst_byte = (word_offset * WB_BYTES) + byte_idx;
+                lane_idx   = burst_byte % NUM_BYTE_LANES;
+                sample_idx = burst_byte / NUM_BYTE_LANES;
+                rd_sample_idx = rd_sample_for_lane(sample_idx, lane_idx);
+                for (bit_idx = 0; bit_idx < 8; bit_idx = bit_idx + 1) begin
+                    burst_get_word_capture[byte_idx*8 + bit_idx] =
+                        burst_data[lane_idx*DQ_BITS*SERDES_RATIO +
+                                   bit_idx*SERDES_RATIO +
+                                   rd_sample_idx];
                 end
             end
         end
@@ -309,7 +378,24 @@ module tb_ddr3_runtime_addr;
         expected_col = {col_hi, 3'b000};
 
         for (i = 0; i < 16; i = i + 1)
-            rd_data = burst_put_word(rd_data, i, 32'ha500_0000 + i[31:0], 4'hf);
+            rd_data = burst_put_word_capture(rd_data, i, 32'ha500_0000 + i[31:0], 4'hf);
+
+        issue_xact(
+            1'b0, make_addr(bank, row, col_hi, 4'h0), 32'h0, 4'hf, bank, row,
+            got_read, read_addr, write_addr, captured_write_burst, saw_read, saw_write
+        );
+        if (!saw_read || saw_write) begin
+            $display("FAIL: offset-zero read command sequence saw_read=%0d saw_write=%0d",
+                     saw_read, saw_write);
+            $finish_and_return(1);
+        end
+        if (got_read !== 32'ha500_0000) begin
+            $display("FAIL: read offset 0 got 0x%08h expected 0xa5000000", got_read);
+            $finish_and_return(1);
+        end
+
+        for (i = 0; i < 20; i = i + 1)
+            @(posedge clk);
 
         issue_xact(
             1'b0, make_addr(bank, row, col_hi, 4'hf), 32'h0, 4'hf, bank, row,
@@ -333,7 +419,7 @@ module tb_ddr3_runtime_addr;
         for (i = 0; i < 20; i = i + 1)
             @(posedge clk);
 
-        old_word = burst_get_word(rd_data, 15);
+        old_word = burst_get_word_capture(rd_data, 15);
         new_word = 32'h1234_5678;
         expected_word = merge_word(old_word, new_word, 4'b0101);
         issue_xact(

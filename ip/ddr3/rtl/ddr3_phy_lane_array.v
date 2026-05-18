@@ -79,6 +79,14 @@ module ddr3_phy_lane_array #(
     // IDELAYE2/ISERDESE2 resources, so no IDELAYCTRL is required.
     assign o_idelay_ready = ~i_rst;
 
+    reg [NUM_BYTE_LANES-1:0] rd_capture_lane = {NUM_BYTE_LANES{1'b0}};
+    always @(posedge i_clk_sys or posedge i_rst) begin
+        if (i_rst)
+            rd_capture_lane <= {NUM_BYTE_LANES{1'b0}};
+        else
+            rd_capture_lane <= {NUM_BYTE_LANES{i_rd_capture}};
+    end
+
     genvar bl;
     generate
         for (bl = 0; bl < NUM_BYTE_LANES; bl = bl + 1) begin : g_lane
@@ -95,7 +103,7 @@ module ddr3_phy_lane_array #(
                 .i_wr_en             (i_wr_en),
                 .i_wr_data           (i_wr_data[bl*DQ_BITS*RATIO +: DQ_BITS*RATIO]),
                 .i_wr_dqs_en         (i_wr_dqs_en),
-                .i_rd_capture        (i_rd_capture),
+                .i_rd_capture        (rd_capture_lane[bl]),
 
                 .o_rd_data           (o_rd_data[bl*DQ_BITS*RATIO +: DQ_BITS*RATIO]),
                 .o_rd_valid          (o_rd_valid_lane[bl]),

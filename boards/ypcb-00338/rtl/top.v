@@ -133,6 +133,11 @@ module top (
     // Hardware diagnostic: lanes 0-2 return the stable repeated-byte word at
     // BL8 sample 7, while lane 3 (physical byte lane 4) returns it at sample 0.
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP = 16'h0777;
+`elsif DDR3_FULL_CH0
+    // Full CH0 keeps the validated lower-lane RATIO8 capture offsets.
+    // Upper lanes stay unshifted until hardware characterization proves
+    // per-lane offsets for physical lanes 5..8.
+    localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP = 32'h0000_0777;
 `else
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP =
         {DDR3_ACTIVE_BYTE_LANES{4'd0}};
@@ -262,6 +267,29 @@ module top (
     wire       ddr3_all_cal_done = cal_done;
 `endif
 
+`ifdef DDR3_JTAG_ONLY
+    assign mt_cyc = 1'b0;
+    assign mt_stb = 1'b0;
+    assign mt_we = 1'b0;
+    assign mt_adr = {FABRIC_ADDR_W{1'b0}};
+    assign mt_dat_w = 32'd0;
+    assign mt_sel = 4'h0;
+
+    assign mtest_pass_ctr = 32'd0;
+    assign mtest_ddr3_pass_ctr = 32'd0;
+    assign mtest_err_ctr = 32'd0;
+    assign mtest_first_err_addr = 32'd0;
+    assign mtest_first_err_expected = 32'd0;
+    assign mtest_first_err_got = 32'd0;
+    assign mtest_sweep_ctr = 32'd0;
+    assign mtest_last_xor_expected = 32'd0;
+    assign mtest_last_xor_got = 32'd0;
+    assign mtest_checksum_err = 1'b0;
+    assign mtest_any_err = 1'b0;
+    assign mtest_target = 1'b1;
+    assign mtest_pattern_idx = 2'd0;
+    assign mt_led_unused = 3'b000;
+`else
     memtest_lite #(
         .WB_ADDR_W(FABRIC_ADDR_W),
         .BRAM_ADDR_W(14),
@@ -297,6 +325,7 @@ module top (
         .o_target             (mtest_target),
         .o_pattern_idx        (mtest_pattern_idx)
     );
+`endif
 
     // -----------------------------------------------------------------
     // CDC: host_to_fpga + write event from clk_50 to clk_sys.
@@ -572,11 +601,29 @@ module top (
     wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane;
     wire [DDR3_PHY_DATA_W-1:0] phy_rd_data;
 `ifdef DDR3_DEBUG_PHY_RD_DATA
+    localparam integer PHY_RD_DATA_STATUS_WORDS = DDR3_PHY_DATA_W / 32;
     reg  [DDR3_PHY_DATA_W-1:0] phy_rd_data_last = {DDR3_PHY_DATA_W{1'b0}};
+    reg  [31:0] phy_rd_data_status_word_sys = 32'hAB20_0000;
+    integer phy_rd_data_word_i;
 
     always @(posedge clk_sys) begin
-        if (phy_rd_valid)
-            phy_rd_data_last <= phy_rd_data;
+        if (rst_sys) begin
+            phy_rd_data_last <= {DDR3_PHY_DATA_W{1'b0}};
+            phy_rd_data_status_word_sys <= 32'hAB20_0000;
+        end else begin
+            if (phy_rd_valid)
+                phy_rd_data_last <= phy_rd_data;
+            if (h2f_cmd_valid_sys && (h2f_cmd_sys[7:5] == 3'b001)) begin
+                phy_rd_data_status_word_sys <= {16'hAB20, 11'd0, h2f_cmd_sys[4:0]};
+                for (phy_rd_data_word_i = 0;
+                     phy_rd_data_word_i < PHY_RD_DATA_STATUS_WORDS;
+                     phy_rd_data_word_i = phy_rd_data_word_i + 1) begin
+                    if (h2f_cmd_sys[4:0] == phy_rd_data_word_i[4:0])
+                        phy_rd_data_status_word_sys <=
+                            phy_rd_data_last[phy_rd_data_word_i*32 +: 32];
+                end
+            end
+        end
     end
 `endif
 
@@ -1116,7 +1163,7 @@ module top (
     reg [31:0] jwb_rd_data_sync     [1:0];
     reg [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_sync [1:0];
 `ifdef DDR3_DEBUG_PHY_RD_DATA
-    reg [DDR3_PHY_DATA_W-1:0] phy_rd_data_last_sync [1:0];
+    reg [31:0] phy_rd_data_status_word_sync [1:0];
 `endif
     reg [7:0]  d3_ctrl_sync             [1:0];
     always @(posedge clk_50) begin
@@ -1139,8 +1186,8 @@ module top (
         phy_rd_valid_lane_sync[0] <= phy_rd_valid_lane;
         phy_rd_valid_lane_sync[1] <= phy_rd_valid_lane_sync[0];
 `ifdef DDR3_DEBUG_PHY_RD_DATA
-        phy_rd_data_last_sync[0] <= phy_rd_data_last;
-        phy_rd_data_last_sync[1] <= phy_rd_data_last_sync[0];
+        phy_rd_data_status_word_sync[0] <= phy_rd_data_status_word_sys;
+        phy_rd_data_status_word_sync[1] <= phy_rd_data_status_word_sync[0];
 `endif
         d3_ctrl_sync[0]  <= {d3_cyc, d3_stb, d3_we, d3_ack, d3_stall,
                              d3_err, phy_wr_valid, phy_rd_valid};
@@ -1209,72 +1256,63 @@ module top (
     };
 
 `ifdef DDR3_DEBUG_PHY_RD_DATA
-    localparam integer PHY_RD_DATA_STATUS_WORDS = DDR3_PHY_DATA_W / 32;
-    wire [4:0] phy_rd_data_status_idx = host_to_fpga[4:0];
-    reg [31:0] phy_rd_data_status_word;
-    integer phy_rd_data_status_i;
-    always @(*) begin
-        phy_rd_data_status_word = {16'hAB20, 11'd0, phy_rd_data_status_idx};
-        for (phy_rd_data_status_i = 0;
-             phy_rd_data_status_i < PHY_RD_DATA_STATUS_WORDS;
-             phy_rd_data_status_i = phy_rd_data_status_i + 1) begin
-            if (phy_rd_data_status_idx == phy_rd_data_status_i[4:0]) begin
-                phy_rd_data_status_word =
-                    phy_rd_data_last_sync[1][phy_rd_data_status_i*32 +: 32];
-            end
-        end
-    end
+    wire [31:0] phy_rd_data_status_word = phy_rd_data_status_word_sync[1];
 `else
     wire [31:0] phy_rd_data_status_word = {16'hAB20, 11'd0, host_to_fpga[4:0]};
 `endif
 
-    reg [31:0] status_word;
+    reg [31:0] status_word_comb;
     always @(*) begin
         if (host_to_fpga[7:5] == 3'b001) begin
-            status_word = phy_rd_data_status_word;
+            status_word_comb = phy_rd_data_status_word;
         end else begin
         case (host_to_fpga[7:0])
-            8'h00:   status_word = status_flags;
-            8'h01:   status_word = state_bits;
-            8'h02:   status_word = {8'h00, heartbeat};
-            8'h03:   status_word = mtest_pass_ctr_sync[1];
-            8'h04:   status_word = mtest_err_ctr_sync[1];
-            8'h05:   status_word = mtest_first_err_addr_sync[1];
-            8'h06:   status_word = mtest_first_err_expected_sync[1];
-            8'h07:   status_word = mtest_first_err_got_sync[1];
-            8'h08:   status_word = mtest_ddr3_pass_ctr_sync[1];
-            8'h09:   status_word = mtest_sweep_ctr_sync[1];
-            8'h0A:   status_word = mtest_last_xor_expected_sync[1];
-            8'h0B:   status_word = mtest_last_xor_got_sync[1];
-            8'h0C:   status_word = {16'hAB0C, 15'd0, mtest_checksum_err_sync[1]};
-            8'h10:   status_word = {16'hAB10,
+            8'h00:   status_word_comb = status_flags;
+            8'h01:   status_word_comb = state_bits;
+            8'h02:   status_word_comb = {8'h00, heartbeat};
+            8'h03:   status_word_comb = mtest_pass_ctr_sync[1];
+            8'h04:   status_word_comb = mtest_err_ctr_sync[1];
+            8'h05:   status_word_comb = mtest_first_err_addr_sync[1];
+            8'h06:   status_word_comb = mtest_first_err_expected_sync[1];
+            8'h07:   status_word_comb = mtest_first_err_got_sync[1];
+            8'h08:   status_word_comb = mtest_ddr3_pass_ctr_sync[1];
+            8'h09:   status_word_comb = mtest_sweep_ctr_sync[1];
+            8'h0A:   status_word_comb = mtest_last_xor_expected_sync[1];
+            8'h0B:   status_word_comb = mtest_last_xor_got_sync[1];
+            8'h0C:   status_word_comb = {16'hAB0C, 15'd0, mtest_checksum_err_sync[1]};
+            8'h10:   status_word_comb = {16'hAB10,
                                     12'd0,
                                     jwb_busy_sync[1],
                                     jwb_last_ack_sync[1],
                                     jwb_last_err_sync[1],
                                     jwb_halt_others_sync[1]};
-            8'h11:   status_word = {17'd0, jwb_addr_echo_sync[1]};
-            8'h12:   status_word = jwb_data_echo_sync[1];
-            8'h13:   status_word = jwb_rd_data_sync[1];
-            8'h14:   status_word = {16'hAB14, 7'd0, phase_busy_sync[1], phase_count_sync[1]};
-            8'h15:   status_word = {16'hAB15, sys_clk_alive, sys_hb_synced_bit,
+            8'h11:   status_word_comb = {17'd0, jwb_addr_echo_sync[1]};
+            8'h12:   status_word_comb = jwb_data_echo_sync[1];
+            8'h13:   status_word_comb = jwb_rd_data_sync[1];
+            8'h14:   status_word_comb = {16'hAB14, 7'd0, phase_busy_sync[1], phase_count_sync[1]};
+            8'h15:   status_word_comb = {16'hAB15, sys_clk_alive, sys_hb_synced_bit,
                                     8'd0, sys_hb_ticks_lo};
-            8'h16:   status_word = {16'hAB16, phy_x4_alive, phy_x4_synced_bit,
+            8'h16:   status_word_comb = {16'hAB16, phy_x4_alive, phy_x4_synced_bit,
                                     8'd0, phy_x4_ticks_lo};
-            8'h17:   status_word = {16'hAB17, dq_alive, dq_synced_bit,
+            8'h17:   status_word_comb = {16'hAB17, dq_alive, dq_synced_bit,
                                     8'd0, dq_ticks_lo};
-            8'h18:   status_word = {16'hAB18, 15'd0, phy_rd_capture_sync[1]};
-            8'h19:   status_word = {16'hAB19,
+            8'h18:   status_word_comb = {16'hAB18, 15'd0, phy_rd_capture_sync[1]};
+            8'h19:   status_word_comb = {16'hAB19,
                                     {(16-DDR3_ACTIVE_BYTE_LANES){1'b0}},
                                     phy_rd_valid_lane_sync[1]};
-            8'h1A:   status_word = {16'hAB1A, jwb_addr_hi_echo_sync[1]};
-            8'h1B:   status_word = {16'hAB1B, 16'd0};
-            8'h1C:   status_word = {24'hAB1C00, d3_ctrl_sync[1]};
-            8'hFE:   status_word = {16'hB07E, 16'h0011};
-            8'hFF:   status_word = host_to_fpga;
-            default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
+            8'h1A:   status_word_comb = {16'hAB1A, jwb_addr_hi_echo_sync[1]};
+            8'h1B:   status_word_comb = {16'hAB1B, 16'd0};
+            8'h1C:   status_word_comb = {24'hAB1C00, d3_ctrl_sync[1]};
+            8'hFE:   status_word_comb = {16'hB07E, 16'h0011};
+            8'hFF:   status_word_comb = host_to_fpga;
+            default: status_word_comb = {24'hDEADBA, host_to_fpga[7:0]};
         endcase
         end
+    end
+
+    reg [31:0] status_word = 32'd0;
+    always @(posedge clk_50) begin
+        status_word <= status_word_comb;
     end
 
     jtag_uart #(.WB_DATA_W(32), .WB_ADDR_W(2), .USER_CHAIN(1)) uart (

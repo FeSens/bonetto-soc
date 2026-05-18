@@ -276,7 +276,9 @@ module ddr3_runtime #(
     wire wb_accept_ok = i_init_done && (state == S_IDLE) && !ref_pending;
     assign o_wb_stall = ~wb_accept_ok;
     assign o_wb_err   = 1'b0;
-    assign o_rd_capture = (state == S_DATA_RD) && (beat_ctr < READ_CAPTURE_SYS_CYCLES);
+    assign o_rd_capture =
+        ((state == S_WAIT_CL) && (wait_ctr == CL_SYS - 2)) ||
+        ((state == S_DATA_RD) && (beat_ctr < READ_CAPTURE_SYS_CYCLES));
     assign o_cmd_odt = (state == S_WR) || (state == S_WAIT_CWL) ||
                        (state == S_DATA_WR) || (state == S_WR_RECOV);
 
@@ -386,7 +388,11 @@ module ddr3_runtime #(
                     wire [15:0] rd_sel_bits;
                     for (fw = 0; fw < 16; fw = fw + 1) begin : g_fast_rd_word
                         localparam integer RD_LANE = ((fw % 2) * 4) + fb;
-                        localparam integer RD_SAMPLE = fw / 2;
+                        localparam integer RD_RAW_SAMPLE = fw / 2;
+                        localparam integer RD_SAMPLE_OFFSET =
+                            RD_SAMPLE_OFFSET_MAP[RD_LANE*4 +: 4];
+                        localparam integer RD_SAMPLE =
+                            (RD_RAW_SAMPLE + RD_SAMPLE_OFFSET) % SERDES_RATIO;
                         localparam integer RD_BIT =
                             RD_LANE*DQ_BITS*SERDES_RATIO +
                             fbit*SERDES_RATIO + RD_SAMPLE;
@@ -402,15 +408,22 @@ module ddr3_runtime #(
                     for (fs = 0; fs < SERDES_RATIO; fs = fs + 1) begin : g_fast_wr_sample
                         localparam integer WORD_INDEX = (fs * 2) + (fl / 4);
                         localparam integer BYTE_INDEX = fl % 4;
+                        localparam integer RD_SAMPLE_OFFSET =
+                            RD_SAMPLE_OFFSET_MAP[fl*4 +: 4];
+                        localparam integer RD_SAMPLE =
+                            (fs + RD_SAMPLE_OFFSET) % SERDES_RATIO;
                         localparam integer WR_BIT =
                             fl*DQ_BITS*SERDES_RATIO +
                             fbit*SERDES_RATIO + fs;
+                        localparam integer RD_BIT =
+                            fl*DQ_BITS*SERDES_RATIO +
+                            fbit*SERDES_RATIO + RD_SAMPLE;
                         wire replace_bit =
                             saved_burst_word_onehot[WORD_INDEX] &
                             saved_sel[BYTE_INDEX];
                         assign rmw_wr_data_next[WR_BIT] = replace_bit ?
                             saved_wdat[BYTE_INDEX*8 + fbit] :
-                            rd_burst_data[WR_BIT];
+                            rd_burst_data[RD_BIT];
                     end
                 end
             end

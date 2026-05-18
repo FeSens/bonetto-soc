@@ -104,6 +104,7 @@ module ddr3_phy_rdlvl #(
     reg [3:0]              state;
     reg [4:0]              tap;
     reg [LANE_IDX_W-1:0]   lane;
+    reg [NUM_BYTE_LANES-1:0] lane_onehot;
     reg [31:0]             timer;
     reg                    done_r, error_r;
 
@@ -120,11 +121,16 @@ module ddr3_phy_rdlvl #(
     reg                                    rd_ready;
 
     // -------- Sequential update -------------------------------------
+    integer check_i;
+    integer lock_i;
+    wire [4:0] centre_tap = best_start[4:0] + (best_len[5:1]);
+
     always @(posedge i_clk) begin
         if (i_rst) begin
             state              <= S_IDLE;
             tap                <= 5'd0;
             lane               <= {LANE_IDX_W{1'b0}};
+            lane_onehot        <= {{(NUM_BYTE_LANES-1){1'b0}}, 1'b1};
             timer              <= 32'd0;
             done_r             <= 1'b0;
             error_r            <= 1'b0;
@@ -156,6 +162,7 @@ module ddr3_phy_rdlvl #(
                     if (i_start) begin
                         tap         <= 5'd0;
                         lane        <= {LANE_IDX_W{1'b0}};
+                        lane_onehot <= {{(NUM_BYTE_LANES-1){1'b0}}, 1'b1};
                         pass_bitmap <= {(TAP_MAX+1){1'b0}};
                         done_r      <= 1'b0;
                         error_r     <= 1'b0;
@@ -171,7 +178,7 @@ module ddr3_phy_rdlvl #(
 
                 S_LOAD_TAP: begin
                     o_dqs_in_tap       <= tap;
-                    o_dqs_in_load_lane <= ({{(NUM_BYTE_LANES-1){1'b0}}, 1'b1} << lane);
+                    o_dqs_in_load_lane <= lane_onehot;
                     timer              <= SETTLE_CYCLES;
                     state              <= S_SETTLE;
                 end
@@ -204,12 +211,13 @@ module ddr3_phy_rdlvl #(
 
                 S_CHECK: begin
                     // Sample only the lane currently being trained.
-                    // Bit-slice rd_buf for that lane and compare to expected.
-                    if (rd_buf[lane*DQ_BITS*RATIO +: DQ_BITS*RATIO]
-                            == EXPECTED_PATTERN)
-                        pass_bitmap[tap] <= 1'b1;
-                    else
-                        pass_bitmap[tap] <= 1'b0;
+                    pass_bitmap[tap] <= 1'b0;
+                    for (check_i = 0; check_i < NUM_BYTE_LANES; check_i = check_i + 1) begin
+                        if (lane_onehot[check_i] &&
+                                (rd_buf[check_i*DQ_BITS*RATIO +: DQ_BITS*RATIO]
+                                    == EXPECTED_PATTERN))
+                            pass_bitmap[tap] <= 1'b1;
+                    end
                     state <= S_TAP_NEXT;
                 end
 
@@ -261,13 +269,12 @@ module ddr3_phy_rdlvl #(
                         error_r <= 1'b1;
                         state   <= S_ERROR;
                     end else begin
-                        // Centre tap = start + len/2
-                        o_locked_tap_lane[lane*5 +: 5] <=
-                            (best_start + (best_len >> 1));
-                        o_dqs_in_tap                   <=
-                            (best_start + (best_len >> 1));
-                        o_dqs_in_load_lane <=
-                            ({{(NUM_BYTE_LANES-1){1'b0}}, 1'b1} << lane);
+                        for (lock_i = 0; lock_i < NUM_BYTE_LANES; lock_i = lock_i + 1) begin
+                            if (lane_onehot[lock_i])
+                                o_locked_tap_lane[lock_i*5 +: 5] <= centre_tap;
+                        end
+                        o_dqs_in_tap       <= centre_tap;
+                        o_dqs_in_load_lane <= lane_onehot;
                         state <= S_NEXT_LANE;
                     end
                 end
@@ -277,24 +284,31 @@ module ddr3_phy_rdlvl #(
                         done_r <= 1'b1;
                         state  <= S_DONE;
                     end else begin
-                        lane  <= lane + 1'b1;
-                        state <= S_SETUP_LANE;
+                        lane        <= lane + 1'b1;
+                        lane_onehot <= lane_onehot << 1;
+                        state       <= S_SETUP_LANE;
                     end
                 end
 
                 S_DONE: begin
                     if (i_start) begin
-                        done_r  <= 1'b0;
-                        error_r <= 1'b0;
-                        state   <= S_SETUP_LANE;
+                        tap         <= 5'd0;
+                        lane        <= {LANE_IDX_W{1'b0}};
+                        lane_onehot <= {{(NUM_BYTE_LANES-1){1'b0}}, 1'b1};
+                        done_r      <= 1'b0;
+                        error_r     <= 1'b0;
+                        state       <= S_SETUP_LANE;
                     end
                 end
 
                 S_ERROR: begin
                     if (i_start) begin
-                        done_r  <= 1'b0;
-                        error_r <= 1'b0;
-                        state   <= S_SETUP_LANE;
+                        tap         <= 5'd0;
+                        lane        <= {LANE_IDX_W{1'b0}};
+                        lane_onehot <= {{(NUM_BYTE_LANES-1){1'b0}}, 1'b1};
+                        done_r      <= 1'b0;
+                        error_r     <= 1'b0;
+                        state       <= S_SETUP_LANE;
                     end
                 end
 
