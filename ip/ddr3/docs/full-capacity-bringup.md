@@ -219,6 +219,28 @@ while keeping state, command, ack, and clear strobes idle passed
 14,241 cells and an estimated 3,662 logic cells. That change was reverted
 without routing; do not repeat it without a more selective retiming plan.
 
+Registering the `ddr3_ctrl` init-done handoff into a local
+`init_done_runtime` control was also tried and reverted. It was cheap in
+synthesis (`full-2ch-serdescmd-json` at 14,272 cells / 3,098 estimated logic
+cells) and improved the seed-1 hard-command route's `clk_dq` estimate to
+962.46 MHz, but `clk_sys` still failed and slipped slightly to 109.54 MHz.
+The critical path moved into per-lane `i_rd_capture`, while the slow-net list
+remained dominated by RMW state, burst-offset/mask fanout, `phy_wr_valid`, and
+lane read-capture controls. Since `clk_sys` is the blocker and the baseline
+already has `clk_dq` above the DDR3-1600 800 MHz intent, this is not worth
+keeping as-is.
+
+Removing the two wide `rd_data_sys` clears at the start of PHY read capture was
+also tested and reverted. The functional reasoning was valid for the sys-domain
+outputs because `rd_valid_q` is cleared at capture start, and
+`make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 synth-phy-dq-ratio8`, and
+`make -C boards/ypcb-00338 full-2ch-serdescmd-json` passed. Synthesis improved
+to 13,240 cells and an estimated 2,795 logic cells, but seed-1 routing regressed:
+`u_blu.i_clk_50` reached 133.73 MHz, `clk_sys` reached 109.77 MHz, and `clk_dq`
+fell to 621.50 MHz. The same `i_rd_capture` fanout remained in DQS-lane CE/SR
+paths, so the area win did not help the full-speed route and the change should
+not be kept in this form.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
