@@ -614,16 +614,23 @@ module top (
 `ifdef DDR3_DEBUG_PHY_RD_DATA
     localparam integer PHY_RD_DATA_STATUS_WORDS = DDR3_PHY_DATA_W / 32;
     reg  [DDR3_PHY_DATA_W-1:0] phy_rd_data_last = {DDR3_PHY_DATA_W{1'b0}};
+    reg  [DDR3_PHY_DATA_W-1:0] phy_wr_data_last = {DDR3_PHY_DATA_W{1'b0}};
     reg  [31:0] phy_rd_data_status_word_sys = 32'hAB20_0000;
+    reg  [31:0] phy_wr_data_status_word_sys = 32'hAB40_0000;
     integer phy_rd_data_word_i;
+    integer phy_wr_data_word_i;
 
     always @(posedge clk_sys) begin
         if (rst_sys) begin
             phy_rd_data_last <= {DDR3_PHY_DATA_W{1'b0}};
+            phy_wr_data_last <= {DDR3_PHY_DATA_W{1'b0}};
             phy_rd_data_status_word_sys <= 32'hAB20_0000;
+            phy_wr_data_status_word_sys <= 32'hAB40_0000;
         end else begin
             if (phy_rd_valid)
                 phy_rd_data_last <= phy_rd_data;
+            if (phy_wr_valid)
+                phy_wr_data_last <= phy_wr_data;
             if (h2f_cmd_valid_sys && (h2f_cmd_sys[7:5] == 3'b001)) begin
                 phy_rd_data_status_word_sys <= {16'hAB20, 11'd0, h2f_cmd_sys[4:0]};
                 for (phy_rd_data_word_i = 0;
@@ -632,6 +639,16 @@ module top (
                     if (h2f_cmd_sys[4:0] == phy_rd_data_word_i[4:0])
                         phy_rd_data_status_word_sys <=
                             phy_rd_data_last[phy_rd_data_word_i*32 +: 32];
+                end
+            end
+            if (h2f_cmd_valid_sys && (h2f_cmd_sys[7:5] == 3'b010)) begin
+                phy_wr_data_status_word_sys <= {16'hAB40, 11'd0, h2f_cmd_sys[4:0]};
+                for (phy_wr_data_word_i = 0;
+                     phy_wr_data_word_i < PHY_RD_DATA_STATUS_WORDS;
+                     phy_wr_data_word_i = phy_wr_data_word_i + 1) begin
+                    if (h2f_cmd_sys[4:0] == phy_wr_data_word_i[4:0])
+                        phy_wr_data_status_word_sys <=
+                            phy_wr_data_last[phy_wr_data_word_i*32 +: 32];
                 end
             end
         end
@@ -1042,6 +1059,8 @@ module top (
     // 0x16  | CLK_PHY_X4_PROBE {magic=0xAB16, alive, synced_bit, _, ticks_lo[5:0]}
     // 0x17  | CLK_DQ_PROBE     {magic=0xAB17, alive, synced_bit, _, ticks_lo[5:0]}
     // 0x19  | PHY_RD_VALID_LANES
+    // 0x20-0x3F | PHY_RD_DATA_LAST words, debug builds only
+    // 0x40-0x5F | PHY_WR_DATA_LAST words, debug builds only
     //         (iter-13 — detect prjxray-gap CLKOUT routing failures.
     //         Each CLKOUT can fail independently because per-output
     //         CMT_LR_LOWER_B_MMCM_CLKOUT segbits are independently missing
@@ -1180,6 +1199,7 @@ module top (
     reg [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_sync [1:0];
 `ifdef DDR3_DEBUG_PHY_RD_DATA
     reg [31:0] phy_rd_data_status_word_sync [1:0];
+    reg [31:0] phy_wr_data_status_word_sync [1:0];
 `endif
     reg [7:0]  d3_ctrl_sync             [1:0];
     always @(posedge clk_50) begin
@@ -1204,6 +1224,8 @@ module top (
 `ifdef DDR3_DEBUG_PHY_RD_DATA
         phy_rd_data_status_word_sync[0] <= phy_rd_data_status_word_sys;
         phy_rd_data_status_word_sync[1] <= phy_rd_data_status_word_sync[0];
+        phy_wr_data_status_word_sync[0] <= phy_wr_data_status_word_sys;
+        phy_wr_data_status_word_sync[1] <= phy_wr_data_status_word_sync[0];
 `endif
         d3_ctrl_sync[0]  <= {d3_cyc, d3_stb, d3_we, d3_ack, d3_stall,
                              d3_err, phy_wr_valid, phy_rd_valid};
@@ -1273,14 +1295,18 @@ module top (
 
 `ifdef DDR3_DEBUG_PHY_RD_DATA
     wire [31:0] phy_rd_data_status_word = phy_rd_data_status_word_sync[1];
+    wire [31:0] phy_wr_data_status_word = phy_wr_data_status_word_sync[1];
 `else
     wire [31:0] phy_rd_data_status_word = {16'hAB20, 11'd0, host_to_fpga[4:0]};
+    wire [31:0] phy_wr_data_status_word = {16'hAB40, 11'd0, host_to_fpga[4:0]};
 `endif
 
     reg [31:0] status_word_comb;
     always @(*) begin
         if (host_to_fpga[7:5] == 3'b001) begin
             status_word_comb = phy_rd_data_status_word;
+        end else if (host_to_fpga[7:5] == 3'b010) begin
+            status_word_comb = phy_wr_data_status_word;
         end else begin
         case (host_to_fpga[7:0])
             8'h00:   status_word_comb = status_flags;
