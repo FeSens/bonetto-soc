@@ -488,6 +488,14 @@ regressed the seed-1 route to 157.55 MHz `u_blu.i_clk_50`, 105.86 MHz
 payload registers made congestion worse, so do not repeat this as a standalone
 timing fix.
 
+Adding a `fsm_encoding = "one-hot"` hint to `ddr3_runtime.state` was also
+tested and reverted. The narrow runtime address/RMW sim passed and the
+late-flatten diagnostic still synthesized to 11,484 cells / 2,633 estimated
+logic cells, but the seed-1 route reproduced the same failing timing as the
+baseline: 167.98 MHz `u_blu.i_clk_50`, 132.68 MHz `clk_sys`, 829.19 MHz
+`clk_dq`, and 1557.63 MHz `clk_phy_x4`. This hint changes the runtime logic
+mix but does not move the actual route result.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
