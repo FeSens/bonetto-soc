@@ -423,6 +423,22 @@ regressed the controller/50 MHz clocks: placement reported 104.38 MHz
 target backward, so do not repeat reset-less datapath splitting as a standalone
 fix.
 
+An optional runtime auto-precharge experiment was tested and reverted. The
+change set command A10 on normal READ/WRITE commands and skipped the explicit
+PRE command afterward, while keeping the preliminary RMW read open and allowing
+the final RMW write to auto-precharge. Fast checks passed: `git diff --check`,
+default `make -C ip/ddr3 sim-runtime-addr`, and
+`DDR3_DEFINES=-DDDR3_AUTO_PRECHARGE` runs of `sim-runtime-addr`, `sim-init`,
+`sim-micron`, and `formal DEPTH=20`. The late-flat hard-command synthesis image
+grew to 11,510 cells / 2,631 estimated logic cells, with `ddr3_runtime` at
+2,370 cells / 906 estimated logic cells. The seed-1 late-flat route regressed
+hard: placement reported 108.87 MHz `u_blu.i_clk_50`, 83.30 MHz `clk_sys`,
+344.23 MHz `clk_dq`, and 2500.00 MHz `clk_phy_x4`; final route reported
+129.27 MHz `u_blu.i_clk_50`, 104.80 MHz `clk_sys`, 469.70 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. The final `clk_sys` critical path ran from
+`rst_bram` into a runtime set/reset pin with 9.1 ns routing. This proves
+auto-precharge is not useful as a local timing fix in the current runtime FSM.
+
 Pipelining the full-BL8 write-data bus at the PHY lane-array boundary plus a
 one-cycle runtime `S_WR_PREP` state was tested and reverted. Fast checks still
 passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
