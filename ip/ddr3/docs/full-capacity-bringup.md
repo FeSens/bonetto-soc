@@ -592,6 +592,23 @@ ns routing. This confirms that decoupling external WB stall alone can help DQ
 placement but does not solve the controller scheduling path. Do not keep this
 front-end split without a deeper scheduler/per-bank/timing pipeline split.
 
+A split command-output register block in `ddr3_runtime` was tested and
+reverted. The intent was to keep DDR command/address/write-valid flops outside
+the scheduler state-update always block while preserving the same command issue
+cycles. `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, `make -C
+ip/ddr3 sim-init sim-micron`, `make -C ip/ddr3 formal DEPTH=20`, and the
+late-flat JSON target all passed. The late-flatten diagnostic synthesized to
+11,486 cells / 2,520 estimated logic cells, with `ddr3_runtime` at 2,359 cells
+/ 846 estimated logic cells. The seed-1 late-flat route regressed to 144.68
+MHz `u_blu.i_clk_50`, 103.96 MHz `clk_sys`, 660.94 MHz `clk_dq`, and 1557.63
+MHz `clk_phy_x4`; placement estimates were 109.17 MHz `u_blu.i_clk_50`, 69.57
+MHz `clk_sys`, 498.75 MHz `clk_dq`, and 2500.00 MHz `clk_phy_x4`. The final
+`clk_sys` critical path ran from `jwb_grant`/`bram_adr[0]` into the CH1
+runtime `burst_byte_mask` register with 8.6 ns routing, and cross-domain reset
+paths also worsened. Do not repeat command-output block splitting without
+first moving request decode and burst-mask generation behind a local scheduler
+pipeline.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
