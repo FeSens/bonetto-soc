@@ -403,7 +403,7 @@ module ddr3_runtime #(
 
     generate
         if (USE_FAST_BURST_WORD) begin : g_fast_burst_word
-            genvar fb, fbit, fw, fl, fs;
+            genvar fb, fbit, fw, dl, dbit, ds, rl, rbit, rs;
 
             // For an 8-lane x8 BL8 burst exposed as 32-bit WB words:
             //   word_offset[0] selects lane group 0..3 vs 4..7,
@@ -430,40 +430,64 @@ module ddr3_runtime #(
                 end
             end
 
-            for (fl = 0; fl < NUM_BYTE_LANES; fl = fl + 1) begin : g_fast_wr_lane
-                for (fbit = 0; fbit < DQ_BITS; fbit = fbit + 1) begin : g_fast_wr_bit
-                    for (fs = 0; fs < SERDES_RATIO; fs = fs + 1) begin : g_fast_wr_sample
-                        localparam integer WORD_INDEX = (fs * 2) + (fl / 4);
-                        localparam integer BYTE_INDEX = fl % 4;
-                        localparam integer RD_SAMPLE_OFFSET =
-                            RD_SAMPLE_OFFSET_MAP[fl*4 +: 4];
-                        localparam integer WR_SAMPLE_OFFSET =
-                            WR_SAMPLE_OFFSET_MAP[fl*4 +: 4];
-                        localparam integer RD_SAMPLE =
-                            (fs + RD_SAMPLE_OFFSET) % SERDES_RATIO;
-                        localparam integer WR_SAMPLE =
-                            (fs + WR_SAMPLE_OFFSET) % SERDES_RATIO;
-                        localparam integer WR_BIT =
-                            fl*DQ_BITS*SERDES_RATIO +
-                            fbit*SERDES_RATIO + WR_SAMPLE;
-                        localparam integer RD_BIT =
-                            fl*DQ_BITS*SERDES_RATIO +
-                            fbit*SERDES_RATIO + RD_SAMPLE;
-                        wire rmw_replace_bit =
-                            saved_burst_word_onehot[WORD_INDEX] &
-                            saved_sel[BYTE_INDEX];
-                        wire direct_word_bit =
-                            (BROADCAST_WRITE_SAMPLES != 0) ?
-                            (saved_burst_word_offset[0] == (fl / 4)) :
-                            saved_burst_word_onehot[WORD_INDEX];
-                        wire direct_replace_bit =
-                            (BURST_WRITE_RMW == 0) ? direct_word_bit :
-                            (direct_word_bit & saved_sel[BYTE_INDEX]);
-                        assign rmw_wr_data_next[WR_BIT] = rmw_replace_bit ?
-                            saved_wdat[BYTE_INDEX*8 + fbit] :
-                            rd_burst_data[RD_BIT];
-                        assign direct_wr_data_next[WR_BIT] = direct_replace_bit ?
-                            saved_wdat[BYTE_INDEX*8 + fbit] : 1'b0;
+            if (BURST_WRITE_RMW == 0) begin : g_fast_direct_wr
+                for (dl = 0; dl < NUM_BYTE_LANES; dl = dl + 1) begin : g_lane
+                    for (dbit = 0; dbit < DQ_BITS; dbit = dbit + 1) begin : g_bit
+                        for (ds = 0; ds < SERDES_RATIO; ds = ds + 1) begin : g_sample
+                            localparam integer WORD_INDEX = (ds * 2) + (dl / 4);
+                            localparam integer BYTE_INDEX = dl % 4;
+                            localparam integer WR_SAMPLE_OFFSET =
+                                WR_SAMPLE_OFFSET_MAP[dl*4 +: 4];
+                            localparam integer WR_SAMPLE =
+                                (ds + WR_SAMPLE_OFFSET) % SERDES_RATIO;
+                            localparam integer WR_BIT =
+                                dl*DQ_BITS*SERDES_RATIO +
+                                dbit*SERDES_RATIO + WR_SAMPLE;
+                            wire direct_word_bit =
+                                (BROADCAST_WRITE_SAMPLES != 0) ?
+                                (saved_burst_word_offset[0] == (dl / 4)) :
+                                saved_burst_word_onehot[WORD_INDEX];
+                            assign rmw_wr_data_next[WR_BIT] = 1'b0;
+                            assign direct_wr_data_next[WR_BIT] = direct_word_bit ?
+                                saved_wdat[BYTE_INDEX*8 + dbit] : 1'b0;
+                        end
+                    end
+                end
+            end else begin : g_fast_rmw_wr
+                for (rl = 0; rl < NUM_BYTE_LANES; rl = rl + 1) begin : g_lane
+                    for (rbit = 0; rbit < DQ_BITS; rbit = rbit + 1) begin : g_bit
+                        for (rs = 0; rs < SERDES_RATIO; rs = rs + 1) begin : g_sample
+                            localparam integer WORD_INDEX = (rs * 2) + (rl / 4);
+                            localparam integer BYTE_INDEX = rl % 4;
+                            localparam integer RD_SAMPLE_OFFSET =
+                                RD_SAMPLE_OFFSET_MAP[rl*4 +: 4];
+                            localparam integer WR_SAMPLE_OFFSET =
+                                WR_SAMPLE_OFFSET_MAP[rl*4 +: 4];
+                            localparam integer RD_SAMPLE =
+                                (rs + RD_SAMPLE_OFFSET) % SERDES_RATIO;
+                            localparam integer WR_SAMPLE =
+                                (rs + WR_SAMPLE_OFFSET) % SERDES_RATIO;
+                            localparam integer WR_BIT =
+                                rl*DQ_BITS*SERDES_RATIO +
+                                rbit*SERDES_RATIO + WR_SAMPLE;
+                            localparam integer RD_BIT =
+                                rl*DQ_BITS*SERDES_RATIO +
+                                rbit*SERDES_RATIO + RD_SAMPLE;
+                            wire rmw_replace_bit =
+                                saved_burst_word_onehot[WORD_INDEX] &
+                                saved_sel[BYTE_INDEX];
+                            wire direct_word_bit =
+                                (BROADCAST_WRITE_SAMPLES != 0) ?
+                                (saved_burst_word_offset[0] == (rl / 4)) :
+                                saved_burst_word_onehot[WORD_INDEX];
+                            wire direct_replace_bit =
+                                direct_word_bit & saved_sel[BYTE_INDEX];
+                            assign rmw_wr_data_next[WR_BIT] = rmw_replace_bit ?
+                                saved_wdat[BYTE_INDEX*8 + rbit] :
+                                rd_burst_data[RD_BIT];
+                            assign direct_wr_data_next[WR_BIT] = direct_replace_bit ?
+                                saved_wdat[BYTE_INDEX*8 + rbit] : 1'b0;
+                        end
                     end
                 end
             end
