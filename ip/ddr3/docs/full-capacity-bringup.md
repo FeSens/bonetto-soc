@@ -1526,6 +1526,25 @@ otherwise noted.
   generated runtime pattern-cache logic) with 0.6 ns logic and 7.2 ns routing.
   This confirms the current miss is structural RTL placement pressure, not a
   missing nextpnr placer-budget knob.
+- A one-line runtime BL8 writeback buffer diagnostic, `DDR3_RUNTIME_LINEBUF`,
+  was tested and reverted. This was a larger scheduler-side experiment inspired
+  by LiteDRAM/UberDDR3 style command/data staging: partial writes updated a
+  registered BL8 line, and a later writeback drove a static packed BL8 payload.
+  Default `make -C ip/ddr3 sim-runtime-addr`, opt-in `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_RUNTIME_LINEBUF" sim-runtime-addr`, and opt-in `make -C
+  ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER -DDDR3_RUNTIME_LINEBUF"
+  sim-runtime-addr sim-init` all passed. The board synthesis completed, but the
+  line expanded into a large register bank: 6,573 cells / 4,934 estimated logic
+  cells, packing to 6,674 `SLICE_LUTX` and 7,789 `SLICE_FFX`. The seed-1 route
+  log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_linebuf_lateflat_seed1_route.log`
+  reached only 151.42 MHz `u_blu.i_clk_50`, 78.35 MHz `clk_sys`,
+  279.88 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Slow nets were dominated
+  by `linebuf_writeback`, `linebuf_word_q`, `linebuf_fill_word`, and the
+  existing runtime FSM/request one-hot controls. Do not retry a one-line
+  runtime BL8 cache as a timing fix; the future scheduler boundary has to
+  reduce control fanout and placement pressure rather than add another wide
+  per-controller line register bank.
 
 ## Validation Gates
 
