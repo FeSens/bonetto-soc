@@ -17,6 +17,9 @@
 // DQ OUTPUT path: RATIO4 uses fabric ODDR; RATIO8 normally uses OSERDESE2.
 // `DDR3_RATIO8_ODDR_WR` keeps the RATIO8 read/capture path but forces the
 // repeated-data diagnostic write path through the legacy ODDR launcher.
+// `DDR3_RATIO8_ISERDES_RD` switches RATIO8 reads to the LiteDRAM-style
+// IDELAYE2 + ISERDESE2 path clocked from the PHY high-speed clock. This avoids
+// routing DQS as a fabric clock in the full-speed build.
 // DQS OUTPUT path: direct ODDR on clk_dq (no programmable delay).
 
 `default_nettype none
@@ -81,6 +84,11 @@ module ddr3_phy_dq #(
     localparam integer USE_DQ_OSERDES = 0;
 `else
     localparam integer USE_DQ_OSERDES = FULL_BL8_MODE;
+`endif
+`ifdef DDR3_RATIO8_ISERDES_RD
+    localparam integer USE_ISERDES_RD = FULL_BL8_MODE;
+`else
+    localparam integer USE_ISERDES_RD = 0;
 `endif
 
     // Board bring-up path. The legacy RATIO=4 mode keeps one stable DQ value
@@ -315,178 +323,281 @@ module ddr3_phy_dq #(
         .REGRST      (i_rst)
     );
 
-    reg [DQ_BITS*RATIO-1:0] rd_data_dqs = {(DQ_BITS*RATIO){1'b0}};
-    reg [DQ_BITS*RATIO-1:0] rd_data_sys = {(DQ_BITS*RATIO){1'b0}};
-    reg [DQ_BITS-1:0]       rd_tail_rise_dqs = {DQ_BITS{1'b0}};
-    reg [DQ_BITS-1:0]       rd_tail_fall_dqs = {DQ_BITS{1'b0}};
-    reg [7:0] dqs_edges_dqs = 8'd0;
-    reg [7:0] dqs_edges_sys = 8'd0;
-    reg       dqs_event_toggle = 1'b0;
-    wire [DQ_BITS*RATIO-1:0] rd_data_complete;
     generate
-        for (i = 0; i < DQ_BITS; i = i + 1) begin : g_rd_iddr
-            wire rd_rise;
-            wire rd_fall;
+        if (USE_ISERDES_RD) begin : g_read_iserdes
+            wire [DQ_BITS*RATIO-1:0] rd_data_iserdes;
+            reg  [DQ_BITS*RATIO-1:0] rd_data_sys = {(DQ_BITS*RATIO){1'b0}};
+            reg                      rd_capture_q = 1'b0;
+            reg                      rd_valid_q = 1'b0;
 
-            if (FULL_BL8_MODE) begin : g_rd_complete_full
-                assign rd_data_complete[i*RATIO + 0] = rd_data_dqs[i*RATIO + 0];
-                assign rd_data_complete[i*RATIO + 1] = rd_data_dqs[i*RATIO + 1];
-                assign rd_data_complete[i*RATIO + 2] = rd_data_dqs[i*RATIO + 2];
-                assign rd_data_complete[i*RATIO + 3] = rd_data_dqs[i*RATIO + 3];
-                assign rd_data_complete[i*RATIO + 4] = rd_data_dqs[i*RATIO + 4];
-                assign rd_data_complete[i*RATIO + 5] = rd_data_dqs[i*RATIO + 5];
-                assign rd_data_complete[i*RATIO + 6] = rd_tail_rise_dqs[i];
-                assign rd_data_complete[i*RATIO + 7] = rd_tail_fall_dqs[i];
+            for (i = 0; i < DQ_BITS; i = i + 1) begin : g_rd_iserdes_bit
+                wire       dq_in_delayed;
+                wire [7:0] dq_i_data;
 
-                IDDR #(
-                    .DDR_CLK_EDGE("SAME_EDGE"),
-                    .INIT_Q1(1'b0),
-                    .INIT_Q2(1'b0),
-                    .SRTYPE("SYNC")
-                ) u_iddr_dq (
-                    .Q1 (rd_rise),
-                    .Q2 (rd_fall),
-                    .C  (dqs_in_raw),
-                    .CE (i_rd_capture),
-                    .D  (dq_in_raw[i]),
-                    .R  (i_rst),
-                    .S  (1'b0)
+                IDELAYE2 #(
+                    .CINVCTRL_SEL          ("FALSE"),
+                    .DELAY_SRC             ("IDATAIN"),
+                    .HIGH_PERFORMANCE_MODE ("TRUE"),
+                    .IDELAY_TYPE           ("VAR_LOAD"),
+                    .IDELAY_VALUE          (0),
+                    .PIPE_SEL              ("FALSE"),
+                    .REFCLK_FREQUENCY      (200.0),
+                    .SIGNAL_PATTERN        ("DATA")
+                ) u_dq_idelay (
+                    .CNTVALUEOUT (),
+                    .DATAOUT     (dq_in_delayed),
+                    .C           (i_clk_sys),
+                    .CE          (1'b0),
+                    .CINVCTRL    (1'b0),
+                    .CNTVALUEIN  (i_cal_dq_tap),
+                    .DATAIN      (1'b0),
+                    .IDATAIN     (dq_in_raw[i]),
+                    .INC         (1'b0),
+                    .LD          (i_cal_dq_load & i_cal_dq_sel[i]),
+                    .LDPIPEEN    (1'b0),
+                    .REGRST      (i_rst)
                 );
 
-                always @(posedge dqs_in_raw or posedge i_rst) begin
-                    if (i_rst) begin
-                        rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
-                        rd_tail_rise_dqs[i] <= 1'b0;
-                    end else if (i_rd_capture && !dqs_drive) begin
-                        // IDDR outputs are visible to fabric one DQS rising edge
-                        // after the corresponding input pair. Use IDDR for the
-                        // first three pairs and sample only the final pair directly.
-                        case (dqs_edges_dqs[2:0])
-                            3'd1: begin
-                                rd_data_dqs[i*RATIO + 0] <= rd_rise;
-                                rd_data_dqs[i*RATIO + 1] <= rd_fall;
-                            end
-                            3'd2: begin
-                                rd_data_dqs[i*RATIO + 2] <= rd_rise;
-                                rd_data_dqs[i*RATIO + 3] <= rd_fall;
-                            end
-                            3'd3: begin
-                                rd_data_dqs[i*RATIO + 4] <= rd_rise;
-                                rd_data_dqs[i*RATIO + 5] <= rd_fall;
-                                rd_tail_rise_dqs[i]      <= dq_in_raw[i];
-                            end
-                            default: begin end
-                        endcase
-                    end
-                end
-
-                always @(negedge dqs_in_raw or posedge i_rst) begin
-                    if (i_rst) begin
-                        rd_tail_fall_dqs[i] <= 1'b0;
-                    end else if (i_rd_capture && !dqs_drive) begin
-                        if (dqs_edges_dqs[2:0] == 3'd4)
-                            rd_tail_fall_dqs[i] <= dq_in_raw[i];
-                    end
-                end
-            end else begin : g_rd_complete_legacy
-                assign rd_data_complete[i*RATIO +: RATIO] =
-                    rd_data_dqs[i*RATIO +: RATIO];
-
-                IDDR #(
-                    .DDR_CLK_EDGE("SAME_EDGE"),
-                    .INIT_Q1(1'b0),
-                    .INIT_Q2(1'b0),
-                    .SRTYPE("SYNC")
-                ) u_iddr_dq (
-                    .Q1 (rd_rise),
-                    .Q2 (rd_fall),
-                    .C  (dqs_in_raw),
-                    .CE (i_rd_capture),
-                    .D  (dq_in_raw[i]),
-                    .R  (i_rst),
-                    .S  (1'b0)
+                ISERDESE2 #(
+                    .SERDES_MODE   ("MASTER"),
+                    .INTERFACE_TYPE("NETWORKING"),
+                    .DATA_WIDTH    (8),
+                    .DATA_RATE     ("DDR"),
+                    .NUM_CE        (1),
+                    .IOBDELAY      ("IFD"),
+                    .IS_CLKB_INVERTED(1'b1),
+                    .INIT_Q1       (1'b0),
+                    .INIT_Q2       (1'b0),
+                    .INIT_Q3       (1'b0),
+                    .INIT_Q4       (1'b0),
+                    .SRVAL_Q1      (1'b0),
+                    .SRVAL_Q2      (1'b0),
+                    .SRVAL_Q3      (1'b0),
+                    .SRVAL_Q4      (1'b0)
+                ) u_iserdes_dq (
+                    .O          (),
+                    .Q1         (dq_i_data[7]),
+                    .Q2         (dq_i_data[6]),
+                    .Q3         (dq_i_data[5]),
+                    .Q4         (dq_i_data[4]),
+                    .Q5         (dq_i_data[3]),
+                    .Q6         (dq_i_data[2]),
+                    .Q7         (dq_i_data[1]),
+                    .Q8         (dq_i_data[0]),
+                    .SHIFTOUT1  (),
+                    .SHIFTOUT2  (),
+                    .BITSLIP    (1'b0),
+                    .CE1        (1'b1),
+                    .CE2        (1'b1),
+                    .CLK        (i_clk_phy_x4),
+                    .CLKB       (i_clk_phy_x4),
+                    .CLKDIV     (i_clk_sys),
+                    .D          (1'b0),
+                    .DDLY       (dq_in_delayed),
+                    .DYNCLKDIVSEL(1'b0),
+                    .DYNCLKSEL  (1'b0),
+                    .OFB        (1'b0),
+                    .RST        (i_rst),
+                    .SHIFTIN1   (1'b0),
+                    .SHIFTIN2   (1'b0)
                 );
 
-                always @(posedge dqs_in_raw or posedge i_rst) begin
-                    if (i_rst) begin
-                        rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
-                    end else if (i_rd_capture && !dqs_drive) begin
-                        rd_data_dqs[i*RATIO + 0] <= rd_rise;
-                        rd_data_dqs[i*RATIO + 1] <= rd_fall;
-                        rd_data_dqs[i*RATIO + 2] <= rd_rise;
-                        rd_data_dqs[i*RATIO + 3] <= rd_fall;
+                assign rd_data_iserdes[i*RATIO +: RATIO] = dq_i_data;
+            end
+
+            always @(posedge i_clk_sys or posedge i_rst) begin
+                if (i_rst) begin
+                    rd_data_sys  <= {(DQ_BITS*RATIO){1'b0}};
+                    rd_capture_q <= 1'b0;
+                    rd_valid_q   <= 1'b0;
+                end else begin
+                    rd_capture_q <= i_rd_capture;
+                    if (i_rd_capture && !rd_capture_q) begin
+                        rd_data_sys <= {(DQ_BITS*RATIO){1'b0}};
+                        rd_valid_q  <= 1'b0;
+                    end else if (rd_capture_q && !i_rd_capture) begin
+                        rd_data_sys <= rd_data_iserdes;
+                        rd_valid_q  <= 1'b1;
                     end
                 end
             end
+
+            assign o_rd_data  = rd_data_sys;
+            assign o_rd_valid = rd_valid_q;
+        end else begin : g_read_dqs
+            reg [DQ_BITS*RATIO-1:0] rd_data_dqs = {(DQ_BITS*RATIO){1'b0}};
+            reg [DQ_BITS*RATIO-1:0] rd_data_sys = {(DQ_BITS*RATIO){1'b0}};
+            reg [DQ_BITS-1:0]       rd_tail_rise_dqs = {DQ_BITS{1'b0}};
+            reg [DQ_BITS-1:0]       rd_tail_fall_dqs = {DQ_BITS{1'b0}};
+            reg [7:0] dqs_edges_dqs = 8'd0;
+            reg [7:0] dqs_edges_sys = 8'd0;
+            reg       dqs_event_toggle = 1'b0;
+            wire [DQ_BITS*RATIO-1:0] rd_data_complete;
+
+            for (i = 0; i < DQ_BITS; i = i + 1) begin : g_rd_iddr
+                wire rd_rise;
+                wire rd_fall;
+
+                if (FULL_BL8_MODE) begin : g_rd_complete_full
+                    assign rd_data_complete[i*RATIO + 0] = rd_data_dqs[i*RATIO + 0];
+                    assign rd_data_complete[i*RATIO + 1] = rd_data_dqs[i*RATIO + 1];
+                    assign rd_data_complete[i*RATIO + 2] = rd_data_dqs[i*RATIO + 2];
+                    assign rd_data_complete[i*RATIO + 3] = rd_data_dqs[i*RATIO + 3];
+                    assign rd_data_complete[i*RATIO + 4] = rd_data_dqs[i*RATIO + 4];
+                    assign rd_data_complete[i*RATIO + 5] = rd_data_dqs[i*RATIO + 5];
+                    assign rd_data_complete[i*RATIO + 6] = rd_tail_rise_dqs[i];
+                    assign rd_data_complete[i*RATIO + 7] = rd_tail_fall_dqs[i];
+
+                    IDDR #(
+                        .DDR_CLK_EDGE("SAME_EDGE"),
+                        .INIT_Q1(1'b0),
+                        .INIT_Q2(1'b0),
+                        .SRTYPE("SYNC")
+                    ) u_iddr_dq (
+                        .Q1 (rd_rise),
+                        .Q2 (rd_fall),
+                        .C  (dqs_in_raw),
+                        .CE (i_rd_capture),
+                        .D  (dq_in_raw[i]),
+                        .R  (i_rst),
+                        .S  (1'b0)
+                    );
+
+                    always @(posedge dqs_in_raw or posedge i_rst) begin
+                        if (i_rst) begin
+                            rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
+                            rd_tail_rise_dqs[i] <= 1'b0;
+                        end else if (i_rd_capture && !dqs_drive) begin
+                            // IDDR outputs are visible to fabric one DQS rising edge
+                            // after the corresponding input pair. Use IDDR for the
+                            // first three pairs and sample only the final pair directly.
+                            case (dqs_edges_dqs[2:0])
+                                3'd1: begin
+                                    rd_data_dqs[i*RATIO + 0] <= rd_rise;
+                                    rd_data_dqs[i*RATIO + 1] <= rd_fall;
+                                end
+                                3'd2: begin
+                                    rd_data_dqs[i*RATIO + 2] <= rd_rise;
+                                    rd_data_dqs[i*RATIO + 3] <= rd_fall;
+                                end
+                                3'd3: begin
+                                    rd_data_dqs[i*RATIO + 4] <= rd_rise;
+                                    rd_data_dqs[i*RATIO + 5] <= rd_fall;
+                                    rd_tail_rise_dqs[i]      <= dq_in_raw[i];
+                                end
+                                default: begin end
+                            endcase
+                        end
+                    end
+
+                    always @(negedge dqs_in_raw or posedge i_rst) begin
+                        if (i_rst) begin
+                            rd_tail_fall_dqs[i] <= 1'b0;
+                        end else if (i_rd_capture && !dqs_drive) begin
+                            if (dqs_edges_dqs[2:0] == 3'd4)
+                                rd_tail_fall_dqs[i] <= dq_in_raw[i];
+                        end
+                    end
+                end else begin : g_rd_complete_legacy
+                    assign rd_data_complete[i*RATIO +: RATIO] =
+                        rd_data_dqs[i*RATIO +: RATIO];
+
+                    IDDR #(
+                        .DDR_CLK_EDGE("SAME_EDGE"),
+                        .INIT_Q1(1'b0),
+                        .INIT_Q2(1'b0),
+                        .SRTYPE("SYNC")
+                    ) u_iddr_dq (
+                        .Q1 (rd_rise),
+                        .Q2 (rd_fall),
+                        .C  (dqs_in_raw),
+                        .CE (i_rd_capture),
+                        .D  (dq_in_raw[i]),
+                        .R  (i_rst),
+                        .S  (1'b0)
+                    );
+
+                    always @(posedge dqs_in_raw or posedge i_rst) begin
+                        if (i_rst) begin
+                            rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
+                        end else if (i_rd_capture && !dqs_drive) begin
+                            rd_data_dqs[i*RATIO + 0] <= rd_rise;
+                            rd_data_dqs[i*RATIO + 1] <= rd_fall;
+                            rd_data_dqs[i*RATIO + 2] <= rd_rise;
+                            rd_data_dqs[i*RATIO + 3] <= rd_fall;
+                        end
+                    end
+                end
+            end
+
+            reg       rd_capture_q = 1'b0;
+            reg       rd_valid_q = 1'b0;
+            reg       dqs_seen_q = 1'b0;
+            reg [2:0] dqs_event_sync = 3'b000;
+
+            wire dqs_event_sys = dqs_event_sync[2] ^ dqs_event_sync[1];
+
+            always @(posedge i_clk_sys or posedge i_rst) begin
+                if (i_rst) begin
+                    rd_data_sys    <= {(DQ_BITS*RATIO){1'b0}};
+                    dqs_edges_sys  <= 8'd0;
+                    rd_capture_q   <= 1'b0;
+                    rd_valid_q     <= 1'b0;
+                    dqs_seen_q     <= 1'b0;
+                    dqs_event_sync <= 3'b000;
+                end else begin
+                    rd_capture_q   <= i_rd_capture;
+                    dqs_event_sync <= {dqs_event_sync[1:0], dqs_event_toggle};
+                    dqs_edges_sys  <= dqs_edges_dqs;
+
+                    if (i_rd_capture && !rd_capture_q) begin
+                        rd_data_sys <= {(DQ_BITS*RATIO){1'b0}};
+                        rd_valid_q  <= 1'b0;
+                        dqs_seen_q  <= 1'b0;
+                    end else begin
+                        if (FULL_BL8_MODE) begin
+                            if (!i_rd_capture && (dqs_seen_q || dqs_event_sys))
+                                rd_data_sys <= rd_data_complete;
+                        end else if (i_rd_capture || rd_capture_q || dqs_event_sys) begin
+                            rd_data_sys <= rd_data_complete;
+                        end
+
+                        if (dqs_event_sys)
+                            dqs_seen_q <= 1'b1;
+
+                        if (!i_rd_capture && (dqs_seen_q || dqs_event_sys))
+                            rd_valid_q <= 1'b1;
+                    end
+                end
+            end
+
+            always @(posedge dqs_in_raw or posedge i_rst or negedge i_rd_capture) begin
+                if (i_rst) begin
+                    dqs_edges_dqs <= 8'd0;
+                end else if (!i_rd_capture) begin
+                    dqs_edges_dqs <= 8'd0;
+                end else if (!dqs_drive) begin
+                    dqs_edges_dqs <= dqs_edges_dqs + 8'd1;
+                end
+            end
+
+            always @(posedge dqs_in_raw or posedge i_rst) begin
+                if (i_rst) begin
+                    dqs_event_toggle <= 1'b0;
+                end else if (i_rd_capture && !dqs_drive &&
+                         (!FULL_BL8_MODE || (dqs_edges_dqs[1:0] == 2'd3))) begin
+                    dqs_event_toggle <= ~dqs_event_toggle;
+                end
+            end
+
+            assign o_rd_data  = rd_data_sys;
+            assign o_rd_valid = rd_valid_q;
         end
     endgenerate
 
-    reg       rd_capture_q = 1'b0;
-    reg       rd_valid_q = 1'b0;
-    reg       dqs_seen_q = 1'b0;
-    reg [2:0] dqs_event_sync = 3'b000;
-
-    wire dqs_event_sys = dqs_event_sync[2] ^ dqs_event_sync[1];
-
-    always @(posedge i_clk_sys or posedge i_rst) begin
-        if (i_rst) begin
-            rd_data_sys    <= {(DQ_BITS*RATIO){1'b0}};
-            dqs_edges_sys  <= 8'd0;
-            rd_capture_q   <= 1'b0;
-            rd_valid_q     <= 1'b0;
-            dqs_seen_q     <= 1'b0;
-            dqs_event_sync <= 3'b000;
-        end else begin
-            rd_capture_q   <= i_rd_capture;
-            dqs_event_sync <= {dqs_event_sync[1:0], dqs_event_toggle};
-            dqs_edges_sys  <= dqs_edges_dqs;
-
-            if (i_rd_capture && !rd_capture_q) begin
-                rd_data_sys <= {(DQ_BITS*RATIO){1'b0}};
-                rd_valid_q  <= 1'b0;
-                dqs_seen_q  <= 1'b0;
-            end else begin
-                if (FULL_BL8_MODE) begin
-                    if (!i_rd_capture && (dqs_seen_q || dqs_event_sys))
-                        rd_data_sys <= rd_data_complete;
-                end else if (i_rd_capture || rd_capture_q || dqs_event_sys) begin
-                    rd_data_sys <= rd_data_complete;
-                end
-
-                if (dqs_event_sys)
-                    dqs_seen_q <= 1'b1;
-
-                if (!i_rd_capture && (dqs_seen_q || dqs_event_sys))
-                    rd_valid_q <= 1'b1;
-            end
-        end
-    end
-
-    always @(posedge dqs_in_raw or posedge i_rst or negedge i_rd_capture) begin
-        if (i_rst) begin
-            dqs_edges_dqs <= 8'd0;
-        end else if (!i_rd_capture) begin
-            dqs_edges_dqs <= 8'd0;
-        end else if (!dqs_drive) begin
-            dqs_edges_dqs <= dqs_edges_dqs + 8'd1;
-        end
-    end
-
-    always @(posedge dqs_in_raw or posedge i_rst) begin
-        if (i_rst) begin
-            dqs_event_toggle <= 1'b0;
-        end else if (i_rd_capture && !dqs_drive &&
-                     (!FULL_BL8_MODE || (dqs_edges_dqs[1:0] == 2'd3))) begin
-            dqs_event_toggle <= ~dqs_event_toggle;
-        end
-    end
-
-    assign o_rd_data  = rd_data_sys;
-    assign o_rd_valid = rd_valid_q;
-
     /* verilator lint_off UNUSED */
     wire _u = &{1'b0, i_clk_phy_x4,
-                i_wr_dqs_en, dqs_edges_sys,
+                i_wr_dqs_en, dqs_in_raw,
                 i_cal_dq_load, i_cal_dq_sel, i_cal_dq_tap,
                 i_cal_dqs_in_load, i_cal_dqs_in_tap,
                 i_cal_dqs_out_load, i_cal_dqs_out_tap, 1'b0};

@@ -105,11 +105,26 @@ lane 3 bypassed and the ECC byte lane used as data lane 7. This target has
 passed synthesis only; it still needs route timing, programming, per-channel
 debug visibility, and hardware memory validation.
 
-After the RMW fast-path fanout cleanups through commit `a98f6dc`, the
-full 2-channel DDR3-1600 synthesis gate reports 16,737 cells and an estimated
-3,923 logic cells. Notable primitive use is 22 BUFG, 196 CARRY4, 3,237 FDCE,
-6,007 FDRE, 128 IDDR, 16 IDELAYE2, 128 OSERDESE2, 1 PLLE2_ADV, and
+After splitting the experimental hard-IO read path out of the default target,
+the normal full 2-channel DDR3-1600 synthesis gate reports 16,716 cells and an
+estimated 3,892 logic cells. Notable primitive use is 22 BUFG, 196 CARRY4,
+3,237 FDCE, 6,007 FDRE, 128 IDDR, 16 IDELAYE2, 128 OSERDESE2, 1 PLLE2_ADV, and
 16 RAMB36E1.
+
+`make -C boards/ypcb-00338 full-2ch-iserdes-json` is an experimental
+synthesis-only gate for a LiteDRAM-inspired RATIO8 read path. It defines
+`DDR3_RATIO8_ISERDES_RD`, leaves the validated narrow image untouched, and
+replaces the RATIO8 DQS-clocked fabric/IDDR capture path with per-DQ
+`IDELAYE2` + `ISERDESE2` read capture. The synthesis evidence is directionally
+useful: the full-speed 2-channel image uses 6 BUFG instead of 22, 128
+`ISERDESE2`, 128 DQ `IDELAYE2`, 128 `OSERDESE2`, and an estimated 4,621 logic
+cells. This is not yet a routeable full-speed target. A seed-1 JTAG-only route
+diagnostic with the same define placed at 119.26 MHz `u_blu.i_clk_50`,
+74.07 MHz `clk_sys`, 265.60 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`, then
+router2 plateaued at 256 overused wires and was terminated. The stable overuse
+points to missing/incorrect 7-series IO-clock packing for the ISERDES cut, so
+the normal full-speed bitstream targets intentionally remain on the existing
+fabric read-capture path until the hard-IO clocking is solved.
 
 `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` is the current
 dual-channel staging gate. It uses both online CH0/CH1 DDR3 pin maps and the
@@ -181,9 +196,11 @@ expected differences were scalar local ports for single-bit nets such as
    route timing closure still needs hardware proof.
 5. Replace the current RATIO>=8 diagnostic PHY with a full hard-SERDES read and
    write path before full-speed signoff. The latest diagnostic uses OSERDESE2
-   for DQ writes, but DQS and read capture are still route-sensitive fabric/IDDR
-   logic. LiteDRAM/MIG-style hard-IO serialization and read capture remains the
-   right next architecture.
+   for DQ writes. The `DDR3_RATIO8_ISERDES_RD` experiment proves the read path
+   can synthesize as hard IO, but it does not route yet in openXC7 because the
+   ISERDES high-speed clocking still needs the right 7-series IO clock network.
+   LiteDRAM/MIG-style hard-IO serialization and read capture remains the right
+   next architecture.
 6. Re-enable real write/read leveling for full-speed operation. The fixed
    DDR3-800 lane map is not sufficient evidence for DDR3-1600.
 
