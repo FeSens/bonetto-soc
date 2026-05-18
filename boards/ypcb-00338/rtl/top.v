@@ -627,8 +627,24 @@ module top (
     reg  [DDR3_PHY_DATA_W-1:0] phy_wr_data_last = {DDR3_PHY_DATA_W{1'b0}};
     reg  [31:0] phy_rd_data_status_word_sys = 32'hAB20_0000;
     reg  [31:0] phy_wr_data_status_word_sys = 32'hAB40_0000;
-    integer phy_rd_data_word_i;
-    integer phy_wr_data_word_i;
+    reg         phy_rd_data_status_req = 1'b0;
+    reg         phy_wr_data_status_req = 1'b0;
+    reg  [4:0] phy_rd_data_status_idx = 5'd0;
+    reg  [4:0] phy_wr_data_status_idx = 5'd0;
+
+    function [31:0] phy_debug_word;
+        input [DDR3_PHY_DATA_W-1:0] data;
+        input [4:0] word_idx;
+        input [15:0] tag;
+        integer i;
+        begin
+            phy_debug_word = {tag, 11'd0, word_idx};
+            for (i = 0; i < PHY_RD_DATA_STATUS_WORDS; i = i + 1) begin
+                if (word_idx == i[4:0])
+                    phy_debug_word = data[i*32 +: 32];
+            end
+        end
+    endfunction
 
     always @(posedge clk_sys) begin
         if (rst_sys) begin
@@ -636,31 +652,29 @@ module top (
             phy_wr_data_last <= {DDR3_PHY_DATA_W{1'b0}};
             phy_rd_data_status_word_sys <= 32'hAB20_0000;
             phy_wr_data_status_word_sys <= 32'hAB40_0000;
+            phy_rd_data_status_req <= 1'b0;
+            phy_wr_data_status_req <= 1'b0;
+            phy_rd_data_status_idx <= 5'd0;
+            phy_wr_data_status_idx <= 5'd0;
         end else begin
             if (phy_rd_valid)
                 phy_rd_data_last <= phy_rd_data;
             if (phy_wr_valid)
                 phy_wr_data_last <= phy_wr_data;
+            phy_rd_data_status_req <= h2f_cmd_valid_sys && (h2f_cmd_sys[7:5] == 3'b001);
+            phy_wr_data_status_req <= h2f_cmd_valid_sys && (h2f_cmd_sys[7:5] == 3'b010);
             if (h2f_cmd_valid_sys && (h2f_cmd_sys[7:5] == 3'b001)) begin
-                phy_rd_data_status_word_sys <= {16'hAB20, 11'd0, h2f_cmd_sys[4:0]};
-                for (phy_rd_data_word_i = 0;
-                     phy_rd_data_word_i < PHY_RD_DATA_STATUS_WORDS;
-                     phy_rd_data_word_i = phy_rd_data_word_i + 1) begin
-                    if (h2f_cmd_sys[4:0] == phy_rd_data_word_i[4:0])
-                        phy_rd_data_status_word_sys <=
-                            phy_rd_data_last[phy_rd_data_word_i*32 +: 32];
-                end
+                phy_rd_data_status_idx <= h2f_cmd_sys[4:0];
             end
             if (h2f_cmd_valid_sys && (h2f_cmd_sys[7:5] == 3'b010)) begin
-                phy_wr_data_status_word_sys <= {16'hAB40, 11'd0, h2f_cmd_sys[4:0]};
-                for (phy_wr_data_word_i = 0;
-                     phy_wr_data_word_i < PHY_RD_DATA_STATUS_WORDS;
-                     phy_wr_data_word_i = phy_wr_data_word_i + 1) begin
-                    if (h2f_cmd_sys[4:0] == phy_wr_data_word_i[4:0])
-                        phy_wr_data_status_word_sys <=
-                            phy_wr_data_last[phy_wr_data_word_i*32 +: 32];
-                end
+                phy_wr_data_status_idx <= h2f_cmd_sys[4:0];
             end
+            if (phy_rd_data_status_req)
+                phy_rd_data_status_word_sys <=
+                    phy_debug_word(phy_rd_data_last, phy_rd_data_status_idx, 16'hAB20);
+            if (phy_wr_data_status_req)
+                phy_wr_data_status_word_sys <=
+                    phy_debug_word(phy_wr_data_last, phy_wr_data_status_idx, 16'hAB40);
         end
     end
 `endif
