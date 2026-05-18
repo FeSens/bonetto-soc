@@ -361,6 +361,24 @@ lane-local sys-domain start/done pulses grew the image to 13,627 cells /
 `u_blu.i_clk_50`, 98.22 MHz `clk_sys`, and 840.34 MHz `clk_dq`, so that pulse
 split was reverted.
 
+The next kept checkpoint moves the full-BL8 sys-domain data capture onto the
+synchronized DQS event and stops clearing the wide `rd_data_sys` register at
+capture start in full-BL8 mode. `rd_valid_q` is still cleared at capture start
+and is only asserted after the capture window has completed, so stale data
+remains hidden behind the valid handshake. This removes the wide data mux from
+the lane-local `rd_capture_q` control path. `make -C ip/ddr3
+synth-phy-dq-ratio8`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
+ip/ddr3 sim` pass. The `full-2ch-serdescmd-json` image drops to 12,627 cells /
+2,924 estimated logic cells, with 22 `BUFG`, 136 `CARRY4`, 2,479 `FDCE`,
+4,673 `FDRE`, 128 `IDDR`, 16 `IDELAYE2`, 178 `OSERDESE2`, 1 `IDELAYCTRL`,
+1 `PLLE2_ADV`, and 16 `RAMB36E1`. The paired seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route still fails timing, but
+improves to 160.44 MHz `u_blu.i_clk_50`, 127.02 MHz `clk_sys`, 813.67 MHz
+`clk_dq`, and 1557.63 MHz `clk_phy_x4`; all DQS raw clocks pass the current
+200 MHz nextpnr check. The `clk_sys` critical path has moved out of PHY
+read-capture control and into CH1 runtime wait-counter/control logic. This is
+useful route progress, not DDR3-1600 signoff.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with

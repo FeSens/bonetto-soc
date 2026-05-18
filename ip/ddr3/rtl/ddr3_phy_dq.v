@@ -612,12 +612,13 @@ module ddr3_phy_dq #(
                     dqs_edges_sys  <= dqs_edges_dqs;
 
                     if (rd_capture_start_sys) begin
-                        rd_data_sys <= {(DQ_BITS*RATIO){1'b0}};
+                        if (!FULL_BL8_MODE)
+                            rd_data_sys <= {(DQ_BITS*RATIO){1'b0}};
                         rd_valid_q  <= 1'b0;
                         dqs_seen_q  <= 1'b0;
                     end else begin
                         if (FULL_BL8_MODE) begin
-                            if (rd_capture_done_sys && (dqs_seen_q || dqs_event_sys))
+                            if (dqs_event_sys)
                                 rd_data_sys <= rd_data_complete;
                         end else if (i_rd_capture || rd_capture_q || dqs_event_sys) begin
                             rd_data_sys <= rd_data_complete;
