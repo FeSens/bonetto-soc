@@ -136,15 +136,22 @@ module top (
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_WR_SAMPLE_OFFSET_MAP = 16'h0000;
 `elsif DDR3_FULL_CH0
     // Full CH0 keeps the validated lower-lane RATIO8 capture offsets.
-    // Upper lanes stay unshifted until hardware characterization proves
-    // per-lane offsets for physical lanes 5..8.
+    // Writes use the raw BL8 sample order; RATIO8 lower-lane hardware
+    // validation did not need a launch-side sample shift.
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP = 32'h0000_0777;
-    localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_WR_SAMPLE_OFFSET_MAP = 32'h0000_0777;
+    localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_WR_SAMPLE_OFFSET_MAP = 32'h0000_0000;
 `else
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP =
         {DDR3_ACTIVE_BYTE_LANES{4'd0}};
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_WR_SAMPLE_OFFSET_MAP =
         {DDR3_ACTIVE_BYTE_LANES{4'd0}};
+`endif
+`ifdef DDR3_JTAG_ONLY
+    // Debug-only isolation mode: write one selected 32-bit word inside a BL8
+    // burst without first preserving the rest of the burst through RMW.
+    localparam integer DDR3_BURST_WRITE_RMW = 0;
+`else
+    localparam integer DDR3_BURST_WRITE_RMW = 1;
 `endif
     localparam integer JWB_LOCAL_ADDR_W = 15;
     localparam integer JWB_DDR3_LOCAL_W = 14;
@@ -638,6 +645,7 @@ module top (
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
         .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS),
+        .BURST_WRITE_RMW(DDR3_BURST_WRITE_RMW),
         .RD_SAMPLE_OFFSET_MAP(DDR3_RD_SAMPLE_OFFSET_MAP),
         .WR_SAMPLE_OFFSET_MAP(DDR3_WR_SAMPLE_OFFSET_MAP)
     ) u_ddr3_ctrl (
@@ -821,6 +829,7 @@ module top (
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
         .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS),
+        .BURST_WRITE_RMW(DDR3_BURST_WRITE_RMW),
         .RD_SAMPLE_OFFSET_MAP(DDR3_RD_SAMPLE_OFFSET_MAP),
         .WR_SAMPLE_OFFSET_MAP(DDR3_WR_SAMPLE_OFFSET_MAP)
     ) u_ddr3_ctrl_ch1 (
