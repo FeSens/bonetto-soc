@@ -213,12 +213,31 @@ JWB_CMD_SET_CAL  = 0xE8
 # iter-11: MMCM clk_dq phase shift on CLKOUT2 (DQS-out launch clock).
 JWB_CMD_PHASE_INC = 0xE9
 JWB_CMD_PHASE_DEC = 0xEA
+# iter-18: board-top debug commands for direct MPR probing.
+JWB_CMD_MPR_EN    = 0xEB
+JWB_CMD_MPR_DIS   = 0xEC
+JWB_CMD_MPR_READ  = 0xED
 
 
 def jwb_set_idelay(xvc, lane: int, tap: int):
     """Pulse the FPGA's IDELAYE2 load on `lane` with `tap`. lane: 0-8."""
     payload = ((tap & 0x1F) << 8) | (lane & 0xF)
     jwb_cmd(xvc, JWB_CMD_SET_CAL, payload)
+
+
+def jwb_mpr_enable(xvc):
+    """Enable DDR3 MR3 MPR mode through the board-top debug path."""
+    jwb_cmd(xvc, JWB_CMD_MPR_EN, 0)
+
+
+def jwb_mpr_disable(xvc):
+    """Disable DDR3 MR3 MPR mode through the board-top debug path."""
+    jwb_cmd(xvc, JWB_CMD_MPR_DIS, 0)
+
+
+def jwb_mpr_read(xvc, addr: int = 0x1000):
+    """Issue one MPR read; addr bit 12 is forced in hardware for BL8."""
+    jwb_cmd(xvc, JWB_CMD_MPR_READ, addr & 0x1FFF)
 
 
 def jwb_phase_shift(xvc, n_steps: int):

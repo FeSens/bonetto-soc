@@ -609,6 +609,61 @@ module top (
     wire [14:0] cal_mrs_addr;
     wire        ctrl_mrs_busy;
 
+    // Debug host commands, delivered over the existing JTAG status command
+    // path. These let software enable MR3/MPR and trigger one MPR read at a
+    // chosen DQS IDELAY tap without re-running the calibration FSM.
+    localparam [7:0] DBG_CMD_MPR_EN   = 8'hEB;
+    localparam [7:0] DBG_CMD_MPR_DIS  = 8'hEC;
+    localparam [7:0] DBG_CMD_MPR_READ = 8'hED;
+
+    reg        dbg_mpr_req  = 1'b0;
+    reg [12:0] dbg_mpr_addr = 13'h1000;
+    reg        dbg_mrs_req  = 1'b0;
+    reg [2:0]  dbg_mrs_ba   = 3'd3;
+    reg [14:0] dbg_mrs_addr = 15'h0000;
+
+    always @(posedge clk_sys) begin
+        if (rst_sys) begin
+            dbg_mpr_req  <= 1'b0;
+            dbg_mpr_addr <= 13'h1000;
+            dbg_mrs_req  <= 1'b0;
+            dbg_mrs_ba   <= 3'd3;
+            dbg_mrs_addr <= 15'h0000;
+        end else begin
+            dbg_mpr_req <= 1'b0;
+            dbg_mrs_req <= 1'b0;
+
+            if (h2f_cmd_valid_sys) begin
+                case (h2f_cmd_sys[31:24])
+                    DBG_CMD_MPR_EN: begin
+                        dbg_mrs_req  <= 1'b1;
+                        dbg_mrs_ba   <= 3'd3;
+                        dbg_mrs_addr <= 15'h0004; // MR3[2]=1, predefined MPR pattern
+                    end
+
+                    DBG_CMD_MPR_DIS: begin
+                        dbg_mrs_req  <= 1'b1;
+                        dbg_mrs_ba   <= 3'd3;
+                        dbg_mrs_addr <= 15'h0000;
+                    end
+
+                    DBG_CMD_MPR_READ: begin
+                        dbg_mpr_req  <= 1'b1;
+                        dbg_mpr_addr <= h2f_cmd_sys[12:0] | 13'h1000; // force BL8
+                    end
+
+                    default: begin end
+                endcase
+            end
+        end
+    end
+
+    wire        ctrl_mpr_req  = phy_mpr_req | dbg_mpr_req;
+    wire [12:0] ctrl_mpr_addr = dbg_mpr_req ? dbg_mpr_addr : phy_mpr_addr;
+    wire        ctrl_mrs_req  = cal_mrs_req | dbg_mrs_req;
+    wire [2:0]  ctrl_mrs_ba   = dbg_mrs_req ? dbg_mrs_ba   : cal_mrs_ba;
+    wire [14:0] ctrl_mrs_addr = dbg_mrs_req ? dbg_mrs_addr : cal_mrs_addr;
+
     wire        cal_wlvl_start, cal_wlvl_done, cal_wlvl_error;
     wire        cal_rdlvl_start, cal_rdlvl_done, cal_rdlvl_error;
     localparam integer DDR3_DQ_BITS = 8;
@@ -718,12 +773,12 @@ module top (
         .o_phy_wr_data   (phy_wr_data),
         .o_phy_wr_valid  (phy_wr_valid),
         .o_phy_rd_capture(phy_rd_capture),
-        .i_mpr_req      (phy_mpr_req),
-        .i_mpr_addr     (phy_mpr_addr),
+        .i_mpr_req      (ctrl_mpr_req),
+        .i_mpr_addr     (ctrl_mpr_addr),
         .o_mpr_busy     (ctrl_mpr_busy),
-        .i_mrs_req      (cal_mrs_req),
-        .i_mrs_ba       (cal_mrs_ba),
-        .i_mrs_addr     (cal_mrs_addr),
+        .i_mrs_req      (ctrl_mrs_req),
+        .i_mrs_ba       (ctrl_mrs_ba),
+        .i_mrs_addr     (ctrl_mrs_addr),
         .o_mrs_busy     (ctrl_mrs_busy),
         .o_init_done        (ctrl_init_done),
         .o_init_error       (ctrl_init_error),
@@ -1371,7 +1426,7 @@ module top (
             8'h1A:   status_word_comb = {16'hAB1A, jwb_addr_hi_echo_sync[1]};
             8'h1B:   status_word_comb = {16'hAB1B, 16'd0};
             8'h1C:   status_word_comb = {24'hAB1C00, d3_ctrl_sync[1]};
-            8'hFE:   status_word_comb = {16'hB07E, 16'h0011};
+            8'hFE:   status_word_comb = {16'hB07E, 16'h0012};
             8'hFF:   status_word_comb = host_to_fpga;
             default: status_word_comb = {24'hDEADBA, host_to_fpga[7:0]};
         endcase
