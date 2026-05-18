@@ -241,6 +241,16 @@ fell to 621.50 MHz. The same `i_rd_capture` fanout remained in DQS-lane CE/SR
 paths, so the area win did not help the full-speed route and the change should
 not be kept in this form.
 
+Registering `ddr3_runtime.o_rd_capture` with a one-cycle lookahead was also
+tested and reverted. It passed `make -C ip/ddr3 sim-runtime-addr`, and
+`full-2ch-serdescmd-json` shrank slightly to 14,236 cells / 3,077 estimated
+logic cells. The paired seed-1 hard-command route regressed to 118.37 MHz
+`u_blu.i_clk_50`, 97.22 MHz `clk_sys`, 791.77 MHz `clk_dq`, and 1557.63 MHz
+`clk_phy_x4`. The lane-array output register was already present, so this only
+changed upstream logic; the post-route critical path still reported
+per-lane `i_rd_capture` fanout. Do not keep this without a lane-local capture
+control split.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
