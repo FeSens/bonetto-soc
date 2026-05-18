@@ -158,6 +158,11 @@ module top (
 `else
     localparam integer DDR3_BROADCAST_WRITE_SAMPLES = 0;
 `endif
+`ifdef DDR3_ENABLE_RDLVL
+    localparam integer DDR3_SKIP_RDLVL = 0;
+`else
+    localparam integer DDR3_SKIP_RDLVL = 1;
+`endif
     localparam integer JWB_LOCAL_ADDR_W = 15;
     localparam integer JWB_DDR3_LOCAL_W = 14;
     localparam integer JWB_DDR3_HI_W = FABRIC_ADDR_W - JWB_DDR3_LOCAL_W;
@@ -712,7 +717,7 @@ module top (
         .o_init_state       (ctrl_init_state)
     );
 
-    ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(1)) u_cal_seq (
+    ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(DDR3_SKIP_RDLVL)) u_cal_seq (
         .i_clk            (clk_sys),
         .i_rst            (rst_sys),
         .i_init_done      (ctrl_init_done),
@@ -897,7 +902,7 @@ module top (
         .o_init_state       (ctrl_init_state_ch1)
     );
 
-    ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(1)) u_cal_seq_ch1 (
+    ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(DDR3_SKIP_RDLVL)) u_cal_seq_ch1 (
         .i_clk            (clk_sys),
         .i_rst            (rst_sys),
         .i_init_done      (ctrl_init_done_ch1),
