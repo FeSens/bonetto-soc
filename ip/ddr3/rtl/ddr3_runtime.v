@@ -43,6 +43,7 @@ module ddr3_runtime #(
     parameter integer SERDES_RATIO   = 4,
     parameter integer WB_BURST_WORD_BITS = 0,
     parameter integer BURST_WRITE_RMW = 1,
+    parameter integer BROADCAST_WRITE_SAMPLES = 0,
     parameter [NUM_BYTE_LANES*4-1:0] RD_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}},
     parameter [NUM_BYTE_LANES*4-1:0] WR_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}}
 ) (
@@ -444,10 +445,15 @@ module ddr3_runtime #(
                         wire replace_bit =
                             saved_burst_word_onehot[WORD_INDEX] &
                             saved_sel[BYTE_INDEX];
+                        wire direct_replace_bit =
+                            (BROADCAST_WRITE_SAMPLES != 0) ?
+                            ((saved_burst_word_offset[0] == (fl / 4)) &
+                             saved_sel[BYTE_INDEX]) :
+                            replace_bit;
                         assign rmw_wr_data_next[WR_BIT] = replace_bit ?
                             saved_wdat[BYTE_INDEX*8 + fbit] :
                             rd_burst_data[RD_BIT];
-                        assign direct_wr_data_next[WR_BIT] = replace_bit ?
+                        assign direct_wr_data_next[WR_BIT] = direct_replace_bit ?
                             saved_wdat[BYTE_INDEX*8 + fbit] : 1'b0;
                     end
                 end

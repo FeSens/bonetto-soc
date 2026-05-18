@@ -34,6 +34,7 @@ module ddr3_ctrl #(
     parameter integer SERDES_RATIO   = 4,
     parameter integer WB_BURST_WORD_BITS = 0,
     parameter integer BURST_WRITE_RMW = 1,
+    parameter integer BROADCAST_WRITE_SAMPLES = 0,
     parameter [NUM_BYTE_LANES*4-1:0] RD_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}},
     parameter [NUM_BYTE_LANES*4-1:0] WR_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}}
 ) (
@@ -153,6 +154,7 @@ module ddr3_ctrl #(
         .SERDES_RATIO   (SERDES_RATIO),
         .WB_BURST_WORD_BITS (WB_BURST_WORD_BITS),
         .BURST_WRITE_RMW (BURST_WRITE_RMW),
+        .BROADCAST_WRITE_SAMPLES (BROADCAST_WRITE_SAMPLES),
         .RD_SAMPLE_OFFSET_MAP (RD_SAMPLE_OFFSET_MAP),
         .WR_SAMPLE_OFFSET_MAP (WR_SAMPLE_OFFSET_MAP)
     ) u_runtime (
