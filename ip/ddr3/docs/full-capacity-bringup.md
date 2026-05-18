@@ -126,6 +126,21 @@ points to missing/incorrect 7-series IO-clock packing for the ISERDES cut, so
 the normal full-speed bitstream targets intentionally remain on the existing
 fabric read-capture path until the hard-IO clocking is solved.
 
+`make -C boards/ypcb-00338 full-2ch-serdescmd-iserdes-json` adds
+`DDR3_SERDES_CMD` to the ISERDES read experiment. This LiteDRAM-style
+diagnostic hard-serializes the command, address, CKE, reset, and ODT pins with
+OSERDESE2 while keeping the controller-visible 1:4 command contract and
+inserting NOP slots in the other CK positions. It synthesizes to 15,391 cells
+with 178 `OSERDESE2`, 128 `ISERDESE2`, 128 DQ `IDELAYE2`, 16 `RAMB36E1`, and an
+estimated 4,616 logic cells. The paired seeded route target,
+`make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream`,
+still does not route: placement improved `clk_dq` to 655.74 MHz, but `clk_sys`
+was still 68.59 MHz and router2 plateaued from iteration 12 through 41 at 256
+overused wires before the run was interrupted. This proves command/address
+hard-serialization is syntactically viable and reduces high-speed fabric
+pressure, but it is not enough without a legal 7-series IO-clock partition for
+the ISERDES/DQS side and further `clk_sys` cleanup.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
@@ -208,13 +223,14 @@ expected differences were scalar local ports for single-bit nets such as
    generate 200 MHz controller and 800 MHz CK/DQS clocks for that build. Full
    route timing closure still needs hardware proof.
 5. Replace the current RATIO>=8 diagnostic PHY with a full hard-SERDES read and
-   write path before full-speed signoff. The latest diagnostic uses OSERDESE2
-   for DQ writes. The `DDR3_RATIO8_ISERDES_RD` experiment proves the read path
-   can synthesize as hard IO, but it does not route yet in openXC7 because the
-   ISERDES high-speed clocking still needs the right 7-series IO clock network.
-   A lane-local BUFIO behind the existing global clock is not legal/placeable in
-   nextpnr; LiteDRAM/MIG-style hard-IO serialization and read capture with CMT
-   or IO-region clocking remains the right next architecture.
+   write path before full-speed signoff. The latest diagnostics use OSERDESE2
+   for DQ writes and can also hard-serialize command/address with
+   `DDR3_SERDES_CMD`. The `DDR3_RATIO8_ISERDES_RD` experiment proves the read
+   path can synthesize as hard IO, but it does not route yet in openXC7 because
+   the ISERDES high-speed clocking still needs the right 7-series IO clock
+   network. A lane-local BUFIO behind the existing global clock is not
+   legal/placeable in nextpnr; LiteDRAM/MIG-style hard-IO serialization and read
+   capture with CMT or IO-region clocking remains the right next architecture.
 6. Re-enable real write/read leveling for full-speed operation. The fixed
    DDR3-800 lane map is not sufficient evidence for DDR3-1600.
 

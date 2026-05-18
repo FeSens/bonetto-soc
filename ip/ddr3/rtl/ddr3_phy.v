@@ -289,13 +289,17 @@ module ddr3_phy #(
 `endif
 
     // ============================================================
-    // Command-bus output FFs (single-data-rate)
+    // Command-bus output path.
     //
     // The controller runs at clk_sys (100 MHz) while DDR3 CK is 400 MHz.
     // Capture one command/address/control word per clk_sys cycle, then
     // launch it from the +90 degree clk_dq domain for one DDR3 CK cycle.
     // That keeps command pins away from the CK sampling edge and inserts
     // NOPs on the other three CK cycles within each clk_sys cycle.
+    //
+    // DDR3_SERDES_CMD keeps the same 1:4 command contract, but uses OSERDESE2
+    // on the command/address/control pins so the 800 MHz DDR3-1600 diagnostic
+    // does not need fabric FFs clocked by clk_dq for those outputs.
     // ============================================================
     reg cke_shadow, reset_shadow, odt_shadow;
     reg wr_shadow;
@@ -330,11 +334,6 @@ module ddr3_phy #(
         end
     end
 
-    reg cke_q, reset_q, cs_q, ras_q, cas_q, we_q, odt_q;
-    reg [BANK_BITS-1:0]  ba_q;
-    reg [ROW_BITS-1:0]   addr_q;
-    reg [1:0]            cmd_phase;
-    reg                  wr_cmd_launch_q;
 `ifdef DDR3_WR_DQS_DELAY_CK
     localparam integer WR_DQS_DELAY_CK = `DDR3_WR_DQS_DELAY_CK;
 `else
@@ -350,6 +349,103 @@ module ddr3_phy #(
 `else
     localparam integer WR_DQ_OE_HOLD_SYS = 4;
 `endif
+
+`ifdef DDR3_SERDES_CMD
+    wire cke_q, reset_q, cs_q, ras_q, cas_q, we_q, odt_q;
+    wire [BANK_BITS-1:0]  ba_q;
+    wire [ROW_BITS-1:0]   addr_q;
+    wire [3:0]            cmd_ser;
+    wire                  wr_cmd_launch_q = wr_shadow;
+
+    ddr3_phy_oserdes8 u_cmd_oserdes_cs (
+        .i_clk    (o_clk_phy_x4),
+        .i_clkdiv (o_clk_sys),
+        .i_rst    (phy_io_rst),
+        .i_d      ({6'b111111, cmd_shadow[3], cmd_shadow[3]}),
+        .o_q      (cmd_ser[3])
+    );
+
+    ddr3_phy_oserdes8 u_cmd_oserdes_ras (
+        .i_clk    (o_clk_phy_x4),
+        .i_clkdiv (o_clk_sys),
+        .i_rst    (phy_io_rst),
+        .i_d      ({6'b111111, cmd_shadow[2], cmd_shadow[2]}),
+        .o_q      (cmd_ser[2])
+    );
+
+    ddr3_phy_oserdes8 u_cmd_oserdes_cas (
+        .i_clk    (o_clk_phy_x4),
+        .i_clkdiv (o_clk_sys),
+        .i_rst    (phy_io_rst),
+        .i_d      ({6'b111111, cmd_shadow[1], cmd_shadow[1]}),
+        .o_q      (cmd_ser[1])
+    );
+
+    ddr3_phy_oserdes8 u_cmd_oserdes_we (
+        .i_clk    (o_clk_phy_x4),
+        .i_clkdiv (o_clk_sys),
+        .i_rst    (phy_io_rst),
+        .i_d      ({6'b111111, cmd_shadow[0], cmd_shadow[0]}),
+        .o_q      (cmd_ser[0])
+    );
+
+    assign {cs_q, ras_q, cas_q, we_q} = cmd_ser;
+
+    ddr3_phy_oserdes8 u_cmd_oserdes_cke (
+        .i_clk    (o_clk_phy_x4),
+        .i_clkdiv (o_clk_sys),
+        .i_rst    (phy_io_rst),
+        .i_d      ({8{cke_shadow}}),
+        .o_q      (cke_q)
+    );
+
+    ddr3_phy_oserdes8 u_cmd_oserdes_reset (
+        .i_clk    (o_clk_phy_x4),
+        .i_clkdiv (o_clk_sys),
+        .i_rst    (phy_io_rst),
+        .i_d      ({8{reset_shadow}}),
+        .o_q      (reset_q)
+    );
+
+    ddr3_phy_oserdes8 u_cmd_oserdes_odt (
+        .i_clk    (o_clk_phy_x4),
+        .i_clkdiv (o_clk_sys),
+        .i_rst    (phy_io_rst),
+        .i_d      ({8{odt_shadow}}),
+        .o_q      (odt_q)
+    );
+
+    genvar cmd_bi;
+    generate
+        for (cmd_bi = 0; cmd_bi < BANK_BITS; cmd_bi = cmd_bi + 1) begin : g_ba_oserdes
+            ddr3_phy_oserdes8 u_ba_oserdes (
+                .i_clk    (o_clk_phy_x4),
+                .i_clkdiv (o_clk_sys),
+                .i_rst    (phy_io_rst),
+                .i_d      ({6'b000000, ba_shadow[cmd_bi], ba_shadow[cmd_bi]}),
+                .o_q      (ba_q[cmd_bi])
+            );
+        end
+    endgenerate
+
+    genvar cmd_ai;
+    generate
+        for (cmd_ai = 0; cmd_ai < ROW_BITS; cmd_ai = cmd_ai + 1) begin : g_addr_oserdes
+            ddr3_phy_oserdes8 u_addr_oserdes (
+                .i_clk    (o_clk_phy_x4),
+                .i_clkdiv (o_clk_sys),
+                .i_rst    (phy_io_rst),
+                .i_d      ({6'b000000, addr_shadow[cmd_ai], addr_shadow[cmd_ai]}),
+                .o_q      (addr_q[cmd_ai])
+            );
+        end
+    endgenerate
+`else
+    reg cke_q, reset_q, cs_q, ras_q, cas_q, we_q, odt_q;
+    reg [BANK_BITS-1:0]  ba_q;
+    reg [ROW_BITS-1:0]   addr_q;
+    reg [1:0]            cmd_phase;
+    reg                  wr_cmd_launch_q;
 
     always @(posedge o_clk_dq or posedge phy_io_rst) begin
         if (phy_io_rst) begin
@@ -379,6 +475,7 @@ module ddr3_phy #(
             end
         end
     end
+`endif
 
     assign o_ddr3_cke     = cke_q;
     assign o_ddr3_reset_n = reset_q;
@@ -519,4 +616,60 @@ module ddr3_phy #(
     wire _u = &{1'b0, i_wr_mask, i_idelay_ready_ext, mmcm_clkout_dq,
                 SERDES_RATIO[0], 1'b0};
     /* verilator lint_on UNUSED */
+endmodule
+
+module ddr3_phy_oserdes8 (
+    input  wire       i_clk,
+    input  wire       i_clkdiv,
+    input  wire       i_rst,
+    input  wire [7:0] i_d,
+    output wire       o_q
+);
+`ifdef BONETTO_SOC_SIM
+    assign o_q = i_d[0];
+
+    /* verilator lint_off UNUSED */
+    wire _u = &{1'b0, i_clk, i_clkdiv, i_rst, i_d[7:1], 1'b0};
+    /* verilator lint_on UNUSED */
+`else
+    OSERDESE2 #(
+        .SERDES_MODE    ("MASTER"),
+        .DATA_WIDTH     (8),
+        .TRISTATE_WIDTH (1),
+        .DATA_RATE_OQ   ("DDR"),
+        .DATA_RATE_TQ   ("BUF"),
+        .INIT_OQ        (1'b0),
+        .INIT_TQ        (1'b1),
+        .SRVAL_OQ       (1'b0),
+        .SRVAL_TQ       (1'b1)
+    ) u_oserdes (
+        .OFB       (),
+        .OQ        (o_q),
+        .SHIFTOUT1 (),
+        .SHIFTOUT2 (),
+        .TBYTEOUT  (),
+        .TFB       (),
+        .TQ        (),
+        .CLK       (i_clk),
+        .CLKDIV    (i_clkdiv),
+        .D1        (i_d[0]),
+        .D2        (i_d[1]),
+        .D3        (i_d[2]),
+        .D4        (i_d[3]),
+        .D5        (i_d[4]),
+        .D6        (i_d[5]),
+        .D7        (i_d[6]),
+        .D8        (i_d[7]),
+        .OCE       (1'b1),
+        .RST       (i_rst),
+        .SHIFTIN1  (1'b0),
+        .SHIFTIN2  (1'b0),
+        .T1        (1'b0),
+        .T2        (1'b0),
+        .T3        (1'b0),
+        .T4        (1'b0),
+        .TBYTEIN   (1'b0),
+        .TCE       (1'b1)
+    );
+`endif
 endmodule

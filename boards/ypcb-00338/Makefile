@@ -55,7 +55,7 @@ NEXTPNR_ARGS ?=
 DDR3_DEFINES ?=
 DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
-.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
+.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -137,6 +137,14 @@ full-2ch-iserdes-json:
 	  DDR3_ACTIVE_DQS_MAX=8 \
 	  build/bonetto_soc_ypcb00338_full_2ch_iserdes.json
 
+full-2ch-serdescmd-iserdes-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_serdescmd_iserdes \
+	  DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600 -DDDR3_SERDES_CMD -DDDR3_RATIO8_ISERDES_RD" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_full_2ch_serdescmd_iserdes.json
+
 full-2ch-iserdes-bufio-json:
 	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_iserdes_bufio \
 	  DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600 -DDDR3_RATIO8_ISERDES_RD -DDDR3_RATIO8_ISERDES_BUFIO_RDCLK" \
@@ -174,6 +182,16 @@ full-2ch-ddr1600-jtagonly-bitstream:
 	  NEXTPNR_FREQ=200 \
 	  NEXTPNR_ARGS="--seed 1 --log build/full_2ch_ddr1600_jtagonly_seed1_route.log" \
 	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_jtagonly.bit
+
+full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_iserdes_jtagonly \
+	  DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600 -DDDR3_JTAG_ONLY -DDDR3_SERDES_CMD -DDDR3_RATIO8_ISERDES_RD" \
+	  XDC_FILES="constraints/ypcb-00338.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=200 \
+	  NEXTPNR_ARGS="--seed 1 --log build/full_2ch_ddr1600_serdescmd_iserdes_jtagonly_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_iserdes_jtagonly.bit
 
 full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream:
 	$(MAKE) PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_iserdes_bufio_jtagonly \
@@ -321,10 +339,12 @@ help:
 	@echo "  make full-ch0-oddrwr-ddr800-bitstream  route full CH0 with legacy ODDR writes, seed 3"
 	@echo "  make full-2ch-json   synth build-only 2-channel 4 GiB DDR3-1600 image"
 	@echo "  make full-2ch-iserdes-json  synth experimental ISERDES read-capture image"
+	@echo "  make full-2ch-serdescmd-iserdes-json  synth hard-serialized command/address + ISERDES image"
 	@echo "  make full-2ch-iserdes-bufio-json  synth ISERDES read path with BUFIO clock diagnostic"
 	@echo "  make full-2ch-ddr800-bitstream  route seeded 2-channel DDR3-800 staging image"
 	@echo "  make full-2ch-ddr1600-bitstream  route seeded 2-channel DDR3-1600 target image"
 	@echo "  make full-2ch-ddr1600-jtagonly-bitstream  route target image without autonomous memtest"
+	@echo "  make full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream  route hard-command/ISERDES diagnostic"
 	@echo "  make full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream  route BUFIO/ISERDES diagnostic"
 	@echo "  make full-2ch-ddr1600-jtagdirect-bitstream  route JTAG-only target with direct writes and no RMW"
 	@echo "  make detect          probe JTAG chain"
