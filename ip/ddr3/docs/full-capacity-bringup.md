@@ -317,6 +317,17 @@ synth-phy-dq-ratio8` passed and `full-2ch-serdescmd-json` synthesized to
 but not the DQS-domain capture-window fanout, and it regresses the DDR3-1600
 DQ clock margin.
 
+The current route checkpoint keeps zero-latency lane-local `LUT1` copies of
+the PHY write-valid/write-DQS-enable strobes in `ddr3_phy_lane_array`. This
+reduces the global `phy_wr_valid` slow-net fanout from roughly 515 sinks to 9
+sinks, but each lane-local copy still drives about 66 local sinks. Synthesis
+grows to 13,545 cells / 3,157 estimated logic cells with 32 kept `LUT1`s, and
+the seed-1 hard-command JTAG-only route still fails at 145.22 MHz for
+`u_blu.i_clk_50`, 117.05 MHz for `clk_sys`, 807.10 MHz for `clk_dq`, and
+1557.63 MHz for `clk_phy_x4`. This is a modest routing improvement, not a
+signoff fix; the next cut still needs to reduce `state[21]`, burst-offset,
+lane `i_rd_capture`, and lane-local write-enable fanout.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It

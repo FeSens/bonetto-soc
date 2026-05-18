@@ -100,6 +100,27 @@ module ddr3_phy_lane_array #(
             rd_capture_lane <= {NUM_BYTE_LANES{i_rd_capture}};
     end
 
+    wire [NUM_BYTE_LANES-1:0] wr_en_lane;
+    wire [NUM_BYTE_LANES-1:0] wr_dqs_en_lane;
+
+    genvar wv;
+    generate
+        for (wv = 0; wv < NUM_BYTE_LANES; wv = wv + 1) begin : g_wr_valid_buf
+            // Keep zero-latency lane-local copies of the write strobes. The
+            // full-width RATIO8 OSERDES path otherwise fans one controller
+            // write-valid net into every byte lane's write datapath and T pins.
+            (* keep = "true" *) LUT1 #(.INIT(2'b10)) u_wr_en_lut (
+                .I0(i_wr_en),
+                .O (wr_en_lane[wv])
+            );
+
+            (* keep = "true" *) LUT1 #(.INIT(2'b10)) u_wr_dqs_en_lut (
+                .I0(i_wr_dqs_en),
+                .O (wr_dqs_en_lane[wv])
+            );
+        end
+    endgenerate
+
     genvar bl;
     generate
         for (bl = 0; bl < NUM_BYTE_LANES; bl = bl + 1) begin : g_lane
@@ -115,9 +136,9 @@ module ddr3_phy_lane_array #(
                 .i_clk_dq            (i_clk_dq),
                 .i_rst               (i_rst),
 
-                .i_wr_en             (i_wr_en),
+                .i_wr_en             (wr_en_lane[bl]),
                 .i_wr_data           (i_wr_data[bl*DQ_BITS*RATIO +: DQ_BITS*RATIO]),
-                .i_wr_dqs_en         (i_wr_dqs_en),
+                .i_wr_dqs_en         (wr_dqs_en_lane[bl]),
                 .i_rd_capture        (rd_capture_lane[bl]),
 
                 .o_rd_data           (o_rd_data[bl*DQ_BITS*RATIO +: DQ_BITS*RATIO]),
