@@ -143,6 +143,65 @@ module ddr3_ctrl #(
     wire [WB_DATA_W-1:0]  rt_wb_dat;
     wire                  rt_wb_err;
 
+`ifdef DDR3_CTRL_INPUT_REQ_BUFFER
+    (* keep = "true" *) reg                    ctrl_req_valid = 1'b0;
+    (* keep = "true" *) reg                    ctrl_req_issued = 1'b0;
+    (* keep = "true" *) reg                    ctrl_req_we = 1'b0;
+    (* keep = "true" *) reg [WB_ADDR_W-1:0]    ctrl_req_adr = {WB_ADDR_W{1'b0}};
+    (* keep = "true" *) reg [WB_DATA_W-1:0]    ctrl_req_dat = {WB_DATA_W{1'b0}};
+    (* keep = "true" *) reg [WB_DATA_W/8-1:0]  ctrl_req_sel = {(WB_DATA_W/8){1'b0}};
+
+    wire ctrl_req_fire =
+        o_init_done && !ctrl_req_valid && i_wb_cyc && i_wb_stb;
+    wire ctrl_req_issue =
+        ctrl_req_valid && !ctrl_req_issued && !rt_wb_stall;
+
+    always @(posedge i_clk_phy) begin
+        if (i_rst || !o_init_done) begin
+            ctrl_req_valid  <= 1'b0;
+            ctrl_req_issued <= 1'b0;
+            ctrl_req_we     <= 1'b0;
+            ctrl_req_adr    <= {WB_ADDR_W{1'b0}};
+            ctrl_req_dat    <= {WB_DATA_W{1'b0}};
+            ctrl_req_sel    <= {(WB_DATA_W/8){1'b0}};
+        end else begin
+            if (ctrl_req_valid && (rt_wb_ack || rt_wb_err)) begin
+                ctrl_req_valid  <= 1'b0;
+                ctrl_req_issued <= 1'b0;
+            end else if (ctrl_req_issue) begin
+                ctrl_req_issued <= 1'b1;
+            end
+
+            if (ctrl_req_fire) begin
+                ctrl_req_valid  <= 1'b1;
+                ctrl_req_issued <= 1'b0;
+                ctrl_req_we     <= i_wb_we;
+                ctrl_req_adr    <= i_wb_adr;
+                ctrl_req_dat    <= i_wb_dat;
+                ctrl_req_sel    <= i_wb_sel;
+            end
+        end
+    end
+
+    wire                     rt_i_wb_cyc = ctrl_req_valid;
+    wire                     rt_i_wb_stb = ctrl_req_valid && !ctrl_req_issued;
+    wire                     rt_i_wb_we  = ctrl_req_we;
+    wire [WB_ADDR_W-1:0]     rt_i_wb_adr = ctrl_req_adr;
+    wire [WB_DATA_W-1:0]     rt_i_wb_dat = ctrl_req_dat;
+    wire [WB_DATA_W/8-1:0]   rt_i_wb_sel = ctrl_req_sel;
+    wire                     wb_stall_preinit = ~o_init_done;
+    wire                     wb_stall_runtime = ctrl_req_valid;
+`else
+    wire                     rt_i_wb_cyc = i_wb_cyc;
+    wire                     rt_i_wb_stb = i_wb_stb;
+    wire                     rt_i_wb_we  = i_wb_we;
+    wire [WB_ADDR_W-1:0]     rt_i_wb_adr = i_wb_adr;
+    wire [WB_DATA_W-1:0]     rt_i_wb_dat = i_wb_dat;
+    wire [WB_DATA_W/8-1:0]   rt_i_wb_sel = i_wb_sel;
+    wire                     wb_stall_preinit = ~o_init_done;
+    wire                     wb_stall_runtime = rt_wb_stall;
+`endif
+
     ddr3_runtime #(
         .WB_DATA_W (WB_DATA_W),
         .WB_ADDR_W (WB_ADDR_W),
@@ -162,12 +221,12 @@ module ddr3_ctrl #(
         .i_rst       (i_rst),
         .i_init_done (o_init_done),
 
-        .i_wb_cyc    (i_wb_cyc),
-        .i_wb_stb    (i_wb_stb),
-        .i_wb_we     (i_wb_we),
-        .i_wb_adr    (i_wb_adr),
-        .i_wb_dat    (i_wb_dat),
-        .i_wb_sel    (i_wb_sel),
+        .i_wb_cyc    (rt_i_wb_cyc),
+        .i_wb_stb    (rt_i_wb_stb),
+        .i_wb_we     (rt_i_wb_we),
+        .i_wb_adr    (rt_i_wb_adr),
+        .i_wb_dat    (rt_i_wb_dat),
+        .i_wb_sel    (rt_i_wb_sel),
         .o_wb_stall  (rt_wb_stall),
         .o_wb_ack    (rt_wb_ack),
         .o_wb_dat    (rt_wb_dat),
@@ -214,7 +273,7 @@ module ddr3_ctrl #(
     // ---------------- Wishbone slave routing ----------------
     // Pre-init: front-end stalls everything.
     // Post-init: ddr3_runtime owns the WB responses.
-    assign o_wb_stall = (~o_init_done) | rt_wb_stall;
+    assign o_wb_stall = wb_stall_preinit | wb_stall_runtime;
 
     always @(posedge i_clk) begin
         if (i_rst) begin
