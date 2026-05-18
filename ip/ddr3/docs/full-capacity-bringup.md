@@ -307,6 +307,16 @@ seed-1 `full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route regressed to
 `clk_dq`, and 1557.63 MHz for `clk_phy_x4`. The extra buffers increased area
 and worsened routing, so explicit LUT fanout splitting is not a viable path.
 
+Tying the full-BL8 IDDR `CE` inputs high while keeping the DQS-domain capture
+window under `i_rd_capture` was also tested and reverted. `make -C ip/ddr3
+synth-phy-dq-ratio8` passed and `full-2ch-serdescmd-json` synthesized to
+13,217 cells / 3,086 estimated logic cells, but the seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route still failed at
+149.57 MHz for `u_blu.i_clk_50`, 106.59 MHz for `clk_sys`, 654.45 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. This removes one IDDR CE branch
+but not the DQS-domain capture-window fanout, and it regresses the DDR3-1600
+DQ clock margin.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
