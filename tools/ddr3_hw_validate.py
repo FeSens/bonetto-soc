@@ -10,8 +10,10 @@ Addressing:
   - Board-local WB address bit 14 still selects DDR3.
   - Command 0xE1 supplies DDR3 controller address bits [29:14] for JTAG-only
     debug accesses.
-  - The tested DDR3 controller address space is 25 bits:
+  - The default validated CH0 image uses a 25-bit controller address:
       {bank[2:0], row[14:0], col[9:3]}
+  - Full two-channel staging images use a 30-bit global word address with bit
+    29 selecting CH0/CH1 and bits [28:0] selecting the per-channel address.
 """
 
 import argparse
@@ -42,13 +44,20 @@ from tools.jtag_uart_read import (  # noqa: E402
 
 DDR3_SELECT = 0x4000
 DDR3_LOCAL_MASK = 0x3FFF
-DDR3_ADDR_BITS = 25
-DDR3_ADDR_MASK = (1 << DDR3_ADDR_BITS) - 1
-DDR3_WORDS = DDR3_ADDR_MASK + 1
+DEFAULT_DDR3_ADDR_BITS = 25
+MAX_DDR3_ADDR_BITS = 30
 
 
-def ddr3_addr_parts(addr):
-    addr &= DDR3_ADDR_MASK
+def addr_mask(addr_bits):
+    return (1 << addr_bits) - 1
+
+
+def addr_hex_width(addr_bits):
+    return max(1, (addr_bits + 3) // 4)
+
+
+def ddr3_addr_parts(addr, mask):
+    addr &= mask
     return DDR3_SELECT | (addr & DDR3_LOCAL_MASK), (addr >> 14) & 0xFFFF
 
 
@@ -62,11 +71,11 @@ def mix32(x):
     return x & 0xFFFFFFFF
 
 
-def checksum_pattern(addr, index, seed):
+def checksum_pattern(addr, index, seed, address_bits):
     mixed = mix32(addr ^ seed ^ ((index * 0x9E3779B9) & 0xFFFFFFFF))
     data = 0
     for lane in range(4):
-        addr_byte = (addr >> ((lane * 5) % DDR3_ADDR_BITS)) & 0xFF
+        addr_byte = (addr >> ((lane * 5) % address_bits)) & 0xFF
         b = ((mixed >> (lane * 8)) & 0xFF) ^ addr_byte ^ ((index + lane * 0x5A) & 0xFF)
         data |= (b & 0xFF) << (lane * 8)
     return data & 0xFFFFFFFF
@@ -78,8 +87,12 @@ def require(cond, msg):
 
 
 class Validator:
-    def __init__(self, xvc, verbose=False):
+    def __init__(self, xvc, addr_bits=DEFAULT_DDR3_ADDR_BITS, verbose=False):
         self.xvc = xvc
+        self.addr_bits = addr_bits
+        self.addr_mask = addr_mask(addr_bits)
+        self.addr_width = addr_hex_width(addr_bits)
+        self.words = self.addr_mask + 1
         self.verbose = verbose
         self.failures = []
         self.results = {}
@@ -93,18 +106,21 @@ class Validator:
         return regs
 
     def write_ddr3(self, addr, data):
-        local, hi = ddr3_addr_parts(addr)
+        local, hi = ddr3_addr_parts(addr, self.addr_mask)
         return jwb_wb_write(self.xvc, local, data & 0xFFFFFFFF, hi)
 
     def read_ddr3(self, addr):
-        local, hi = ddr3_addr_parts(addr)
+        local, hi = ddr3_addr_parts(addr, self.addr_mask)
         return jwb_wb_read(self.xvc, local, hi)
 
     def normalize_cases(self, cases):
         by_addr = {}
         for addr, data in cases:
-            by_addr[addr & DDR3_ADDR_MASK] = data & 0xFFFFFFFF
+            by_addr[addr & self.addr_mask] = data & 0xFFFFFFFF
         return list(by_addr.items())
+
+    def fmt_addr(self, addr):
+        return f"0x{addr & self.addr_mask:0{self.addr_width}x}"
 
     def check(self, name, cases):
         cases = self.normalize_cases(cases)
@@ -117,7 +133,7 @@ class Validator:
             exp = data & 0xFFFFFFFF
             if got != exp:
                 first_fail = {
-                    "addr": f"0x{addr:07x}",
+                    "addr": self.fmt_addr(addr),
                     "expected": f"0x{exp:08x}",
                     "got": f"0x{got:08x}",
                 }
@@ -145,6 +161,14 @@ class Validator:
             0x07FFFFF, 0x0800000, 0x0C00000, 0x1000000,
             0x1400000, 0x1800000, 0x1C00000, 0x1FFFFFF,
         ]
+        if self.addr_bits > 25:
+            ch1_base = 1 << 29
+            addrs.extend([
+                (1 << 25) - 2, (1 << 25) - 1, 1 << 25, (1 << 25) + 1,
+                ch1_base - 2, ch1_base - 1, ch1_base, ch1_base + 1,
+                self.addr_mask - 3, self.addr_mask - 2,
+                self.addr_mask - 1, self.addr_mask,
+            ])
         patterns = [
             0x00000000, 0xFFFFFFFF, 0xAAAAAAAA, 0x55555555,
             0x11223344, 0x89ABCDEF, 0x01020304, 0xF0E1D2C3,
@@ -156,11 +180,11 @@ class Validator:
 
     def address_walking(self):
         cases = [(0, 0x13572468)]
-        for bit in range(DDR3_ADDR_BITS):
+        for bit in range(self.addr_bits):
             addr = 1 << bit
             cases.append((addr, mix32(addr ^ 0xA5A50000)))
             if addr > 0:
-                cases.append(((addr - 1) & DDR3_ADDR_MASK, mix32(addr ^ 0x5A5A0000)))
+                cases.append(((addr - 1) & self.addr_mask, mix32(addr ^ 0x5A5A0000)))
         return self.check("address_walking", cases)
 
     def data_bit_byte_lanes(self):
@@ -186,9 +210,17 @@ class Validator:
         cases = []
         bases = [0x0, 0x60, 0x3FC0, 0x3FFF0, 0x3FFFF0,
                  0x400000, 0x7FFFC0, 0x1FFFC0, 0x1FFFFC0]
+        if self.addr_bits > 25:
+            ch1_base = 1 << 29
+            bases.extend([
+                0x1FFFFC0, 0x1FFFFF0,
+                ch1_base - 0x40, ch1_base - 0x10,
+                ch1_base, ch1_base + 0x40,
+                self.addr_mask - 0x3F,
+            ])
         for base in bases:
             for off in range(64):
-                addr = (base + off) & DDR3_ADDR_MASK
+                addr = (base + off) & self.addr_mask
                 cases.append((addr, mix32((base << 1) ^ off ^ 0xC001D00D)))
         return self.check("contiguous_burst_alignment_windows", cases)
 
@@ -196,18 +228,18 @@ class Validator:
         rng = random.Random(seed)
         addrs = set()
         while len(addrs) < count:
-            addrs.add(rng.randrange(0, DDR3_ADDR_MASK + 1))
+            addrs.add(rng.randrange(0, self.addr_mask + 1))
         cases = [(addr, mix32(addr ^ rng.getrandbits(32))) for addr in sorted(addrs)]
         return self.check("randomized_read_write", cases)
 
     def checksum_sweep(self, words, stride, seed, base=0):
         start = time.monotonic()
-        words = max(0, min(words, DDR3_WORDS))
-        stride &= DDR3_ADDR_MASK
+        words = max(0, min(words, self.words))
+        stride &= self.addr_mask
         if stride == 0:
             stride = 1
         print(f"xor_checksum_sweep: words={words} bytes={words * 4} "
-              f"base=0x{base & DDR3_ADDR_MASK:07x} stride={stride}")
+              f"base={self.fmt_addr(base)} stride={stride}")
 
         expected_xor = 0
         expected_byte_xor = [0, 0, 0, 0]
@@ -217,8 +249,8 @@ class Validator:
         progress_every = max(1, words // 8)
 
         for i in range(words):
-            addr = (base + i * stride) & DDR3_ADDR_MASK
-            data = checksum_pattern(addr, i, seed)
+            addr = (base + i * stride) & self.addr_mask
+            data = checksum_pattern(addr, i, seed, self.addr_bits)
             expected_xor ^= data
             for lane in range(4):
                 expected_byte_xor[lane] ^= (data >> (lane * 8)) & 0xFF
@@ -227,15 +259,15 @@ class Validator:
                 print(f"  wrote {i + 1}/{words}")
 
         for i in range(words):
-            addr = (base + i * stride) & DDR3_ADDR_MASK
-            exp = checksum_pattern(addr, i, seed)
+            addr = (base + i * stride) & self.addr_mask
+            exp = checksum_pattern(addr, i, seed, self.addr_bits)
             got = self.read_ddr3(addr)
             got_xor ^= got
             for lane in range(4):
                 got_byte_xor[lane] ^= (got >> (lane * 8)) & 0xFF
             if got != exp and first_fail is None:
                 first_fail = {
-                    "addr": f"0x{addr:07x}",
+                    "addr": self.fmt_addr(addr),
                     "expected": f"0x{exp:08x}",
                     "got": f"0x{got:08x}",
                 }
@@ -249,10 +281,10 @@ class Validator:
             "ok": ok,
             "words": words,
             "bytes": words * 4,
-            "base": f"0x{base & DDR3_ADDR_MASK:07x}",
+            "base": self.fmt_addr(base),
             "stride": stride,
             "seed": f"0x{seed & 0xFFFFFFFF:08x}",
-            "full_controller_visible_space": bool(words == DDR3_WORDS and stride == 1),
+            "full_controller_visible_space": bool(words == self.words and stride == 1),
             "expected_xor": f"0x{expected_xor:08x}",
             "got_xor": f"0x{got_xor:08x}",
             "expected_byte_xor": [f"0x{x:02x}" for x in expected_byte_xor],
@@ -356,6 +388,8 @@ def main():
     ap.add_argument("--port", type=int, default=3721)
     ap.add_argument("--tck-ns", type=int, default=2000,
                     help="XVC TCK period; 2000 ns is 500 kHz")
+    ap.add_argument("--addr-bits", type=int, default=DEFAULT_DDR3_ADDR_BITS,
+                    help="DDR3 global word-address bits to test; use 30 for the full two-channel image")
     ap.add_argument("--random-count", type=int, default=512)
     ap.add_argument("--random-seed", type=lambda s: int(s, 0), default=0xD3D30001)
     ap.add_argument("--checksum-words", type=int, default=2048,
@@ -371,6 +405,10 @@ def main():
     ap.add_argument("--json", default=None,
                     help="optional output JSON path")
     args = ap.parse_args()
+    require(1 <= args.addr_bits <= MAX_DDR3_ADDR_BITS,
+            f"--addr-bits must be in range 1..{MAX_DDR3_ADDR_BITS}")
+    test_addr_mask = addr_mask(args.addr_bits)
+    test_words = test_addr_mask + 1
 
     started = datetime.now(timezone.utc).isoformat()
     evidence = {
@@ -378,11 +416,14 @@ def main():
         "host": args.host,
         "port": args.port,
         "tck_ns_requested": args.tck_ns,
+        "addr_bits": args.addr_bits,
+        "addr_mask": f"0x{test_addr_mask:0{addr_hex_width(args.addr_bits)}x}",
+        "addr_words": test_words,
         "random_count": args.random_count,
         "random_seed": f"0x{args.random_seed:08x}",
-        "checksum_words": DDR3_WORDS if args.full_controller_checksum else args.checksum_words,
+        "checksum_words": test_words if args.full_controller_checksum else args.checksum_words,
         "checksum_stride": args.checksum_stride,
-        "checksum_base": f"0x{args.checksum_base & DDR3_ADDR_MASK:07x}",
+        "checksum_base": f"0x{args.checksum_base & test_addr_mask:0{addr_hex_width(args.addr_bits)}x}",
         "checksum_seed": f"0x{args.checksum_seed & 0xFFFFFFFF:08x}",
         "soak_seconds": args.soak_seconds,
         "results": {},
@@ -396,7 +437,7 @@ def main():
         tap_reset_to_rti(xvc)
         select_user1(xvc)
 
-        v = Validator(xvc, verbose=args.verbose)
+        v = Validator(xvc, addr_bits=args.addr_bits, verbose=args.verbose)
         status = v.read_status()
         evidence["initial_status"] = {f"0x{k:02x}": f"0x{val:08x}" for k, val in status.items()}
         print("initial", decode_status_flags(status[0x00]))
@@ -414,7 +455,7 @@ def main():
             v.data_bit_byte_lanes(),
             v.contiguous_windows(),
             v.checksum_sweep(
-                DDR3_WORDS if args.full_controller_checksum else args.checksum_words,
+                test_words if args.full_controller_checksum else args.checksum_words,
                 args.checksum_stride,
                 args.checksum_seed,
                 args.checksum_base,

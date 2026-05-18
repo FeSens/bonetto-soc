@@ -91,6 +91,15 @@ The validation script halts the autonomous memtest, runs direct JTAG/Wishbone
 DDR3 checks, resumes memtest, and records a JSON evidence file under
 `boards/ypcb-00338/build/`.
 
+For the dual-channel staging image, use:
+
+```sh
+make validate-ddr3-full-2ch BOARD=ypcb-00338
+```
+
+That switches the host validator from the old 25-bit CH0 aperture to the
+30-bit global address map, including the channel-select boundary at bit 29.
+
 ## Status Registers
 
 Use `tools/jtag_uart_read.py` while XVC is running:
