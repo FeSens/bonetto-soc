@@ -1327,6 +1327,18 @@ otherwise noted.
   168.35 MHz `u_blu.i_clk_50`, 116.63 MHz `clk_sys`, 826.45 MHz `clk_dq`, and
   1557.63 MHz `clk_phy_x4`; keep the request buffer, but do not reintroduce
   lane-select duplication as the next lever.
+- Registering the merged full-BL8 write payload inside `ddr3_runtime` one
+  controller cycle before the WRITE command was tested and reverted. The intent
+  matched the staged write-data sideband used by DFI-style designs, but it
+  perturbed placement badly in this netlist. Opt-in `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER -DDDR3_RUNTIME_WR_DATA_REG"
+  sim-runtime-addr sim` passed, but the seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_wrdatareg_lateflat_seed1_route.log`
+  regressed to 162.34 MHz `u_blu.i_clk_50`, 124.63 MHz `clk_sys`, 764.53 MHz
+  `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The critical path moved back to
+  JTAG/Wishbone grant/strobe through CH1 `wb_req_fire` into a request-buffer
+  clock enable, while DQ fell below the DDR3-1600 800 MHz intent. Do not keep
+  this as a one-register write-data staging fix.
 
 ## Validation Gates
 
