@@ -298,6 +298,15 @@ for `u_blu.i_clk_50`, 112.55 MHz for `clk_sys`, 722.02 MHz for `clk_dq`, and
 `ddr3_runtime.state[22]`, but the `clk_dq` regression below the DDR3-1600
 800 MHz intent makes this a diagnostic only.
 
+Splitting each lane's `i_rd_capture` fanout through kept per-bit `LUT1`
+identity buffers was also tested and reverted. `make -C ip/ddr3
+synth-phy-dq-ratio8` passed and the full hard-command image synthesized to
+13,775 cells / 3,482 estimated logic cells with 128 explicit `LUT1`s, but the
+seed-1 `full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route regressed to
+132.38 MHz for `u_blu.i_clk_50`, 87.77 MHz for `clk_sys`, 408.66 MHz for
+`clk_dq`, and 1557.63 MHz for `clk_phy_x4`. The extra buffers increased area
+and worsened routing, so explicit LUT fanout splitting is not a viable path.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
