@@ -317,6 +317,8 @@ module ddr3_phy_dq #(
 
     reg [DQ_BITS*RATIO-1:0] rd_data_dqs = {(DQ_BITS*RATIO){1'b0}};
     reg [DQ_BITS*RATIO-1:0] rd_data_sys = {(DQ_BITS*RATIO){1'b0}};
+    reg [DQ_BITS*4-1:0]     rd_rise_dqs = {(DQ_BITS*4){1'b0}};
+    reg [DQ_BITS*4-1:0]     rd_fall_dqs = {(DQ_BITS*4){1'b0}};
     reg [7:0] dqs_edges_dqs = 8'd0;
     reg [7:0] dqs_edges_sys = 8'd0;
     reg       dqs_event_toggle = 1'b0;
@@ -327,52 +329,38 @@ module ddr3_phy_dq #(
             wire rd_fall;
 
             if (FULL_BL8_MODE) begin : g_rd_complete_full
-                assign rd_data_complete[i*RATIO + 0] = rd_data_dqs[i*RATIO + 0];
-                assign rd_data_complete[i*RATIO + 1] = rd_data_dqs[i*RATIO + 1];
-                assign rd_data_complete[i*RATIO + 2] = rd_data_dqs[i*RATIO + 2];
-                assign rd_data_complete[i*RATIO + 3] = rd_data_dqs[i*RATIO + 3];
-                assign rd_data_complete[i*RATIO + 4] = rd_data_dqs[i*RATIO + 4];
-                assign rd_data_complete[i*RATIO + 5] = rd_data_dqs[i*RATIO + 5];
-                assign rd_data_complete[i*RATIO + 6] = rd_rise;
-                assign rd_data_complete[i*RATIO + 7] = rd_fall;
-
-                IDDR #(
-                    .DDR_CLK_EDGE("SAME_EDGE"),
-                    .INIT_Q1(1'b0),
-                    .INIT_Q2(1'b0),
-                    .SRTYPE("SYNC")
-                ) u_iddr_dq (
-                    .Q1 (rd_rise),
-                    .Q2 (rd_fall),
-                    .C  (dqs_in_raw),
-                    .CE (i_rd_capture),
-                    .D  (dq_in_raw[i]),
-                    .R  (i_rst),
-                    .S  (1'b0)
-                );
+                assign rd_data_complete[i*RATIO + 0] = rd_rise_dqs[i*4 + 0];
+                assign rd_data_complete[i*RATIO + 1] = rd_fall_dqs[i*4 + 0];
+                assign rd_data_complete[i*RATIO + 2] = rd_rise_dqs[i*4 + 1];
+                assign rd_data_complete[i*RATIO + 3] = rd_fall_dqs[i*4 + 1];
+                assign rd_data_complete[i*RATIO + 4] = rd_rise_dqs[i*4 + 2];
+                assign rd_data_complete[i*RATIO + 5] = rd_fall_dqs[i*4 + 2];
+                assign rd_data_complete[i*RATIO + 6] = rd_rise_dqs[i*4 + 3];
+                assign rd_data_complete[i*RATIO + 7] = rd_fall_dqs[i*4 + 3];
 
                 always @(posedge dqs_in_raw or posedge i_rst) begin
                     if (i_rst) begin
-                        rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
+                        rd_rise_dqs[i*4 +: 4] <= 4'b0000;
                     end else if (i_rd_capture && !dqs_drive) begin
-                        // IDDR outputs are visible to fabric one DQS rising edge
-                        // after the corresponding input pair. Edges 1..3 collect
-                        // the first three BL8 pairs; the final pair is held on
-                        // rd_rise/rd_fall after the fourth edge and is copied in
-                        // clk_sys once the read-capture window closes.
                         case (dqs_edges_dqs[2:0])
-                            3'd1: begin
-                                rd_data_dqs[i*RATIO + 0] <= rd_rise;
-                                rd_data_dqs[i*RATIO + 1] <= rd_fall;
-                            end
-                            3'd2: begin
-                                rd_data_dqs[i*RATIO + 2] <= rd_rise;
-                                rd_data_dqs[i*RATIO + 3] <= rd_fall;
-                            end
-                            3'd3: begin
-                                rd_data_dqs[i*RATIO + 4] <= rd_rise;
-                                rd_data_dqs[i*RATIO + 5] <= rd_fall;
-                            end
+                            3'd0: rd_rise_dqs[i*4 + 0] <= dq_in_raw[i];
+                            3'd1: rd_rise_dqs[i*4 + 1] <= dq_in_raw[i];
+                            3'd2: rd_rise_dqs[i*4 + 2] <= dq_in_raw[i];
+                            3'd3: rd_rise_dqs[i*4 + 3] <= dq_in_raw[i];
+                            default: begin end
+                        endcase
+                    end
+                end
+
+                always @(negedge dqs_in_raw or posedge i_rst) begin
+                    if (i_rst) begin
+                        rd_fall_dqs[i*4 +: 4] <= 4'b0000;
+                    end else if (i_rd_capture && !dqs_drive) begin
+                        case (dqs_edges_dqs[2:0])
+                            3'd1: rd_fall_dqs[i*4 + 0] <= dq_in_raw[i];
+                            3'd2: rd_fall_dqs[i*4 + 1] <= dq_in_raw[i];
+                            3'd3: rd_fall_dqs[i*4 + 2] <= dq_in_raw[i];
+                            3'd4: rd_fall_dqs[i*4 + 3] <= dq_in_raw[i];
                             default: begin end
                         endcase
                     end
