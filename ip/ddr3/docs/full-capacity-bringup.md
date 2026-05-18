@@ -1339,6 +1339,18 @@ otherwise noted.
   JTAG/Wishbone grant/strobe through CH1 `wb_req_fire` into a request-buffer
   clock enable, while DQ fell below the DDR3-1600 800 MHz intent. Do not keep
   this as a one-register write-data staging fix.
+- Staging only the selected 32-bit RMW word after BL8 readback was tested and
+  reverted. This narrower version was meant to remove `saved_sel` from the
+  long write-data path without adding a full 512-bit payload register. Opt-in
+  `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER -DDDR3_RUNTIME_RMW_WORD_STAGE"
+  sim-runtime-addr sim` passed, but the seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwword_nrdata_lateflat_seed1_route.log`
+  regressed to 158.08 MHz `u_blu.i_clk_50`, 105.59 MHz `clk_sys`,
+  881.06 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final `clk_sys`
+  critical path became the new `rmw_word_next` merge path, driven by
+  `rmw_replace_bit` with 0.6 ns logic and 8.9 ns routing. This confirms that
+  the RMW payload placement problem is broader than the final `saved_sel` to
+  PHY write-data leg; do not keep this as a narrow staging fix.
 
 ## Validation Gates
 
