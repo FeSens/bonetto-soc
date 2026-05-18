@@ -476,6 +476,20 @@ seed 2. It failed worse than the seed-1 comparison point: final timing was
 fixed comparison seed; seed hunting does not address the structural 200 MHz
 controller-clock problem.
 
+A full-BL8 RMW mask-removal experiment in `ddr3_runtime` was tested and
+reverted. The change removed the 64-bit kept `saved_burst_byte_mask` register
+and derived RMW byte replacement from `saved_burst_word_onehot` plus
+`saved_sel`, cutting accept-time mask decode while preserving behavior. Fast
+checks passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`,
+`make -C ip/ddr3 sim`, and `make -C ip/ddr3 formal DEPTH=20`. The late-flat
+JSON shrank to 11,264 cells / 2,534 estimated logic cells, with
+`ddr3_runtime` at 2,254 cells / 855 estimated logic cells, but seed-1 routing
+still regressed the controller path: final timing was 152.81 MHz
+`u_blu.i_clk_50`, 125.33 MHz `clk_sys`, 893.66 MHz `clk_dq`, and 1557.63 MHz
+`clk_phy_x4`. This improves DQ margin and area but loses `clk_sys` versus the
+132.68 MHz clean baseline, so it should not be carried as a standalone timing
+fix.
+
 Pipelining the full-BL8 write-data bus at the PHY lane-array boundary plus a
 one-cycle runtime `S_WR_PREP` state was tested and reverted. Fast checks still
 passed: `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
