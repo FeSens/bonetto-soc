@@ -1275,6 +1275,17 @@ otherwise noted.
   Do not keep these local read-select/init-release reshapes; they confirm the
   next useful split has to change the scheduler/runtime ownership boundary
   rather than only moving individual muxes or init gating.
+- Adding an opt-in one-entry same-clock JTAG-to-DDR Wishbone queue in the board
+  top was tested and reverted. It captured `jwb_adr`, `jwb_addr_hi_echo`, write
+  data, and byte enables before driving the DDR path, but this moved the
+  bottleneck rather than improving placement. The seed-1 route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_wbq_lateflat_seed1_route.log`
+  reported final timing of 125.11 MHz `u_blu.i_clk_50`, 143.43 MHz `clk_sys`,
+  576.37 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The top `clk_sys`
+  critical path still started at `jwb_adr[14]` and reached CH1 runtime enable
+  logic through `d3_stb`, while `clk_dq` margin collapsed. Do not repeat this
+  as a board-top queue; the next useful cut needs to be inside the DDR
+  controller/scheduler boundary.
 
 ## Validation Gates
 
