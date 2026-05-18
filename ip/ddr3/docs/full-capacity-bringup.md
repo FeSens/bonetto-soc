@@ -264,6 +264,17 @@ were 150.67 MHz for `u_blu.i_clk_50`, 116.58 MHz for `clk_sys`, 632.51 MHz for
 to the new kept `rd_capture_lane_q` nets, and `clk_dq` regressed below the
 DDR3-1600 800 MHz intent, so this is not a viable full-speed path as-is.
 
+Forcing `ddr3_runtime.state` to binary FSM encoding with
+`(* fsm_encoding = "binary" *)` was also tested and reverted. It passed
+`make -C ip/ddr3 sim-runtime-addr` and synthesized
+`full-2ch-serdescmd-json`, but full-image synthesis grew to 14,253 cells /
+3,432 estimated logic cells with a large LUT6 increase. The seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route failed at 140.73 MHz
+`u_blu.i_clk_50`, 99.85 MHz `clk_sys`, 376.36 MHz `clk_dq`, and 1557.63 MHz
+`clk_phy_x4`; the slow-net list still included burst-offset, write-valid, and
+state fanout. Keep the default Yosys encoding unless a broader controller
+pipeline split accompanies it.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
