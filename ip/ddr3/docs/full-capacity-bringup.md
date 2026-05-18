@@ -968,6 +968,23 @@ this bridge as-is; if revisiting the native-burst boundary, replace the dynamic
 512-bit word mux/merge functions with static per-word buffer banks or generated
 lane/sample muxes before spending more route time.
 
+A third native-BL8 autonomous-BIST diagnostic was tested and reverted. This
+temporary `DDR3_NATIVE_BL8_TEST` path connected a full-width BL8 Wishbone master
+directly to each controller, drove every byte in the 512-bit PHY payload, and
+tracked per-channel pass/error counters plus XOR expected/got checksums. The
+intent was to remove the 32-bit word-offset/RMW merge from the request path and
+test a LiteDRAM/UberDDR3-style native burst boundary without the JTAG adapter in
+the loop. `make -C ip/ddr3 sim-runtime-addr` passed, and the opt-in board JSON
+build completed, but the design exploded to 21,497 synthesized cells / 4,439
+estimated logic cells with two native BIST engines. Seed-1 late-flat routing
+regressed to 120.47 MHz `u_blu.i_clk_50`, 87.76 MHz `clk_sys`, 402.58 MHz
+`clk_dq`, and 1557.63 MHz `clk_phy_x4`; the final `clk_sys` critical path was
+inside CH0 runtime `beat_ctr`/FSM next-state logic with 0.8 ns logic and
+10.6 ns routing. This rules out a simple "make the frontend full-BL8 native"
+move as a timing fix. A future native-burst attempt needs to reduce scheduler
+fanout and placement pressure first, not add a wide autonomous master around
+the existing runtime FSM.
+
 A full-width CH0-only DDR3-1600 hard-command isolation route was also run to
 separate per-channel timing from dual-channel congestion. The seed-1
 `bonetto_soc_ypcb00338_full_ch0_ddr1600_serdescmd_jtagonly` image used the
