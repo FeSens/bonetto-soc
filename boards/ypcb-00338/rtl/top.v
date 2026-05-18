@@ -133,13 +133,17 @@ module top (
     // Hardware diagnostic: lanes 0-2 return the stable repeated-byte word at
     // BL8 sample 7, while lane 3 (physical byte lane 4) returns it at sample 0.
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP = 16'h0777;
+    localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_WR_SAMPLE_OFFSET_MAP = 16'h0000;
 `elsif DDR3_FULL_CH0
     // Full CH0 keeps the validated lower-lane RATIO8 capture offsets.
     // Upper lanes stay unshifted until hardware characterization proves
     // per-lane offsets for physical lanes 5..8.
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP = 32'h0000_0777;
+    localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_WR_SAMPLE_OFFSET_MAP = 32'h0000_0777;
 `else
     localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP =
+        {DDR3_ACTIVE_BYTE_LANES{4'd0}};
+    localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_WR_SAMPLE_OFFSET_MAP =
         {DDR3_ACTIVE_BYTE_LANES{4'd0}};
 `endif
     localparam integer JWB_LOCAL_ADDR_W = 15;
@@ -634,7 +638,8 @@ module top (
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
         .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS),
-        .RD_SAMPLE_OFFSET_MAP(DDR3_RD_SAMPLE_OFFSET_MAP)
+        .RD_SAMPLE_OFFSET_MAP(DDR3_RD_SAMPLE_OFFSET_MAP),
+        .WR_SAMPLE_OFFSET_MAP(DDR3_WR_SAMPLE_OFFSET_MAP)
     ) u_ddr3_ctrl (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),
@@ -815,7 +820,9 @@ module top (
         .DQ_BITS(DDR3_DQ_BITS),
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
-        .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS)
+        .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS),
+        .RD_SAMPLE_OFFSET_MAP(DDR3_RD_SAMPLE_OFFSET_MAP),
+        .WR_SAMPLE_OFFSET_MAP(DDR3_WR_SAMPLE_OFFSET_MAP)
     ) u_ddr3_ctrl_ch1 (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),

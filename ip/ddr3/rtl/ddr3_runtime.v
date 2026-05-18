@@ -42,7 +42,8 @@ module ddr3_runtime #(
     parameter integer NUM_BYTE_LANES = 9,
     parameter integer SERDES_RATIO   = 4,
     parameter integer WB_BURST_WORD_BITS = 0,
-    parameter [NUM_BYTE_LANES*4-1:0] RD_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}}
+    parameter [NUM_BYTE_LANES*4-1:0] RD_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}},
+    parameter [NUM_BYTE_LANES*4-1:0] WR_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}}
 ) (
     input  wire                       i_clk_phy,
     input  wire                       i_rst,
@@ -296,6 +297,20 @@ module ddr3_runtime #(
         end
     endfunction
 
+    function [3:0] wr_sample_for_lane;
+        input [3:0] raw_sample_idx;
+        input integer lane_idx;
+        reg [4:0] shifted_sample;
+        begin
+            shifted_sample =
+                raw_sample_idx + WR_SAMPLE_OFFSET_MAP[lane_idx*4 +: 4];
+            if (SERDES_RATIO > 0)
+                wr_sample_for_lane = shifted_sample % SERDES_RATIO;
+            else
+                wr_sample_for_lane = raw_sample_idx;
+        end
+    endfunction
+
     function [WB_DATA_W-1:0] burst_get_word;
         input [PHY_DATA_W-1:0] burst_data;
         input [3:0] word_offset;
@@ -334,6 +349,7 @@ module ddr3_runtime #(
         integer burst_byte;
         integer lane_idx;
         integer sample_idx;
+        integer wr_sample_idx;
         begin
             burst_put_word = burst_data;
             for (byte_idx = 0; byte_idx < WB_BYTES; byte_idx = byte_idx + 1) begin
@@ -341,11 +357,12 @@ module ddr3_runtime #(
                     burst_byte = (word_offset * WB_BYTES) + byte_idx;
                     lane_idx   = burst_byte % NUM_BYTE_LANES;
                     sample_idx = burst_byte / NUM_BYTE_LANES;
+                    wr_sample_idx = wr_sample_for_lane(sample_idx[3:0], lane_idx);
                     for (bit_idx = 0; bit_idx < 8; bit_idx = bit_idx + 1) begin
                         if (sample_idx < SERDES_RATIO) begin
                             burst_put_word[lane_idx*DQ_BITS*SERDES_RATIO +
                                            bit_idx*SERDES_RATIO +
-                                           sample_idx] =
+                                           wr_sample_idx] =
                                 word_data[byte_idx*8 + bit_idx];
                         end
                     end
@@ -410,11 +427,15 @@ module ddr3_runtime #(
                         localparam integer BYTE_INDEX = fl % 4;
                         localparam integer RD_SAMPLE_OFFSET =
                             RD_SAMPLE_OFFSET_MAP[fl*4 +: 4];
+                        localparam integer WR_SAMPLE_OFFSET =
+                            WR_SAMPLE_OFFSET_MAP[fl*4 +: 4];
                         localparam integer RD_SAMPLE =
                             (fs + RD_SAMPLE_OFFSET) % SERDES_RATIO;
+                        localparam integer WR_SAMPLE =
+                            (fs + WR_SAMPLE_OFFSET) % SERDES_RATIO;
                         localparam integer WR_BIT =
                             fl*DQ_BITS*SERDES_RATIO +
-                            fbit*SERDES_RATIO + fs;
+                            fbit*SERDES_RATIO + WR_SAMPLE;
                         localparam integer RD_BIT =
                             fl*DQ_BITS*SERDES_RATIO +
                             fbit*SERDES_RATIO + RD_SAMPLE;
@@ -587,11 +608,7 @@ module ddr3_runtime #(
                     if (rd_seen || (beat_ctr == READ_TIMEOUT_SYS_CYCLES - 1)) begin
                         beat_ctr <= 8'd0;
                         if (saved_we && USE_BURST_WORD_OFFSET) begin
-                            rmw_wr_data <= rd_seen ? rmw_wr_data_next :
-                                burst_put_word({PHY_DATA_W{1'b0}},
-                                               saved_burst_word_offset,
-                                               saved_wdat,
-                                               saved_sel);
+                            rmw_wr_data <= rmw_wr_data_next;
                             wait_ctr <= 8'd0;
                             state    <= S_WR;
                         end else begin

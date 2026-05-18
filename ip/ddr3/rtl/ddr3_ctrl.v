@@ -33,7 +33,8 @@ module ddr3_ctrl #(
     parameter integer NUM_BYTE_LANES = 9,
     parameter integer SERDES_RATIO   = 4,
     parameter integer WB_BURST_WORD_BITS = 0,
-    parameter [NUM_BYTE_LANES*4-1:0] RD_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}}
+    parameter [NUM_BYTE_LANES*4-1:0] RD_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}},
+    parameter [NUM_BYTE_LANES*4-1:0] WR_SAMPLE_OFFSET_MAP = {NUM_BYTE_LANES{4'd0}}
 ) (
     input  wire                     i_clk,               // SoC clock (50 MHz on YPCB-00338)
     input  wire                     i_clk_phy,           // DDR3 command clock
@@ -150,7 +151,8 @@ module ddr3_ctrl #(
         .NUM_BYTE_LANES (NUM_BYTE_LANES),
         .SERDES_RATIO   (SERDES_RATIO),
         .WB_BURST_WORD_BITS (WB_BURST_WORD_BITS),
-        .RD_SAMPLE_OFFSET_MAP (RD_SAMPLE_OFFSET_MAP)
+        .RD_SAMPLE_OFFSET_MAP (RD_SAMPLE_OFFSET_MAP),
+        .WR_SAMPLE_OFFSET_MAP (WR_SAMPLE_OFFSET_MAP)
     ) u_runtime (
         .i_clk_phy   (i_clk_phy),
         .i_rst       (i_rst),

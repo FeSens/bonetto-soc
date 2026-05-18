@@ -40,7 +40,8 @@ module ddr3_phy #(
     parameter integer ROW_BITS       = `DDR3_ROW_BITS,
     parameter integer BANK_BITS      = `DDR3_BANK_BITS,
     parameter integer SERDES_RATIO   = 4,
-    parameter integer USE_EXTERNAL_CLOCKS = 0
+    parameter integer USE_EXTERNAL_CLOCKS = 0,
+    parameter integer RD_VALID_REQUIRE_ALL = 1
 ) (
     // Reference clock from board (50 MHz on YPCB-00338).
     input  wire                            i_clk_ref,
@@ -397,9 +398,7 @@ module ddr3_phy #(
         .DQ_BITS        (DQ_BITS),
         .RATIO          (SERDES_RATIO),
         .WR_DQS_DELAY_CK(WR_DQS_DELAY_CK),
-        // Bring-up diagnostic mode: return the captured word if any byte
-        // lane saw DQS, while exposing the exact lane mask separately.
-        .RD_VALID_REQUIRE_ALL(0)
+        .RD_VALID_REQUIRE_ALL(RD_VALID_REQUIRE_ALL)
     ) u_lanes (
         .i_clk_sys                (o_clk_sys),
         .i_clk_phy_x4             (o_clk_phy_x4),
