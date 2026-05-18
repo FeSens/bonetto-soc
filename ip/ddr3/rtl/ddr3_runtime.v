@@ -667,7 +667,7 @@ module ddr3_runtime #(
 
                     if (rd_seen || (beat_ctr == READ_TIMEOUT_SYS_CYCLES - 1)) begin
                         beat_ctr <= 8'd0;
-                        if (saved_we && USE_BURST_WORD_OFFSET) begin
+                        if (saved_we && USE_BURST_WORD_OFFSET && BURST_WRITE_RMW) begin
                             rmw_wr_data <= rmw_wr_data_next;
                             wait_ctr <= 8'd0;
                             state    <= S_WR;
