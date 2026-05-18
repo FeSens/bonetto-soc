@@ -1343,6 +1343,18 @@ otherwise noted.
   controller-front pipe; the useful next scheduler split needs to reduce
   runtime-local fanout and placement pressure, not just add another WB request
   register.
+- Combining the kept `DDR3_RUNTIME_REQ_BUFFER` with the older
+  `DDR3_JTAG_DDR_ONLY` wrapper reduction was tested as a placement diagnostic
+  and reverted. The command used the hard-command DDR-only path plus request
+  buffering:
+  `DDR3_DEFINES="-DDDR3_FULL_2CH -DDDR3_RATE_1600 -DDDR3_JTAG_ONLY -DDDR3_SERDES_CMD -DDDR3_JTAG_DDR_ONLY -DDDR3_RUNTIME_REQ_BUFFER"`.
+  Pack reported 3756 `SLICE_LUTX`, 6526 `SLICE_FFX`, no BRAMs, and 178
+  `OSERDESE2`, but seed-1 routing regressed to 140.67 MHz `u_blu.i_clk_50`,
+  125.08 MHz `clk_sys`, 622.28 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+  The final `clk_sys` path was `d3_adr[29]` / channel-select into CH0
+  `wb_req_fire` and a runtime CE, with 0.8 ns logic and 7.2 ns routing. This
+  rules out "remove wrapper muxes plus request buffer" as the missing compound
+  fix; it hurts both the controller clock and the DQ clock.
 - Registering the merged full-BL8 write payload inside `ddr3_runtime` one
   controller cycle before the WRITE command was tested and reverted. The intent
   matched the staged write-data sideband used by DFI-style designs, but it
