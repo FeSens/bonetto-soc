@@ -1405,6 +1405,17 @@ otherwise noted.
   This proves the standalone PHY-boundary register is not the missing pipeline
   stage; the useful split needs to change where requests and write payloads are
   owned, not just add flops at the existing PHY input.
+- A deeper opt-in `DDR3_WR_DATA_PIPE3` variant was also tested and reverted. It
+  added a three-stage write-data pipe at each PHY boundary and delayed RMW
+  writes by two controller cycles so the piped payload could settle before the
+  WRITE command. Default `make -C ip/ddr3 sim-runtime-addr`, opt-in
+  `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER -DDDR3_WR_DATA_PIPE3" sim-runtime-addr`,
+  and opt-in `sim-init` all passed. Synthesis mapped the pipe to 1024
+  `SRL16E`s, but seed-1 route regressed to 163.61 MHz `u_blu.i_clk_50`,
+  138.27 MHz `clk_sys`, 861.33 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+  The final `clk_sys` critical path moved to `rst_cal_ch0_pipe[8]` through CH0
+  runtime FSM clock-enable routing, so multi-stage PHY-boundary write-data
+  pipelining is still a placement perturbation rather than a 200 MHz fix.
 - Adding an opt-in one-entry Wishbone request pipe in `ddr3_ctrl`, ahead of
   the existing `DDR3_RUNTIME_REQ_BUFFER`, was tested and reverted. The intent
   was to mimic the frontend buffering used by pipelined DDR controllers while
