@@ -1043,6 +1043,35 @@ BUFIOs behind the existing global `clk_phy_x4`; the next hard-IO attempt needs
 to originate the ISERDES clock from the CMT/HPC side and likely partition it by
 7-series IO clock region.
 
+The current keeper for the 1600/800/200 full-2ch target remains
+`full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream`, with
+only `DDR3_RUNTIME_REQ_BUFFER` carried forward from the runtime timing
+diagnostics. Seed 1 routes at 151.88 MHz `u_blu.i_clk_50`, 149.37 MHz
+`clk_sys`, 958.77 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The main
+`clk_sys` failure is now a functionally multicycle write-data path:
+`u_ddr3_ctrl.u_runtime.saved_sel[0]` drives the generated `o_wr_data[9]` merge,
+which is captured later by `u_ddr3_phy.u_lanes.g_lane[0].u_lane.wr_data_sys_q`
+when the PHY write strobe is asserted. The route report times it as a single
+200 MHz cycle, but the controller accepts the request and then reaches `S_WR`
+many cycles later.
+
+Vivado-style timing exceptions are not a usable escape hatch in the current
+open flow. The nextpnr source has internal `FALSE_PATH`, `MAX_DELAY`, and
+`MULTICYCLE` timing-constraint types, but the Xilinx XDC parser in this tool
+build only handles `set_property` and `create_clock`; unsupported commands such
+as `set_multicycle_path` or `set_false_path` are ignored. The Python binding
+surface found in the local nextpnr source exposes clock and cell timing helpers,
+not a practical design-level timing-exception API. Treat the multicycle
+observation as direction for RTL, not as a constraint-file fix.
+
+The next useful cut should therefore be a real scheduler/data pipeline boundary:
+hold a native BL8 write/read transaction in a compact registered structure near
+the runtime/PHY boundary and remove request-accept-time byte-select and
+word-offset decisions from the path feeding `o_wr_data`. Previous shallow
+attempts that simply wrapped the same 32-bit Wishbone-to-512-bit merge logic
+regressed, so any LiteDRAM/UberDDR3-style retry should avoid dynamic full-width
+shifts and should use static per-word banks or generated lane/sample muxes.
+
 `make -C boards/ypcb-00338 full-2ch-ddr800-bitstream` is the current
 dual-channel staging gate. It uses both online CH0/CH1 DDR3 pin maps and the
 same 30-bit global address decode, but keeps the DDR3-800 timing profile.
