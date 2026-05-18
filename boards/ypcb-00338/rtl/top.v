@@ -129,6 +129,14 @@ module top (
     localparam integer DDR3_WB_BURST_WORD_BITS = 0;
     localparam integer DDR3_MEMTEST_DIRECT_ADDR = 0;
 `endif
+`ifdef DDR3_RATIO8_CH0
+    // Hardware diagnostic: lanes 0-2 return the stable repeated-byte word at
+    // BL8 sample 7, while lane 3 (physical byte lane 4) returns it at sample 0.
+    localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP = 16'h0777;
+`else
+    localparam [DDR3_ACTIVE_BYTE_LANES*4-1:0] DDR3_RD_SAMPLE_OFFSET_MAP =
+        {DDR3_ACTIVE_BYTE_LANES{4'd0}};
+`endif
     localparam integer JWB_LOCAL_ADDR_W = 15;
     localparam integer JWB_DDR3_LOCAL_W = 14;
     localparam integer JWB_DDR3_HI_W = FABRIC_ADDR_W - JWB_DDR3_LOCAL_W;
@@ -563,6 +571,14 @@ module top (
     wire        phy_rd_valid;
     wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane;
     wire [DDR3_PHY_DATA_W-1:0] phy_rd_data;
+`ifdef DDR3_DEBUG_PHY_RD_DATA
+    reg  [DDR3_PHY_DATA_W-1:0] phy_rd_data_last = {DDR3_PHY_DATA_W{1'b0}};
+
+    always @(posedge clk_sys) begin
+        if (phy_rd_valid)
+            phy_rd_data_last <= phy_rd_data;
+    end
+`endif
 
     ddr3_ctrl #(
         .WB_DATA_W(32),
@@ -570,7 +586,8 @@ module top (
         .DQ_BITS(DDR3_DQ_BITS),
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
-        .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS)
+        .WB_BURST_WORD_BITS(DDR3_WB_BURST_WORD_BITS),
+        .RD_SAMPLE_OFFSET_MAP(DDR3_RD_SAMPLE_OFFSET_MAP)
     ) u_ddr3_ctrl (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),
@@ -1098,6 +1115,9 @@ module top (
     reg [31:0] jwb_data_echo_sync   [1:0];
     reg [31:0] jwb_rd_data_sync     [1:0];
     reg [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_sync [1:0];
+`ifdef DDR3_DEBUG_PHY_RD_DATA
+    reg [DDR3_PHY_DATA_W-1:0] phy_rd_data_last_sync [1:0];
+`endif
     reg [7:0]  d3_ctrl_sync             [1:0];
     always @(posedge clk_50) begin
         jwb_busy_sync        <= {jwb_busy_sync[0],        jwb_busy};
@@ -1118,6 +1138,10 @@ module top (
         jwb_rd_data_sync[1]   <= jwb_rd_data_sync[0];
         phy_rd_valid_lane_sync[0] <= phy_rd_valid_lane;
         phy_rd_valid_lane_sync[1] <= phy_rd_valid_lane_sync[0];
+`ifdef DDR3_DEBUG_PHY_RD_DATA
+        phy_rd_data_last_sync[0] <= phy_rd_data_last;
+        phy_rd_data_last_sync[1] <= phy_rd_data_last_sync[0];
+`endif
         d3_ctrl_sync[0]  <= {d3_cyc, d3_stb, d3_we, d3_ack, d3_stall,
                              d3_err, phy_wr_valid, phy_rd_valid};
         d3_ctrl_sync[1]  <= d3_ctrl_sync[0];
@@ -1184,8 +1208,31 @@ module top (
         heartbeat[12:0]       // [12:0]
     };
 
+`ifdef DDR3_DEBUG_PHY_RD_DATA
+    localparam integer PHY_RD_DATA_STATUS_WORDS = DDR3_PHY_DATA_W / 32;
+    wire [4:0] phy_rd_data_status_idx = host_to_fpga[4:0];
+    reg [31:0] phy_rd_data_status_word;
+    integer phy_rd_data_status_i;
+    always @(*) begin
+        phy_rd_data_status_word = {16'hAB20, 11'd0, phy_rd_data_status_idx};
+        for (phy_rd_data_status_i = 0;
+             phy_rd_data_status_i < PHY_RD_DATA_STATUS_WORDS;
+             phy_rd_data_status_i = phy_rd_data_status_i + 1) begin
+            if (phy_rd_data_status_idx == phy_rd_data_status_i[4:0]) begin
+                phy_rd_data_status_word =
+                    phy_rd_data_last_sync[1][phy_rd_data_status_i*32 +: 32];
+            end
+        end
+    end
+`else
+    wire [31:0] phy_rd_data_status_word = {16'hAB20, 11'd0, host_to_fpga[4:0]};
+`endif
+
     reg [31:0] status_word;
     always @(*) begin
+        if (host_to_fpga[7:5] == 3'b001) begin
+            status_word = phy_rd_data_status_word;
+        end else begin
         case (host_to_fpga[7:0])
             8'h00:   status_word = status_flags;
             8'h01:   status_word = state_bits;
@@ -1227,6 +1274,7 @@ module top (
             8'hFF:   status_word = host_to_fpga;
             default: status_word = {24'hDEADBA, host_to_fpga[7:0]};
         endcase
+        end
     end
 
     jtag_uart #(.WB_DATA_W(32), .WB_ADDR_W(2), .USER_CHAIN(1)) uart (

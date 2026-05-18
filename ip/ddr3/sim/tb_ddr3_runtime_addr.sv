@@ -189,6 +189,7 @@ module tb_ddr3_runtime_addr;
         output reg saw_write;
         integer cycle;
         reg saw_act;
+        reg saw_capture;
         begin
             wb_cyc = 1'b1;
             wb_stb = 1'b1;
@@ -203,6 +204,7 @@ module tb_ddr3_runtime_addr;
             saw_act = 1'b0;
             saw_read = 1'b0;
             saw_write = 1'b0;
+            saw_capture = 1'b0;
             read_data = {WB_DATA_W{1'b0}};
             read_addr = {ROW_BITS{1'b0}};
             write_addr = {ROW_BITS{1'b0}};
@@ -211,6 +213,13 @@ module tb_ddr3_runtime_addr;
             for (cycle = 0; cycle < 300; cycle = cycle + 1) begin
                 @(posedge clk);
                 #1;
+                if (rd_capture) begin
+                    rd_valid = 1'b0;
+                    saw_capture = 1'b1;
+                end else if (saw_capture) begin
+                    rd_valid = 1'b1;
+                end
+
                 if (cmd_valid) begin
                     if (cmd == `DDR3_CMD_ACT) begin
                         saw_act = 1'b1;
@@ -281,7 +290,7 @@ module tb_ddr3_runtime_addr;
         wb_dat = {WB_DATA_W{1'b0}};
         wb_sel = {WB_BYTES{1'b0}};
         rd_data = {PHY_DATA_W{1'b0}};
-        rd_valid = 1'b1;
+        rd_valid = 1'b0;
         mpr_req = 1'b0;
         mpr_addr = 13'd0;
         mrs_req = 1'b0;

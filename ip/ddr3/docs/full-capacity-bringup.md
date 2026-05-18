@@ -126,13 +126,30 @@ expected differences were scalar local ports for single-bit nets such as
    CL/CWL/MR values for the `-125` speed bin and the PHY PLL divisors now
    generate 200 MHz controller and 800 MHz CK/DQS clocks for that build. Full
    route timing closure still needs hardware proof.
-5. Replace the current RATIO>=8 fabric BL8 sequencer with a hard SERDES-based
-   PHY before full-speed signoff. The current path switches DQ/DQS sample
-   selection in fabric on the DDR clock domain and uses no OSERDESE2,
-   ISERDESE2, BUFIO, IDELAYE2, or IDELAYCTRL resources. LiteDRAM/MIG-style
-   hard-IO serialization and read capture is the right next architecture.
+5. Replace the current RATIO>=8 diagnostic PHY with a full hard-SERDES read and
+   write path before full-speed signoff. The latest diagnostic uses OSERDESE2
+   for DQ writes, but DQS and read capture are still route-sensitive fabric/IDDR
+   logic. LiteDRAM/MIG-style hard-IO serialization and read capture remains the
+   right next architecture.
 6. Re-enable real write/read leveling for full-speed operation. The fixed
    DDR3-800 lane map is not sufficient evidence for DDR3-1600.
+
+## Ratio-8 CH0 Diagnostic Notes
+
+Latest hardware observations on the four-lane CH0 DDR3-800 `DDR3_RATIO8_CH0`
+image:
+
+- The OSERDESE2 DQ-write path routes and programs, but it has not passed direct
+  JTAG/Wishbone readback.
+- Global sample 0 made logical byte 3 track writes while the lower 24 bits
+  mostly read back as `0x000080`.
+- Global sample 7 made logical bytes 0-2 track writes while byte 3 read back as
+  stale `0x55`.
+- A constant lane sample map of `16'h0777` changed behavior but still failed:
+  bytes 1-2 tracked, bytes 0 and 3 read back as stale `0x55`.
+- A wide raw-`phy_rd_data` status latch was useful for diagnosis but perturbed
+  routing enough to invalidate direct comparison with the narrower diagnostic
+  images. Do not treat that image as validation evidence.
 
 ## Validation Gates
 
