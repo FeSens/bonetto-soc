@@ -609,6 +609,24 @@ paths also worsened. Do not repeat command-output block splitting without
 first moving request decode and burst-mask generation behind a local scheduler
 pipeline.
 
+A one-cycle request-decode pipeline in `ddr3_runtime` was tested and
+reverted. The change captured raw WB request fields in `S_IDLE`, then computed
+bank/row/col, `saved_burst_word_onehot`, and `saved_burst_byte_mask` from
+local request registers in a new `S_REQ_DECODE` state before ACT. This removed
+the live bus-address-to-mask register path but added one controller cycle of
+transaction latency. `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`,
+`make -C ip/ddr3 sim-init sim-micron`, `make -C ip/ddr3 formal DEPTH=20`, and
+the late-flat JSON target all passed. The late-flatten diagnostic synthesized
+to 11,643 cells / 2,640 estimated logic cells, with `ddr3_runtime` at 2,432
+cells / 905 estimated logic cells. The seed-1 late-flat route still regressed
+from baseline: final timing was 155.69 MHz `u_blu.i_clk_50`, 129.63 MHz
+`clk_sys`, 778.82 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`; placement
+estimates were 119.55 MHz `u_blu.i_clk_50`, 95.65 MHz `clk_sys`, 602.41 MHz
+`clk_dq`, and 2500.00 MHz `clk_phy_x4`. The final `clk_sys` critical path
+fell back to `rst_bram` through runtime FSM pattern-cache CE with 7.1 ns
+routing. The request decode stage is conceptually correct for a larger
+scheduler, but it should not be carried as a standalone timing fix.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
