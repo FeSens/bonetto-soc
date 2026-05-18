@@ -298,9 +298,29 @@ module ddr3_runtime #(
     reg                  rd_seen;
     reg                  rd_armed;
 
+`ifdef DDR3_RUNTIME_REQ_BUFFER
+    reg                        req_valid;
+    reg [BANK_BITS-1:0]        req_bank;
+    reg [ROW_BITS-1:0]         req_row;
+    reg [COL_BITS-1:0]         req_col;
+    reg                        req_we;
+    reg [WB_DATA_W-1:0]        req_wdat;
+    reg [WB_BYTES-1:0]         req_sel;
+    reg [WB_BURST_WORD_W-1:0]  req_burst_word_offset;
+    reg [15:0]                 req_burst_word_onehot;
+`endif
+
+`ifdef DDR3_RUNTIME_REQ_BUFFER
+    wire wb_req_fire = i_init_done && !req_valid && i_wb_cyc && i_wb_stb;
+    wire wb_req_consume =
+        (state == S_IDLE) && !ref_pending && !mrs_pending && !mpr_pending &&
+        req_valid;
+    assign o_wb_stall = (~i_init_done) | req_valid;
+`else
     // Accept WB only in IDLE with no pending refresh.
     wire wb_accept_ok = i_init_done && (state == S_IDLE) && !ref_pending;
     assign o_wb_stall = ~wb_accept_ok;
+`endif
     assign o_wb_err   = 1'b0;
     assign o_rd_capture =
         ((state == S_WAIT_CL) && (wait_ctr == CL_SYS - 2)) ||
@@ -444,6 +464,29 @@ module ddr3_runtime #(
             end
         end
     endfunction
+
+`ifdef DDR3_RUNTIME_REQ_BUFFER
+    always @(posedge i_clk_phy) begin
+        if (i_rst || !i_init_done) begin
+            req_valid <= 1'b0;
+        end else begin
+            if (wb_req_consume)
+                req_valid <= 1'b0;
+
+            if (wb_req_fire) begin
+                req_valid <= 1'b1;
+                req_bank  <= wb_bank;
+                req_row   <= wb_row;
+                req_col   <= wb_col;
+                req_we    <= i_wb_we;
+                req_wdat  <= i_wb_dat;
+                req_sel   <= i_wb_sel;
+                req_burst_word_offset <= wb_burst_word_offset;
+                req_burst_word_onehot <= burst_word_onehot(wb_burst_word_offset);
+            end
+        end
+    end
+`endif
 
     wire [WB_DATA_W-1:0] phy_rd_word;
     wire [PHY_DATA_W-1:0] rmw_wr_data_next;
@@ -624,11 +667,13 @@ module ddr3_runtime #(
             o_wr_valid  <= 1'b0;
             beat_ctr    <= 8'd0;
             wait_ctr    <= 8'd0;
+`ifndef DDR3_RUNTIME_REQ_BUFFER
             saved_burst_word_offset <= {WB_BURST_WORD_W{1'b0}};
             saved_burst_word_onehot <= 16'd1;
             saved_sel   <= {WB_BYTES{1'b0}};
             rd_sample_q <= 64'd0;
             rd_word_q   <= {WB_DATA_W{1'b0}};
+`endif
             rd_seen     <= 1'b0;
             rd_armed    <= 1'b0;
             ref_clear   <= 1'b0;
@@ -654,6 +699,18 @@ module ddr3_runtime #(
                         state    <= S_MRS;
                     end else if (mpr_pending) begin
                         state    <= S_MPR_RD;
+`ifdef DDR3_RUNTIME_REQ_BUFFER
+                    end else if (req_valid) begin
+                        saved_bank <= req_bank;
+                        saved_row  <= req_row;
+                        saved_col  <= req_col;
+                        saved_we   <= req_we;
+                        saved_wdat <= req_wdat;
+                        saved_sel  <= req_sel;
+                        saved_burst_word_offset <= req_burst_word_offset;
+                        saved_burst_word_onehot <= req_burst_word_onehot;
+                        state      <= S_ACT;
+`else
                     end else if (i_wb_cyc && i_wb_stb && !o_wb_stall) begin
                         saved_bank <= wb_bank;
                         saved_row  <= wb_row;
@@ -664,6 +721,7 @@ module ddr3_runtime #(
                         saved_burst_word_offset <= wb_burst_word_offset;
                         saved_burst_word_onehot <= burst_word_onehot(wb_burst_word_offset);
                         state      <= S_ACT;
+`endif
                     end
                 end
 

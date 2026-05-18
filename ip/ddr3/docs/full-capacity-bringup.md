@@ -1308,6 +1308,25 @@ otherwise noted.
   runtime CE, with 1.4 ns logic and 5.9 ns routing. Do not repeat this as a
   standalone byte-enable fix; any write-data fanout work needs to be paired
   with a scheduler/runtime command boundary split.
+- Adding an opt-in same-clock Wishbone request buffer inside `ddr3_runtime`
+  and skipping reset on the wide saved/read data registers under that same
+  option is the current best late-flat timing diagnostic. The kept RTL is gated
+  by `DDR3_RUNTIME_REQ_BUFFER`, and the board target
+  `full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream`
+  reproduces the seed-1 build. Default `make -C ip/ddr3 sim-runtime-addr sim`
+  and opt-in `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER" sim-runtime-addr sim`
+  both passed. The route log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_nrdata_lateflat_seed1_route.log`
+  still fails the 200 MHz controller target, but improves the main DDR clocks
+  over the previous 143.97 MHz / 820.34 MHz late-flat baseline: final timing is
+  151.88 MHz `u_blu.i_clk_50`, 149.37 MHz `clk_sys`, 958.77 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`. The new `clk_sys` critical path is
+  `saved_sel[0]` into `o_wr_data[9]` / the PHY write-data flop, with 0.4 ns
+  logic and 6.3 ns routing. A combined request-buffer plus lane-local select
+  experiment passed the same simulations but regressed route timing to
+  168.35 MHz `u_blu.i_clk_50`, 116.63 MHz `clk_sys`, 826.45 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`; keep the request buffer, but do not reintroduce
+  lane-select duplication as the next lever.
 
 ## Validation Gates
 
@@ -1324,6 +1343,7 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | Dual-channel DDR3-1600 JTAG-only route | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagonly-bitstream` currently fails timing with seed 1 while preserving RMW |
 | Dual-channel DDR3-1600 hard-command diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-bitstream` routes to completion but fails timing with seed 1 |
 | Dual-channel DDR3-1600 hard-command direct-write diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` isolates no-RMW writes under the hard-command path |
+| Dual-channel DDR3-1600 request-buffer diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream` is the current best seed-1 route, still failing at 149.37 MHz `clk_sys` |
 | Dual-channel DDR3-1600 hard-command DDR-only diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-ddronly-bitstream` removes BRAM/decode but still fails timing with seed 1 |
 | Dual-channel DDR3-1600 hard-command/ISERDES diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream` still hits the ISERDES overuse plateau |
 | Dual-channel DDR3-1600 direct-write diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagdirect-bitstream` isolates the old no-RMW write path |
