@@ -187,6 +187,18 @@ an estimated 3,811 logic cells. The paired
 high-speed DQ estimate above the 800 MHz DDR3-1600 intent, but the controller
 clock remains the hard blocker.
 
+Parameterizing the PHY calibration generators and passing the existing board
+skip policy into both full-width PHY instances removes unused write-leveling and
+read-leveling logic from the skipped-calibration full-speed target without
+changing enabled-calibration builds. `full-2ch-serdescmd-json` now synthesizes
+to 14,239 cells with 22 `BUFG`, 178 `OSERDESE2`, 128 `IDDR`, 16 `IDELAYE2`, no
+`ISERDESE2`, 16 `RAMB36E1`, and an estimated 3,091 logic cells. The paired
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` seed-1 route still fails
+timing, with 142.76 MHz for `u_blu.i_clk_50`, 110.41 MHz for `clk_sys`,
+827.13 MHz for `clk_dq`, and 1557.63 MHz for `clk_phy_x4`. This is a useful
+cleanup checkpoint: resource use is much lower and `clk_dq` remains above the
+DDR3-1600 800 MHz intent, but `clk_sys` still blocks signoff.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It

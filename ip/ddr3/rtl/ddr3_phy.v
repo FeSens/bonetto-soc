@@ -42,7 +42,9 @@ module ddr3_phy #(
     parameter integer SERDES_RATIO   = 4,
     parameter integer USE_EXTERNAL_CLOCKS = 0,
     parameter integer RD_VALID_REQUIRE_ALL = 1,
-    parameter integer REGISTER_RD_VALID = 0
+    parameter integer REGISTER_RD_VALID = 0,
+    parameter integer SKIP_WLVL = 0,
+    parameter integer SKIP_RDLVL = 0
 ) (
     // Reference clock from board (50 MHz on YPCB-00338).
     input  wire                            i_clk_ref,
@@ -565,58 +567,80 @@ module ddr3_phy #(
     // ============================================================
     // Write-leveling FSM
     // ============================================================
-    // DQ[0] of each byte lane after the read SERDES — written by DDR3
-    // chip while in MR1[7]=1 write-leveling mode. We pick bit 0 of beat 0.
-    wire [NUM_BYTE_LANES-1:0] dq0_per_lane;
-    genvar gl;
     generate
-        for (gl = 0; gl < NUM_BYTE_LANES; gl = gl + 1) begin : g_dq0
-            assign dq0_per_lane[gl] = lane_rd_data[gl*DQ_BITS*SERDES_RATIO];
+        if (SKIP_WLVL) begin : g_skip_wlvl
+            assign o_cal_done_wlvl = 1'b1;
+            assign o_cal_error_wlvl = 1'b0;
+            assign o_cal_state_wlvl = 4'd11;
+            assign wlvl_dqs_out_load_lane = {NUM_BYTE_LANES{1'b0}};
+            assign wlvl_dqs_out_tap = 5'd0;
+            assign wlvl_dqs_toggle_en = {NUM_BYTE_LANES{1'b0}};
+        end else begin : g_wlvl
+            // DQ[0] of each byte lane after the read SERDES — written by DDR3
+            // chip while in MR1[7]=1 write-leveling mode.
+            wire [NUM_BYTE_LANES-1:0] dq0_per_lane;
+            genvar gl;
+            for (gl = 0; gl < NUM_BYTE_LANES; gl = gl + 1) begin : g_dq0
+                assign dq0_per_lane[gl] = lane_rd_data[gl*DQ_BITS*SERDES_RATIO];
+            end
+
+            ddr3_phy_wlvl #(
+                .NUM_BYTE_LANES (NUM_BYTE_LANES)
+            ) u_wlvl (
+                .i_clk                (o_clk_sys),
+                .i_rst                (i_rst_ref),
+                .i_start              (i_cal_start_wlvl),
+                .o_done               (o_cal_done_wlvl),
+                .o_error              (o_cal_error_wlvl),
+                .o_state              (o_cal_state_wlvl),
+                .i_dq0_per_lane       (dq0_per_lane),
+                .o_dqs_out_load_lane  (wlvl_dqs_out_load_lane),
+                .o_dqs_out_tap        (wlvl_dqs_out_tap),
+                .o_dqs_toggle_en_lane (wlvl_dqs_toggle_en),
+                .o_locked_tap_lane    ()
+            );
         end
     endgenerate
-
-    ddr3_phy_wlvl #(
-        .NUM_BYTE_LANES (NUM_BYTE_LANES)
-    ) u_wlvl (
-        .i_clk                (o_clk_sys),
-        .i_rst                (i_rst_ref),
-        .i_start              (i_cal_start_wlvl),
-        .o_done               (o_cal_done_wlvl),
-        .o_error              (o_cal_error_wlvl),
-        .o_state              (o_cal_state_wlvl),
-        .i_dq0_per_lane       (dq0_per_lane),
-        .o_dqs_out_load_lane  (wlvl_dqs_out_load_lane),
-        .o_dqs_out_tap        (wlvl_dqs_out_tap),
-        .o_dqs_toggle_en_lane (wlvl_dqs_toggle_en),
-        .o_locked_tap_lane    ()
-    );
 
     // ============================================================
     // Read-leveling FSM
     // ============================================================
-    ddr3_phy_rdlvl #(
-        .NUM_BYTE_LANES (NUM_BYTE_LANES),
-        .DQ_BITS        (DQ_BITS),
-        .RATIO          (SERDES_RATIO)
-    ) u_rdlvl (
-        .i_clk              (o_clk_sys),
-        .i_rst              (i_rst_ref),
-        .i_start            (i_cal_start_rdlvl),
-        .o_done             (o_cal_done_rdlvl),
-        .o_error            (o_cal_error_rdlvl),
-        .o_state            (o_cal_state_rdlvl),
-        .o_mpr_read_req     (o_mpr_read_req),
-        .o_mpr_read_addr    (o_mpr_read_addr),
-        .i_rd_data_valid    (o_rd_valid),
-        .i_rd_data          (lane_rd_data),
-        .o_dqs_in_load_lane (rdlvl_dqs_in_load_lane),
-        .o_dqs_in_tap       (rdlvl_dqs_in_tap),
-        .o_locked_tap_lane  ()
-    );
+    generate
+        if (SKIP_RDLVL) begin : g_skip_rdlvl
+            assign o_cal_done_rdlvl = 1'b1;
+            assign o_cal_error_rdlvl = 1'b0;
+            assign o_cal_state_rdlvl = 4'd11;
+            assign o_mpr_read_req = 1'b0;
+            assign o_mpr_read_addr = 13'd0;
+            assign rdlvl_dqs_in_load_lane = {NUM_BYTE_LANES{1'b0}};
+            assign rdlvl_dqs_in_tap = 5'd0;
+        end else begin : g_rdlvl
+            ddr3_phy_rdlvl #(
+                .NUM_BYTE_LANES (NUM_BYTE_LANES),
+                .DQ_BITS        (DQ_BITS),
+                .RATIO          (SERDES_RATIO)
+            ) u_rdlvl (
+                .i_clk              (o_clk_sys),
+                .i_rst              (i_rst_ref),
+                .i_start            (i_cal_start_rdlvl),
+                .o_done             (o_cal_done_rdlvl),
+                .o_error            (o_cal_error_rdlvl),
+                .o_state            (o_cal_state_rdlvl),
+                .o_mpr_read_req     (o_mpr_read_req),
+                .o_mpr_read_addr    (o_mpr_read_addr),
+                .i_rd_data_valid    (o_rd_valid),
+                .i_rd_data          (lane_rd_data),
+                .o_dqs_in_load_lane (rdlvl_dqs_in_load_lane),
+                .o_dqs_in_tap       (rdlvl_dqs_in_tap),
+                .o_locked_tap_lane  ()
+            );
+        end
+    endgenerate
 
     /* verilator lint_off UNUSED */
     wire _u = &{1'b0, i_wr_mask, i_idelay_ready_ext, mmcm_clkout_dq,
-                SERDES_RATIO[0], 1'b0};
+                i_cal_start_wlvl, i_cal_start_rdlvl, SERDES_RATIO[0],
+                1'b0};
     /* verilator lint_on UNUSED */
 endmodule
 

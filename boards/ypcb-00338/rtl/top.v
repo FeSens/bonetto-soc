@@ -815,7 +815,9 @@ module top (
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
         .USE_EXTERNAL_CLOCKS(0),
-        .REGISTER_RD_VALID(DDR3_REGISTER_RD_VALID)
+        .REGISTER_RD_VALID(DDR3_REGISTER_RD_VALID),
+        .SKIP_WLVL(1),
+        .SKIP_RDLVL(DDR3_SKIP_RDLVL)
     ) u_ddr3_phy (
         .i_clk_ref      (clk_50),
         .i_rst_ref      (por_rst_50),
@@ -1009,7 +1011,9 @@ module top (
         .NUM_BYTE_LANES(DDR3_ACTIVE_BYTE_LANES),
         .SERDES_RATIO(DDR3_SERDES_RATIO),
         .USE_EXTERNAL_CLOCKS(1),
-        .REGISTER_RD_VALID(DDR3_REGISTER_RD_VALID)
+        .REGISTER_RD_VALID(DDR3_REGISTER_RD_VALID),
+        .SKIP_WLVL(1),
+        .SKIP_RDLVL(DDR3_SKIP_RDLVL)
     ) u_ddr3_phy_ch1 (
         .i_clk_ref      (clk_50),
         .i_rst_ref      (por_rst_50),
