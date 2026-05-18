@@ -934,6 +934,23 @@ grant/address decode into CH1 runtime `burst_byte_mask` logic, with 1.0 ns
 logic and 7.9 ns routing. This confirms calibration-latch pruning is not a
 standalone timing fix for the 1:4 DDR3-1600 target.
 
+An opt-in `DDR3_MICRO_RUNTIME` diagnostic was tested and reverted. It cloned
+the runtime into a one-hot microsequenced implementation while preserving the
+default runtime and the public `ddr3_ctrl` port contract. `git diff --check`,
+default `make -C ip/ddr3 sim-runtime-addr`, and
+`make -C ip/ddr3 sim-init DDR3_DEFINES=-DDDR3_MICRO_RUNTIME` passed. The
+late-flat micro JSON image was much larger than the default late-flat image:
+11,810 hierarchy cells / 3,885 estimated logic cells overall, with
+`ddr3_runtime_micro` alone at 2,506 cells / 1,513 estimated logic cells. Seed-1
+late-flat route also regressed: final timing was 148.81 MHz
+`u_blu.i_clk_50`, 114.78 MHz `clk_sys`, 769.23 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. The `clk_sys` critical path still stayed inside CH1
+runtime control, from `wait_ctr[7]` through synthesized state-decision logic,
+with 1.2 ns logic and 7.5 ns routing. This rules out a local one-hot clone of
+the existing FSM as the next step; a useful LiteDRAM/UberDDR3-style direction
+needs a real registered scheduler/data pipeline boundary, not a wider encoding
+of the same control cone.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
