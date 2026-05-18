@@ -449,15 +449,17 @@ module ddr3_runtime #(
                         localparam integer RD_BIT =
                             fl*DQ_BITS*SERDES_RATIO +
                             fbit*SERDES_RATIO + RD_SAMPLE;
-                        wire replace_bit =
+                        wire rmw_replace_bit =
                             saved_burst_word_onehot[WORD_INDEX] &
                             saved_sel[BYTE_INDEX];
-                        wire direct_replace_bit =
+                        wire direct_word_bit =
                             (BROADCAST_WRITE_SAMPLES != 0) ?
-                            ((saved_burst_word_offset[0] == (fl / 4)) &
-                             saved_sel[BYTE_INDEX]) :
-                            replace_bit;
-                        assign rmw_wr_data_next[WR_BIT] = replace_bit ?
+                            (saved_burst_word_offset[0] == (fl / 4)) :
+                            saved_burst_word_onehot[WORD_INDEX];
+                        wire direct_replace_bit =
+                            (BURST_WRITE_RMW == 0) ? direct_word_bit :
+                            (direct_word_bit & saved_sel[BYTE_INDEX]);
+                        assign rmw_wr_data_next[WR_BIT] = rmw_replace_bit ?
                             saved_wdat[BYTE_INDEX*8 + fbit] :
                             rd_burst_data[RD_BIT];
                         assign direct_wr_data_next[WR_BIT] = direct_replace_bit ?
