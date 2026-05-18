@@ -412,6 +412,16 @@ regressed to 154.08 MHz `u_blu.i_clk_50`, 116.66 MHz `clk_sys`, 761.03 MHz
 area but worsens both controller timing and high-speed DQ margin, so do not
 repeat it as a standalone offset-fanout cleanup.
 
+Removing the `keep` attribute from `saved_burst_byte_mask` was tested and
+reverted. `git diff --check`, `make -C ip/ddr3 sim-runtime-addr`, and `make -C
+ip/ddr3 sim` passed. `full-2ch-serdescmd-json` reported 12,605 cells /
+2,932 estimated logic cells. The normal seed-1
+`full-2ch-ddr1600-serdescmd-jtagonly-bitstream` diagnostic still failed and
+regressed the controller/50 MHz clocks to 141.26 MHz `u_blu.i_clk_50`,
+123.33 MHz `clk_sys`, 853.97 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+The better DQ margin does not compensate for the lower controller timing, so
+keep the preservation attribute until a broader RMW-mask rewrite is available.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
