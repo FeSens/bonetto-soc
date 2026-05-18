@@ -770,6 +770,22 @@ seed-1 late-flat route regressed badly: final timing was 146.80 MHz
 late-flat baseline, so do not repeat local runtime reset handoff as a
 standalone timing fix.
 
+An opt-in `DDR3_SPLIT_ACCEPT_CE` experiment split the WB accept condition into
+kept control/address/data register enables outside the main runtime FSM block.
+The intent was to stop the external `o_wb_stall` feedback net from feeding
+every transaction register CE at once while keeping the public Wishbone
+contract unchanged. Fast checks passed with the define:
+`make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 sim`,
+`make -C ip/ddr3 formal DEPTH=20`, and the same runtime address sim without
+the define. The late-flat hard-command synthesis image reported 11,527 cells /
+2,516 estimated logic cells, with `ddr3_runtime` at 2,365 cells / 837
+estimated logic cells. Seed-1 late-flat route still regressed versus the clean
+baseline: final timing was 151.40 MHz `u_blu.i_clk_50`, 117.08 MHz `clk_sys`,
+806.45 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final `clk_sys`
+critical path moved to `rst_bram` through runtime reset/SR routing with
+8.1 ns route delay. Do not repeat split accept-CE duplication as a standalone
+timing fix.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
