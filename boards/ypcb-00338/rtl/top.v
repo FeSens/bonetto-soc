@@ -86,6 +86,49 @@ module top (
     end
     wire rst_sys = rst_sync_sys[2];
 
+    // Keep the synchronized system reset from becoming one board-wide
+    // high-fanout control net. These replicas assert with rst_sys and release
+    // together one clk_sys edge later, but each drives only a local region.
+    (* keep = "true" *) reg rst_mtest = 1'b1;
+    (* keep = "true" *) reg rst_host = 1'b1;
+    (* keep = "true" *) reg rst_jtag = 1'b1;
+    (* keep = "true" *) reg rst_bus = 1'b1;
+    (* keep = "true" *) reg rst_bram = 1'b1;
+    (* keep = "true" *) reg rst_dbg = 1'b1;
+    (* keep = "true" *) reg rst_status = 1'b1;
+    (* keep = "true" *) reg rst_ddr3_ch0 = 1'b1;
+    (* keep = "true" *) reg rst_cal_ch0 = 1'b1;
+    (* keep = "true" *) reg rst_ddr3_ch1 = 1'b1;
+    (* keep = "true" *) reg rst_cal_ch1 = 1'b1;
+
+    always @(posedge clk_sys or posedge rst_sys) begin
+        if (rst_sys) begin
+            rst_mtest   <= 1'b1;
+            rst_host    <= 1'b1;
+            rst_jtag    <= 1'b1;
+            rst_bus     <= 1'b1;
+            rst_bram    <= 1'b1;
+            rst_dbg     <= 1'b1;
+            rst_status  <= 1'b1;
+            rst_ddr3_ch0 <= 1'b1;
+            rst_cal_ch0 <= 1'b1;
+            rst_ddr3_ch1 <= 1'b1;
+            rst_cal_ch1 <= 1'b1;
+        end else begin
+            rst_mtest   <= 1'b0;
+            rst_host    <= 1'b0;
+            rst_jtag    <= 1'b0;
+            rst_bus     <= 1'b0;
+            rst_bram    <= 1'b0;
+            rst_dbg     <= 1'b0;
+            rst_status  <= 1'b0;
+            rst_ddr3_ch0 <= 1'b0;
+            rst_cal_ch0 <= 1'b0;
+            rst_ddr3_ch1 <= 1'b0;
+            rst_cal_ch1 <= 1'b0;
+        end
+    end
+
     // =================================================================
     // {memtest_lite, jtag_wb_master} → arbiter → wb_decode2 → {wb_memory, ddr3_ctrl}
     // All on clk_sys.
@@ -322,7 +365,7 @@ module top (
         .DIRECT_DDR_ADDRESS(DDR3_MEMTEST_DIRECT_ADDR)
     ) mtest (
         .i_clk                (clk_sys),
-        .i_rst                (rst_sys),
+        .i_rst                (rst_mtest),
         .i_cal_done           (ddr3_all_cal_done),
         .i_pause              (jwb_halt_others),
         .o_wb_cyc             (mt_cyc),
@@ -377,7 +420,7 @@ module top (
     reg  [31:0] h2f_cmd_sys;
     reg         h2f_cmd_valid_sys;
     always @(posedge clk_sys) begin
-        if (rst_sys) begin
+        if (rst_host) begin
             h2f_data_q1      <= 32'd0;
             h2f_data_q2      <= 32'd0;
             h2f_toggle_sync  <= 3'b000;
@@ -406,7 +449,7 @@ module top (
         .NUM_BYTE_LANES(9)
     ) u_jwb (
         .i_clk         (clk_sys),
-        .i_rst         (rst_sys),
+        .i_rst         (rst_jtag),
         .i_cmd_word    (h2f_cmd_sys),
         .i_cmd_valid   (h2f_cmd_valid_sys),
         .o_wb_cyc      (jwb_cyc),
@@ -456,7 +499,7 @@ module top (
     // a clean WB cycle without ever interrupting an in-flight mt cycle.
     reg jwb_grant;
     always @(posedge clk_sys) begin
-        if (rst_sys) jwb_grant <= 1'b0;
+        if (rst_bus) jwb_grant <= 1'b0;
         else if (jwb_grant) begin
             if (!jwb_cyc) jwb_grant <= 1'b0;
         end else begin
@@ -559,7 +602,7 @@ module top (
         .SEL_BIT  (14)
     ) xbar (
         .i_clk     (clk_sys),
-        .i_rst     (rst_sys),
+        .i_rst     (rst_bus),
         .i_wb_cyc  (m_cyc),
         .i_wb_stb  (m_stb),
         .i_wb_we   (m_we),
@@ -601,7 +644,7 @@ module top (
 `else
     wb_memory #(.WB_DATA_W(32), .WB_ADDR_W(14)) mem (
         .i_clk      (clk_sys),
-        .i_rst      (rst_sys),
+        .i_rst      (rst_bram),
         .i_wb_cyc   (bram_cyc),
         .i_wb_stb   (bram_stb),
         .i_wb_we    (bram_we),
@@ -678,7 +721,7 @@ module top (
     reg [14:0] dbg_mrs_addr = 15'h0000;
 
     always @(posedge clk_sys) begin
-        if (rst_sys) begin
+        if (rst_dbg) begin
             dbg_mpr_req  <= 1'b0;
             dbg_mpr_addr <= 13'h1000;
             dbg_mrs_req  <= 1'b0;
@@ -757,7 +800,7 @@ module top (
     endfunction
 
     always @(posedge clk_sys) begin
-        if (rst_sys) begin
+        if (rst_status) begin
             phy_rd_data_last <= {DDR3_PHY_DATA_W{1'b0}};
             phy_wr_data_last <= {DDR3_PHY_DATA_W{1'b0}};
             phy_rd_data_status_word_sys <= 32'hAB20_0000;
@@ -803,7 +846,7 @@ module top (
     ) u_ddr3_ctrl (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),
-        .i_rst          (rst_sys),
+        .i_rst          (rst_ddr3_ch0),
         .i_wb_cyc       (d3_ch0_cyc),
         .i_wb_stb       (d3_ch0_stb),
         .i_wb_we        (d3_ch0_we),
@@ -843,7 +886,7 @@ module top (
 
     ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(DDR3_SKIP_RDLVL)) u_cal_seq (
         .i_clk            (clk_sys),
-        .i_rst            (rst_sys),
+        .i_rst            (rst_cal_ch0),
         .i_init_done      (ctrl_init_done),
         .o_wlvl_start     (cal_wlvl_start),
         .i_wlvl_done      (cal_wlvl_done),
@@ -991,7 +1034,7 @@ module top (
     ) u_ddr3_ctrl_ch1 (
         .i_clk          (clk_sys),
         .i_clk_phy      (clk_sys),
-        .i_rst          (rst_sys),
+        .i_rst          (rst_ddr3_ch1),
         .i_wb_cyc       (d3_ch1_cyc),
         .i_wb_stb       (d3_ch1_stb),
         .i_wb_we        (d3_ch1_we),
@@ -1031,7 +1074,7 @@ module top (
 
     ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(DDR3_SKIP_RDLVL)) u_cal_seq_ch1 (
         .i_clk            (clk_sys),
-        .i_rst            (rst_sys),
+        .i_rst            (rst_cal_ch1),
         .i_init_done      (ctrl_init_done_ch1),
         .o_wlvl_start     (cal_wlvl_start_ch1),
         .i_wlvl_done      (cal_wlvl_done_ch1),

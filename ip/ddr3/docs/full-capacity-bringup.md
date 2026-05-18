@@ -317,7 +317,7 @@ synth-phy-dq-ratio8` passed and `full-2ch-serdescmd-json` synthesized to
 but not the DQS-domain capture-window fanout, and it regresses the DDR3-1600
 DQ clock margin.
 
-The current route checkpoint keeps zero-latency lane-local `LUT1` copies of
+The previous route checkpoint kept zero-latency lane-local `LUT1` copies of
 the PHY write-valid/write-DQS-enable strobes in `ddr3_phy_lane_array`. This
 reduces the global `phy_wr_valid` slow-net fanout from roughly 515 sinks to 9
 sinks, but each lane-local copy still drives about 66 local sinks. Synthesis
@@ -327,6 +327,30 @@ the seed-1 hard-command JTAG-only route still fails at 145.22 MHz for
 1557.63 MHz for `clk_phy_x4`. This is a modest routing improvement, not a
 signoff fix; the next cut still needs to reduce `state[21]`, burst-offset,
 lane `i_rd_capture`, and lane-local write-enable fanout.
+
+The current route checkpoint also keeps board-level `clk_sys` reset replicas
+in `boards/ypcb-00338/rtl/top.v`. Each local copy releases one cycle after
+`rst_sys` and drives one region: memtest, host CDC, JTAG master, bus/decode,
+BRAM, debug command, status, and each DDR3 controller/calibration pair.
+`full-2ch-serdescmd-json` still synthesizes cleanly at 13,550 cells / 3,151
+estimated logic cells, so the reset split is essentially area-neutral. The
+seed-1 `full-2ch-ddr1600-serdescmd-jtagonly-bitstream` route still fails, but
+improves the current kept checkpoint to 138.41 MHz `u_blu.i_clk_50`,
+123.72 MHz `clk_sys`, 844.59 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+The reset net is no longer the `clk_sys` critical path; the remaining blocker
+is again lane-0 `i_rd_capture`/DQS capture-control routing. This is useful
+progress, not DDR3-1600 signoff.
+
+`make -C boards/ypcb-00338
+full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
+direct-write diagnostic by combining `DDR3_SERDES_CMD` with
+`DDR3_DIRECT_WRITE_NO_RMW`. This removes the normal BL8 RMW merge and writes
+only the selected 32-bit word inside the burst, so it must not be treated as a
+validation image. With the reset-split tree, seed 1 still fails timing at
+137.97 MHz `u_blu.i_clk_50`, 108.72 MHz `clk_sys`, 677.51 MHz `clk_dq`, and
+1557.63 MHz `clk_phy_x4`. That rules out the RMW write merge as the sole
+current blocker; the full path still needs a structural read-capture/control
+split.
 
 A hard-command-only `DDR3_DISABLE_MPR_RUNTIME` diagnostic that pruned the
 runtime MPR read states was tested and reverted. Default
@@ -515,6 +539,7 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | Dual-channel DDR3-1600 target route | `make -C boards/ypcb-00338 full-2ch-ddr1600-bitstream` currently fails timing with seed 1 |
 | Dual-channel DDR3-1600 JTAG-only route | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagonly-bitstream` currently fails timing with seed 1 while preserving RMW |
 | Dual-channel DDR3-1600 hard-command diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-bitstream` routes to completion but fails timing with seed 1 |
+| Dual-channel DDR3-1600 hard-command direct-write diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` isolates no-RMW writes under the hard-command path |
 | Dual-channel DDR3-1600 hard-command DDR-only diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-ddronly-bitstream` removes BRAM/decode but still fails timing with seed 1 |
 | Dual-channel DDR3-1600 hard-command/ISERDES diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream` still hits the ISERDES overuse plateau |
 | Dual-channel DDR3-1600 direct-write diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagdirect-bitstream` isolates the old no-RMW write path |
