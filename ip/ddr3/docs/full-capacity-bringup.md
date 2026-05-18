@@ -1327,6 +1327,22 @@ otherwise noted.
   168.35 MHz `u_blu.i_clk_50`, 116.63 MHz `clk_sys`, 826.45 MHz `clk_dq`, and
   1557.63 MHz `clk_phy_x4`; keep the request buffer, but do not reintroduce
   lane-select duplication as the next lever.
+- Adding an opt-in one-entry Wishbone request pipe in `ddr3_ctrl`, ahead of
+  the existing `DDR3_RUNTIME_REQ_BUFFER`, was tested and reverted. The intent
+  was to mimic the frontend buffering used by pipelined DDR controllers while
+  isolating the top-level JTAG/decode path from runtime request capture. Default
+  `make -C ip/ddr3 sim-init` and opt-in `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER -DDDR3_CTRL_REQ_PIPE" sim-init`
+  passed, and late-flat board synthesis completed at 10,572 cells / 2,528
+  estimated logic cells. Route timing regressed badly: the seed-1 log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_ctrlpipe_lateflat_seed1_route.log`
+  reported 148.30 MHz `u_blu.i_clk_50`, 122.28 MHz `clk_sys`, 954.20 MHz
+  `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final `clk_sys` critical path
+  moved to reset/FSM clock-enable routing inside `u_ddr3_ctrl.u_runtime`, with
+  only 0.6 ns logic but 7.6 ns routing. Do not keep this as a shallow
+  controller-front pipe; the useful next scheduler split needs to reduce
+  runtime-local fanout and placement pressure, not just add another WB request
+  register.
 - Registering the merged full-BL8 write payload inside `ddr3_runtime` one
   controller cycle before the WRITE command was tested and reverted. The intent
   matched the staged write-data sideband used by DFI-style designs, but it
