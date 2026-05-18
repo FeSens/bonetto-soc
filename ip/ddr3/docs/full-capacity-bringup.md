@@ -887,6 +887,27 @@ burst-byte-mask/pattern logic, with 1.0 ns logic and 8.6 ns routing. This loses
 controller-clock timing and drops below the DDR3-1600 `clk_dq` target, so do
 not repeat JTAG-only request pipelining as a standalone timing fix.
 
+A `DDR3_NATIVE_BL8_DIAG` full-burst diagnostic, inspired by LiteDRAM/UberDDR3
+style native burst interfaces, was also tested and reverted. The opt-in build
+forced `WB_BURST_WORD_BITS=0`, widened the controller-facing Wishbone data
+path to `DDR3_PHY_DATA_W`, replicated each 32-bit JTAG write across the full
+BL8 payload at the top-level adapter, and bypassed the runtime's 16-way
+word-offset/RMW selector. The experiment passed `git diff --check`,
+`make -C ip/ddr3 sim-runtime-addr`, `make -C ip/ddr3 sim`, the default
+no-define late-flat JSON build, and the opt-in native-BL8 late-flat JSON build.
+The opt-in image synthesized to 4,226 hierarchy cells / 2,514 estimated logic
+cells, with `ddr3_runtime` at 1,151 cells / 850 estimated logic cells, versus
+4,866 hierarchy cells / 2,514 estimated logic cells for the default image.
+Route timing moved sharply backward: the seed-1 native-BL8 late-flat route
+failed at 129.42 MHz `u_blu.i_clk_50`, 83.31 MHz `clk_sys`, 634.92 MHz
+`clk_dq`, and 1557.63 MHz `clk_phy_x4`. The final `clk_sys` critical path was
+almost entirely routing, from `jwb_grant` through `bram_dat_w[7]` into CH1
+runtime state, with 0.4 ns logic and 11.6 ns routing. The slow-net list still
+showed global reset/VCC pressure plus 539-sink runtime pattern-cache nets in
+both controllers. Do not repeat this as a simple width-adapter diagnostic; a
+future native-burst direction needs a real registered bridge/FIFO or cacheline
+boundary instead of fanning a 32-bit JTAG word across the full PHY payload.
+
 `make -C boards/ypcb-00338 full-2ch-iserdes-bufio-json` adds
 `DDR3_RATIO8_ISERDES_BUFIO_RDCLK`, a narrow routing diagnostic that inserts one
 BUFIO per active byte lane for the experimental ISERDES read clock. It
