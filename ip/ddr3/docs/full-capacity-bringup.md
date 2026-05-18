@@ -563,6 +563,19 @@ logic cells, but the fixed seed-1 late-flat route regressed the system clock:
 refactor; the phase boundary needs to arrive with a real scheduler/control
 split that removes the runtime CE path.
 
+A registered-Wishbone-stall experiment in `ddr3_runtime` was tested and
+reverted. The change replaced the combinational `o_wb_stall` with a
+`wb_ready_q` flop and added a `ref_due_now` guard so the ready signal could not
+remain asserted when refresh became due. It passed
+`make -C ip/ddr3 sim-runtime-addr` and the late-flatten diagnostic synthesized
+to 4,880 packed cells / 2,455 estimated logic cells, but seed-1 late-flat
+routing regressed sharply: placement reported 119.33 MHz `u_blu.i_clk_50`,
+94.34 MHz `clk_sys`, 621.12 MHz `clk_dq`, and 2500.00 MHz `clk_phy_x4`; final
+route reported 136.28 MHz `u_blu.i_clk_50`, 102.86 MHz `clk_sys`, 843.88 MHz
+`clk_dq`, and 1557.63 MHz `clk_phy_x4`. The slow-net list moved deeper into
+runtime state, burst-offset, and saved byte-mask nets, so a registered stall
+alone is another local reshaping that should not be carried.
+
 `make -C boards/ypcb-00338
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` adds a hard-command
 direct-write diagnostic by combining `DDR3_SERDES_CMD` with
