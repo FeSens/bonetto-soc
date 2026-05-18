@@ -302,8 +302,14 @@ module ddr3_phy_dq #(
             wire rd_fall;
 
             if (FULL_BL8_MODE) begin : g_rd_complete_full
-                assign rd_data_complete[i*RATIO +: RATIO] =
-                    rd_data_dqs[i*RATIO +: RATIO];
+                assign rd_data_complete[i*RATIO + 0] = rd_data_dqs[i*RATIO + 0];
+                assign rd_data_complete[i*RATIO + 1] = rd_data_dqs[i*RATIO + 1];
+                assign rd_data_complete[i*RATIO + 2] = rd_data_dqs[i*RATIO + 2];
+                assign rd_data_complete[i*RATIO + 3] = rd_data_dqs[i*RATIO + 3];
+                assign rd_data_complete[i*RATIO + 4] = rd_data_dqs[i*RATIO + 4];
+                assign rd_data_complete[i*RATIO + 5] = rd_data_dqs[i*RATIO + 5];
+                assign rd_data_complete[i*RATIO + 6] = rd_rise;
+                assign rd_data_complete[i*RATIO + 7] = rd_fall;
 
                 IDDR #(
                     .DDR_CLK_EDGE("SAME_EDGE"),
@@ -325,8 +331,10 @@ module ddr3_phy_dq #(
                         rd_data_dqs[i*RATIO +: RATIO] <= {RATIO{1'b0}};
                     end else if (i_rd_capture && !dqs_drive) begin
                         // IDDR outputs are visible to fabric one DQS rising edge
-                        // after the corresponding input pair. Ignore edge 0 and
-                        // collect the four BL8 pairs on edges 1..4.
+                        // after the corresponding input pair. Edges 1..3 collect
+                        // the first three BL8 pairs; the final pair is held on
+                        // rd_rise/rd_fall after the fourth edge and is copied in
+                        // clk_sys once the read-capture window closes.
                         case (dqs_edges_dqs[2:0])
                             3'd1: begin
                                 rd_data_dqs[i*RATIO + 0] <= rd_rise;
@@ -339,10 +347,6 @@ module ddr3_phy_dq #(
                             3'd3: begin
                                 rd_data_dqs[i*RATIO + 4] <= rd_rise;
                                 rd_data_dqs[i*RATIO + 5] <= rd_fall;
-                            end
-                            3'd4: begin
-                                rd_data_dqs[i*RATIO + 6] <= rd_rise;
-                                rd_data_dqs[i*RATIO + 7] <= rd_fall;
                             end
                             default: begin end
                         endcase
@@ -407,7 +411,7 @@ module ddr3_phy_dq #(
                 dqs_seen_q  <= 1'b0;
             end else begin
                 if (FULL_BL8_MODE) begin
-                    if (dqs_event_sys)
+                    if (!i_rd_capture && (dqs_seen_q || dqs_event_sys))
                         rd_data_sys <= rd_data_complete;
                 end else if (i_rd_capture || rd_capture_q || dqs_event_sys) begin
                     rd_data_sys <= rd_data_complete;
@@ -436,7 +440,7 @@ module ddr3_phy_dq #(
         if (i_rst) begin
             dqs_event_toggle <= 1'b0;
         end else if (i_rd_capture && !dqs_drive &&
-                     (!FULL_BL8_MODE || (dqs_edges_dqs[2:0] == 3'd4))) begin
+                     (!FULL_BL8_MODE || (dqs_edges_dqs[1:0] == 2'd3))) begin
             dqs_event_toggle <= ~dqs_event_toggle;
         end
     end
