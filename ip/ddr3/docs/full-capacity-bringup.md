@@ -1603,6 +1603,20 @@ otherwise noted.
   request CE` critical path is gone; the seed-1 `clk_sys` limiter is now a
   runtime-to-PHY write-data route (`phy_wr_data[328]`) at 0.2 ns logic and
   4.8 ns routing, only 0.48 MHz short of the 200 MHz controller target.
+  Additional routed seed sweeps did not find a better balanced candidate.
+  Seeds 5-16 peaked at seed 14 with 199.36 MHz `clk_sys`, but only
+  677.51 MHz `clk_dq`; seeds 17-32 peaked at seed 21 with 199.52 MHz
+  `clk_sys`, but only 518.40 MHz `clk_dq`. The best alternate that clears
+  the 800 MHz DQ intent is seed 31 at 193.24 MHz `clk_sys` and 860.59 MHz
+  `clk_dq`. A seed-1 `--placer-budgets` flow trial also regressed to
+  190.66 MHz `clk_sys` while preserving 906.62 MHz `clk_dq`. A runtime
+  write-data output-stage experiment passed the same opt-in `sim-init` and
+  `sim-runtime-addr` checks, but seed-1 route regressed to 177.71 MHz
+  `clk_sys` and 931.97 MHz `clk_dq`, so it was reverted. Keep the
+  controller-input-buffer seed-1 route as the current best checkpoint; the
+  next useful change should be either explicit placement guidance for the
+  runtime-to-PHY write-data register boundary or a deeper controller/PHY
+  write-payload scheduling split, not a blind wide prebuffer.
 
 ## Validation Gates
 
