@@ -1617,6 +1617,19 @@ otherwise noted.
   next useful change should be either explicit placement guidance for the
   runtime-to-PHY write-data register boundary or a deeper controller/PHY
   write-payload scheduling split, not a blind wide prebuffer.
+- A per-lane `LUT1` write-data fanout split was tested and reverted after the
+  controller-input-buffer checkpoint. The dirty diagnostic added a
+  `DDR3_PHY_WR_DATA_LUTBUF` lane-local identity buffer in
+  `ddr3_phy_lane_array` for the duplicated BL8 write-data bits. Seed-1 route
+  regressed to 148.30 MHz `u_blu.i_clk_50`, 173.22 MHz `clk_sys`,
+  894.45 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`, so it is not a useful
+  fix for the current `phy_wr_data[328]` route. Inspecting the local nextpnr
+  XDC parser also rules out a simple internal-XDC placement fix in this flow:
+  `set_property` targets are parsed only through `[get_ports]`, `create_clock`
+  targets only through `[get_ports]` or `[get_nets]`, and unsupported
+  constraint commands are ignored. Any future placement-guidance experiment
+  must therefore use Verilog/netlist attributes or a JSON/netlist transform,
+  not internal `[get_cells]` XDC constraints.
 
 ## Validation Gates
 
