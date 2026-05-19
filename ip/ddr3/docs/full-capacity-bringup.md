@@ -1643,6 +1643,15 @@ otherwise noted.
   This proves that simply forcing unique BL8 writeback nets increases
   placement pressure and destroys DQ margin; do not repeat it without a larger
   PHY-local or scheduler-local payload placement strategy.
+- Rerouting the current controller-input-buffer keeper JSON at a stricter
+  `--freq 205` did not change the placement or recover the final 200 MHz
+  miss. The seed-1 log
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_ctrlreq_topreq_lateflat_seed1_freq205_route.log`
+  reproduced the same useful/insufficient endpoint as the 200 MHz run:
+  154.42 MHz `u_blu.i_clk_50`, 199.52 MHz `clk_sys`, 906.62 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`. Do not spend more route-only time on this knob; the
+  next step still needs RTL or placement-ownership change around the
+  runtime-to-PHY write-data boundary.
 
 ## Validation Gates
 
