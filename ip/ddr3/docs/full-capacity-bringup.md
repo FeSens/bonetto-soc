@@ -1630,6 +1630,19 @@ otherwise noted.
   constraint commands are ignored. Any future placement-guidance experiment
   must therefore use Verilog/netlist attributes or a JSON/netlist transform,
   not internal `[get_cells]` XDC constraints.
+- A single-writer cleanup for `rd_data_q` in `ddr3_runtime` was also tested and
+  reverted. The change folded the read-capture assignment into the main
+  runtime clocked block, removing the separate always block that also writes
+  the BL8 RMW payload register. Focused checks passed:
+  `git diff --check` and `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER
+  -DDDR3_RUNTIME_RMW_INPLACE -DDDR3_CTRL_INPUT_REQ_BUFFER" sim-init
+  sim-runtime-addr`. Synthesis looked superficially attractive because
+  `phy_wr_data` became 512 unique nets instead of 32 repeated nets, but route
+  regressed badly: seed 1 ended at 162.07 MHz `u_blu.i_clk_50`,
+  129.23 MHz `clk_sys`, 565.93 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`.
+  This proves that simply forcing unique BL8 writeback nets increases
+  placement pressure and destroys DQ margin; do not repeat it without a larger
+  PHY-local or scheduler-local payload placement strategy.
 
 ## Validation Gates
 
