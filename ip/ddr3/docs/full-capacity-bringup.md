@@ -1661,6 +1661,14 @@ otherwise noted.
   573.39 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The reset removal perturbs
   PHY placement and loses the DDR3-1600 DQ margin, so do not repeat it as a
   standalone write-data timing fix.
+- A two-copy `saved_wdat` split under a temporary
+  `DDR3_RUNTIME_RMW_WDAT_SPLIT` define was tested and reverted. The focused
+  init and BL8 runtime-address/RMW tests passed, and the experiment targeted the
+  exact `phy_wr_data[328]` alias that fans one runtime FF into lanes 1 and 5.
+  Route still regressed to 148.17 MHz `u_blu.i_clk_50`, 188.68 MHz `clk_sys`,
+  892.86 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Simple duplicate WB-data
+  source registers perturb placement more than they help the current write-data
+  boundary.
 
 ## Validation Gates
 
