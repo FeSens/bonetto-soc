@@ -281,8 +281,8 @@ full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-latef
 	  DDR3_ACTIVE_DQS_MAX=8 \
 	  YOSYS_SYNTH_ARGS="-abc9" \
 	  YOSYS_POST_SYNTH="flatten;" \
-	  NEXTPNR_FREQ=200 \
-	  NEXTPNR_ARGS="--router router1 --seed 1 --timing-allow-fail --log build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_ctrlreq_topreq_router1_lateflat_seed1_route.log" \
+	  NEXTPNR_FREQ=208 \
+	  NEXTPNR_ARGS="--router router1 --seed 1 --timing-allow-fail --log build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_ctrlreq_topreq_router1_lateflat_seed1_freq208_route.log" \
 	  build/bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_ctrlreq_topreq_router1_lateflat.bit
 
 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream:
