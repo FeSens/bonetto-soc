@@ -810,6 +810,7 @@ module top (
     localparam [7:0] DBG_CMD_MPR_EN   = 8'hEB;
     localparam [7:0] DBG_CMD_MPR_DIS  = 8'hEC;
     localparam [7:0] DBG_CMD_MPR_READ = 8'hED;
+    localparam [7:0] DBG_CMD_CLEAR_RDDBG = 8'hEF;
 
     reg        dbg_mpr_req  = 1'b0;
     reg [12:0] dbg_mpr_addr = 13'h1000;
@@ -870,6 +871,7 @@ module top (
     wire        phy_rd_capture;
     wire        phy_rd_valid;
     wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane;
+    wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_dqs_edge_lane;
     wire [DDR3_PHY_DATA_W-1:0] phy_rd_data;
 `ifdef DDR3_DEBUG_PHY_RD_DATA
     localparam integer PHY_RD_DATA_STATUS_WORDS = DDR3_PHY_DATA_W / 32;
@@ -1038,6 +1040,7 @@ module top (
 
         .o_rd_valid     (phy_rd_valid),
         .o_rd_valid_lane(phy_rd_valid_lane),
+        .o_dqs_edge_lane(phy_dqs_edge_lane),
         .o_rd_data      (phy_rd_data),
 
         .i_cal_start_wlvl  (cal_wlvl_start),
@@ -1115,6 +1118,7 @@ module top (
     wire        phy_rd_capture_ch1;
     wire        phy_rd_valid_ch1;
     wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_ch1;
+    wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_dqs_edge_lane_ch1;
     wire [DDR3_PHY_DATA_W-1:0] phy_rd_data_ch1;
 
     ddr3_ctrl #(
@@ -1234,6 +1238,7 @@ module top (
 
         .o_rd_valid     (phy_rd_valid_ch1),
         .o_rd_valid_lane(phy_rd_valid_lane_ch1),
+        .o_dqs_edge_lane(phy_dqs_edge_lane_ch1),
         .o_rd_data      (phy_rd_data_ch1),
 
         .i_cal_start_wlvl  (cal_wlvl_start_ch1),
@@ -1313,6 +1318,256 @@ module top (
     wire       idelay_ready_status = idelay_ready;
 `endif
 
+    // Sticky read-path instrumentation. These counters are intentionally
+    // board-level so they observe the exact channel selected by the top-level
+    // 2-channel router without changing DDR3 command/data behavior.
+    function [7:0] sat_inc8;
+        input [7:0] value;
+        begin
+            sat_inc8 = (&value) ? value : (value + 8'd1);
+        end
+    endfunction
+
+    wire rd_dbg_clear = h2f_cmd_valid_sys &&
+                        (h2f_cmd_sys[31:24] == DBG_CMD_CLEAR_RDDBG);
+
+    reg        rd_dbg_ch0_pending_we = 1'b0;
+    reg        rd_dbg_ch0_capture_d = 1'b0;
+    reg        rd_dbg_ch0_valid_d = 1'b0;
+    reg [DDR3_ACTIVE_BYTE_LANES-1:0] rd_dbg_ch0_lane_d =
+        {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+    reg        rd_dbg_ch0_rd_req_seen = 1'b0;
+    reg        rd_dbg_ch0_rd_ack_seen = 1'b0;
+    reg        rd_dbg_ch0_wr_req_seen = 1'b0;
+    reg        rd_dbg_ch0_wr_ack_seen = 1'b0;
+    reg        rd_dbg_ch0_capture_seen = 1'b0;
+    reg        rd_dbg_ch0_valid_seen = 1'b0;
+    reg [DDR3_ACTIVE_BYTE_LANES-1:0] rd_dbg_ch0_lane_seen =
+        {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+    reg [DDR3_ACTIVE_BYTE_LANES-1:0] rd_dbg_ch0_dqs_lane_seen =
+        {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+    reg [7:0]  rd_dbg_ch0_rd_req_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch0_rd_ack_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch0_wr_req_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch0_wr_ack_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch0_capture_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch0_valid_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch0_dqs_edge_ctr = 8'd0;
+
+`ifdef DDR3_FULL_2CH
+    reg        rd_dbg_ch1_pending_we = 1'b0;
+    reg        rd_dbg_ch1_capture_d = 1'b0;
+    reg        rd_dbg_ch1_valid_d = 1'b0;
+    reg [DDR3_ACTIVE_BYTE_LANES-1:0] rd_dbg_ch1_lane_d =
+        {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+    reg        rd_dbg_ch1_rd_req_seen = 1'b0;
+    reg        rd_dbg_ch1_rd_ack_seen = 1'b0;
+    reg        rd_dbg_ch1_wr_req_seen = 1'b0;
+    reg        rd_dbg_ch1_wr_ack_seen = 1'b0;
+    reg        rd_dbg_ch1_capture_seen = 1'b0;
+    reg        rd_dbg_ch1_valid_seen = 1'b0;
+    reg [DDR3_ACTIVE_BYTE_LANES-1:0] rd_dbg_ch1_lane_seen =
+        {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+    reg [DDR3_ACTIVE_BYTE_LANES-1:0] rd_dbg_ch1_dqs_lane_seen =
+        {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+    reg [7:0]  rd_dbg_ch1_rd_req_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch1_rd_ack_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch1_wr_req_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch1_wr_ack_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch1_capture_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch1_valid_ctr = 8'd0;
+    reg [7:0]  rd_dbg_ch1_dqs_edge_ctr = 8'd0;
+`endif
+
+    wire rd_dbg_ch0_rd_req_fire =
+        d3_ch0_cyc && d3_ch0_stb && !d3_ch0_stall && !d3_ch0_we;
+    wire rd_dbg_ch0_wr_req_fire =
+        d3_ch0_cyc && d3_ch0_stb && !d3_ch0_stall && d3_ch0_we;
+    wire rd_dbg_ch0_capture_rise = phy_rd_capture && !rd_dbg_ch0_capture_d;
+    wire rd_dbg_ch0_valid_rise = phy_rd_valid && !rd_dbg_ch0_valid_d;
+    wire [DDR3_ACTIVE_BYTE_LANES-1:0] rd_dbg_ch0_lane_rise =
+        phy_rd_valid_lane & ~rd_dbg_ch0_lane_d;
+
+`ifdef DDR3_FULL_2CH
+    wire rd_dbg_ch1_rd_req_fire =
+        d3_ch1_cyc && d3_ch1_stb && !d3_ch1_stall && !d3_ch1_we;
+    wire rd_dbg_ch1_wr_req_fire =
+        d3_ch1_cyc && d3_ch1_stb && !d3_ch1_stall && d3_ch1_we;
+    wire rd_dbg_ch1_capture_rise =
+        phy_rd_capture_ch1 && !rd_dbg_ch1_capture_d;
+    wire rd_dbg_ch1_valid_rise =
+        phy_rd_valid_ch1 && !rd_dbg_ch1_valid_d;
+    wire [DDR3_ACTIVE_BYTE_LANES-1:0] rd_dbg_ch1_lane_rise =
+        phy_rd_valid_lane_ch1 & ~rd_dbg_ch1_lane_d;
+`endif
+
+    always @(posedge clk_sys) begin
+        if (rst_dbg || rd_dbg_clear) begin
+            rd_dbg_ch0_pending_we <= 1'b0;
+            rd_dbg_ch0_capture_d <= 1'b0;
+            rd_dbg_ch0_valid_d <= 1'b0;
+            rd_dbg_ch0_lane_d <= {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+            rd_dbg_ch0_rd_req_seen <= 1'b0;
+            rd_dbg_ch0_rd_ack_seen <= 1'b0;
+            rd_dbg_ch0_wr_req_seen <= 1'b0;
+            rd_dbg_ch0_wr_ack_seen <= 1'b0;
+            rd_dbg_ch0_capture_seen <= 1'b0;
+            rd_dbg_ch0_valid_seen <= 1'b0;
+            rd_dbg_ch0_lane_seen <= {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+            rd_dbg_ch0_dqs_lane_seen <= {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+            rd_dbg_ch0_rd_req_ctr <= 8'd0;
+            rd_dbg_ch0_rd_ack_ctr <= 8'd0;
+            rd_dbg_ch0_wr_req_ctr <= 8'd0;
+            rd_dbg_ch0_wr_ack_ctr <= 8'd0;
+            rd_dbg_ch0_capture_ctr <= 8'd0;
+            rd_dbg_ch0_valid_ctr <= 8'd0;
+            rd_dbg_ch0_dqs_edge_ctr <= 8'd0;
+        end else begin
+            rd_dbg_ch0_capture_d <= phy_rd_capture;
+            rd_dbg_ch0_valid_d <= phy_rd_valid;
+            rd_dbg_ch0_lane_d <= phy_rd_valid_lane;
+
+            if (rd_dbg_ch0_rd_req_fire) begin
+                rd_dbg_ch0_pending_we <= 1'b0;
+                rd_dbg_ch0_rd_req_seen <= 1'b1;
+                rd_dbg_ch0_rd_req_ctr <= sat_inc8(rd_dbg_ch0_rd_req_ctr);
+            end else if (rd_dbg_ch0_wr_req_fire) begin
+                rd_dbg_ch0_pending_we <= 1'b1;
+                rd_dbg_ch0_wr_req_seen <= 1'b1;
+                rd_dbg_ch0_wr_req_ctr <= sat_inc8(rd_dbg_ch0_wr_req_ctr);
+            end
+
+            if (d3_ch0_ack) begin
+                if (rd_dbg_ch0_pending_we) begin
+                    rd_dbg_ch0_wr_ack_seen <= 1'b1;
+                    rd_dbg_ch0_wr_ack_ctr <= sat_inc8(rd_dbg_ch0_wr_ack_ctr);
+                end else begin
+                    rd_dbg_ch0_rd_ack_seen <= 1'b1;
+                    rd_dbg_ch0_rd_ack_ctr <= sat_inc8(rd_dbg_ch0_rd_ack_ctr);
+                end
+            end
+
+            if (rd_dbg_ch0_capture_rise) begin
+                rd_dbg_ch0_capture_seen <= 1'b1;
+                rd_dbg_ch0_capture_ctr <= sat_inc8(rd_dbg_ch0_capture_ctr);
+            end
+            if (rd_dbg_ch0_valid_rise) begin
+                rd_dbg_ch0_valid_seen <= 1'b1;
+                rd_dbg_ch0_valid_ctr <= sat_inc8(rd_dbg_ch0_valid_ctr);
+            end
+            if (|rd_dbg_ch0_lane_rise)
+                rd_dbg_ch0_lane_seen <= rd_dbg_ch0_lane_seen | rd_dbg_ch0_lane_rise;
+            if (|phy_dqs_edge_lane) begin
+                rd_dbg_ch0_dqs_lane_seen <=
+                    rd_dbg_ch0_dqs_lane_seen | phy_dqs_edge_lane;
+                rd_dbg_ch0_dqs_edge_ctr <= sat_inc8(rd_dbg_ch0_dqs_edge_ctr);
+            end
+        end
+
+`ifdef DDR3_FULL_2CH
+        if (rst_dbg || rd_dbg_clear) begin
+            rd_dbg_ch1_pending_we <= 1'b0;
+            rd_dbg_ch1_capture_d <= 1'b0;
+            rd_dbg_ch1_valid_d <= 1'b0;
+            rd_dbg_ch1_lane_d <= {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+            rd_dbg_ch1_rd_req_seen <= 1'b0;
+            rd_dbg_ch1_rd_ack_seen <= 1'b0;
+            rd_dbg_ch1_wr_req_seen <= 1'b0;
+            rd_dbg_ch1_wr_ack_seen <= 1'b0;
+            rd_dbg_ch1_capture_seen <= 1'b0;
+            rd_dbg_ch1_valid_seen <= 1'b0;
+            rd_dbg_ch1_lane_seen <= {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+            rd_dbg_ch1_dqs_lane_seen <= {DDR3_ACTIVE_BYTE_LANES{1'b0}};
+            rd_dbg_ch1_rd_req_ctr <= 8'd0;
+            rd_dbg_ch1_rd_ack_ctr <= 8'd0;
+            rd_dbg_ch1_wr_req_ctr <= 8'd0;
+            rd_dbg_ch1_wr_ack_ctr <= 8'd0;
+            rd_dbg_ch1_capture_ctr <= 8'd0;
+            rd_dbg_ch1_valid_ctr <= 8'd0;
+            rd_dbg_ch1_dqs_edge_ctr <= 8'd0;
+        end else begin
+            rd_dbg_ch1_capture_d <= phy_rd_capture_ch1;
+            rd_dbg_ch1_valid_d <= phy_rd_valid_ch1;
+            rd_dbg_ch1_lane_d <= phy_rd_valid_lane_ch1;
+
+            if (rd_dbg_ch1_rd_req_fire) begin
+                rd_dbg_ch1_pending_we <= 1'b0;
+                rd_dbg_ch1_rd_req_seen <= 1'b1;
+                rd_dbg_ch1_rd_req_ctr <= sat_inc8(rd_dbg_ch1_rd_req_ctr);
+            end else if (rd_dbg_ch1_wr_req_fire) begin
+                rd_dbg_ch1_pending_we <= 1'b1;
+                rd_dbg_ch1_wr_req_seen <= 1'b1;
+                rd_dbg_ch1_wr_req_ctr <= sat_inc8(rd_dbg_ch1_wr_req_ctr);
+            end
+
+            if (d3_ch1_ack) begin
+                if (rd_dbg_ch1_pending_we) begin
+                    rd_dbg_ch1_wr_ack_seen <= 1'b1;
+                    rd_dbg_ch1_wr_ack_ctr <= sat_inc8(rd_dbg_ch1_wr_ack_ctr);
+                end else begin
+                    rd_dbg_ch1_rd_ack_seen <= 1'b1;
+                    rd_dbg_ch1_rd_ack_ctr <= sat_inc8(rd_dbg_ch1_rd_ack_ctr);
+                end
+            end
+
+            if (rd_dbg_ch1_capture_rise) begin
+                rd_dbg_ch1_capture_seen <= 1'b1;
+                rd_dbg_ch1_capture_ctr <= sat_inc8(rd_dbg_ch1_capture_ctr);
+            end
+            if (rd_dbg_ch1_valid_rise) begin
+                rd_dbg_ch1_valid_seen <= 1'b1;
+                rd_dbg_ch1_valid_ctr <= sat_inc8(rd_dbg_ch1_valid_ctr);
+            end
+            if (|rd_dbg_ch1_lane_rise)
+                rd_dbg_ch1_lane_seen <= rd_dbg_ch1_lane_seen | rd_dbg_ch1_lane_rise;
+            if (|phy_dqs_edge_lane_ch1) begin
+                rd_dbg_ch1_dqs_lane_seen <=
+                    rd_dbg_ch1_dqs_lane_seen | phy_dqs_edge_lane_ch1;
+                rd_dbg_ch1_dqs_edge_ctr <= sat_inc8(rd_dbg_ch1_dqs_edge_ctr);
+            end
+        end
+`endif
+    end
+
+    wire [31:0] rd_dbg_ch0_flags = {16'hAB1D,
+        rd_dbg_ch0_rd_req_seen, rd_dbg_ch0_rd_ack_seen,
+        rd_dbg_ch0_wr_req_seen, rd_dbg_ch0_wr_ack_seen,
+        rd_dbg_ch0_capture_seen, rd_dbg_ch0_valid_seen,
+        2'b00, rd_dbg_ch0_lane_seen};
+    wire [31:0] rd_dbg_ch0_read_counts = {
+        8'hD0, rd_dbg_ch0_rd_req_ctr, rd_dbg_ch0_rd_ack_ctr,
+        rd_dbg_ch0_capture_ctr};
+    wire [31:0] rd_dbg_ch0_write_counts = {
+        8'hD1, rd_dbg_ch0_valid_ctr, rd_dbg_ch0_wr_req_ctr,
+        rd_dbg_ch0_wr_ack_ctr};
+    wire [31:0] rd_dbg_ch0_dqs_counts = {
+        8'hD4, rd_dbg_ch0_dqs_edge_ctr,
+        {(8-DDR3_ACTIVE_BYTE_LANES){1'b0}}, rd_dbg_ch0_dqs_lane_seen,
+        {(8-DDR3_ACTIVE_BYTE_LANES){1'b0}}, phy_dqs_edge_lane};
+
+`ifdef DDR3_FULL_2CH
+    wire [31:0] rd_dbg_ch1_flags = {16'hAB60,
+        rd_dbg_ch1_rd_req_seen, rd_dbg_ch1_rd_ack_seen,
+        rd_dbg_ch1_wr_req_seen, rd_dbg_ch1_wr_ack_seen,
+        rd_dbg_ch1_capture_seen, rd_dbg_ch1_valid_seen,
+        2'b00, rd_dbg_ch1_lane_seen};
+    wire [31:0] rd_dbg_ch1_read_counts = {
+        8'hD2, rd_dbg_ch1_rd_req_ctr, rd_dbg_ch1_rd_ack_ctr,
+        rd_dbg_ch1_capture_ctr};
+    wire [31:0] rd_dbg_ch1_write_counts = {
+        8'hD3, rd_dbg_ch1_valid_ctr, rd_dbg_ch1_wr_req_ctr,
+        rd_dbg_ch1_wr_ack_ctr};
+    wire [31:0] rd_dbg_ch1_dqs_counts = {
+        8'hD5, rd_dbg_ch1_dqs_edge_ctr,
+        {(8-DDR3_ACTIVE_BYTE_LANES){1'b0}}, rd_dbg_ch1_dqs_lane_seen,
+        {(8-DDR3_ACTIVE_BYTE_LANES){1'b0}}, phy_dqs_edge_lane_ch1};
+`else
+    wire [31:0] rd_dbg_ch1_flags = 32'hAB60_0000;
+    wire [31:0] rd_dbg_ch1_read_counts = 32'hD2_000000;
+    wire [31:0] rd_dbg_ch1_write_counts = 32'hD3_000000;
+    wire [31:0] rd_dbg_ch1_dqs_counts = 32'hD5_000000;
+`endif
+
     // =================================================================
     // STATUS MUX — host writes a register index to jtag_uart, then reads
     // the corresponding 32-bit status word.
@@ -1341,8 +1596,16 @@ module top (
     // 0x16  | CLK_PHY_X4_PROBE {magic=0xAB16, alive, synced_bit, _, ticks_lo[5:0]}
     // 0x17  | CLK_DQ_PROBE     {magic=0xAB17, alive, synced_bit, _, ticks_lo[5:0]}
     // 0x19  | PHY_RD_VALID_LANES
+    // 0x1D  | DDR3_CH0_RDDBG_FLAGS {req/ack/capture/valid seen + lane mask}
+    // 0x1E  | DDR3_CH0_RDDBG_READ_COUNTS {rd_req, rd_ack, capture_window}
+    // 0x1F  | DDR3_CH0_RDDBG_WRITE_COUNTS {valid, wr_req, wr_ack}
+    // 0x63  | DDR3_CH0_DQSDBG {event_count, sticky_lane_mask, live_lane_mask}
     // 0x20-0x3F | PHY_RD_DATA_LAST words, debug builds only
     // 0x40-0x5F | PHY_WR_DATA_LAST words, debug builds only
+    // 0x60  | DDR3_CH1_RDDBG_FLAGS {req/ack/capture/valid seen + lane mask}
+    // 0x61  | DDR3_CH1_RDDBG_READ_COUNTS {rd_req, rd_ack, capture_window}
+    // 0x62  | DDR3_CH1_RDDBG_WRITE_COUNTS {valid, wr_req, wr_ack}
+    // 0x64  | DDR3_CH1_DQSDBG {event_count, sticky_lane_mask, live_lane_mask}
     //         (iter-13 — detect prjxray-gap CLKOUT routing failures.
     //         Each CLKOUT can fail independently because per-output
     //         CMT_LR_LOWER_B_MMCM_CLKOUT segbits are independently missing
@@ -1627,6 +1890,14 @@ module top (
             8'h1A:   status_word_comb = {16'hAB1A, jwb_addr_hi_echo_sync[1]};
             8'h1B:   status_word_comb = {16'hAB1B, 16'd0};
             8'h1C:   status_word_comb = {24'hAB1C00, d3_ctrl_sync[1]};
+            8'h1D:   status_word_comb = rd_dbg_ch0_flags;
+            8'h1E:   status_word_comb = rd_dbg_ch0_read_counts;
+            8'h1F:   status_word_comb = rd_dbg_ch0_write_counts;
+            8'h60:   status_word_comb = rd_dbg_ch1_flags;
+            8'h61:   status_word_comb = rd_dbg_ch1_read_counts;
+            8'h62:   status_word_comb = rd_dbg_ch1_write_counts;
+            8'h63:   status_word_comb = rd_dbg_ch0_dqs_counts;
+            8'h64:   status_word_comb = rd_dbg_ch1_dqs_counts;
             8'hFE:   status_word_comb = {16'hB07E, 16'h0012};
             8'hFF:   status_word_comb = host_to_fpga;
             default: status_word_comb = {24'hDEADBA, host_to_fpga[7:0]};

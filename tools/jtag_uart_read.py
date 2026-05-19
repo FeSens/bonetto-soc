@@ -217,6 +217,7 @@ JWB_CMD_PHASE_DEC = 0xEA
 JWB_CMD_MPR_EN    = 0xEB
 JWB_CMD_MPR_DIS   = 0xEC
 JWB_CMD_MPR_READ  = 0xED
+JWB_CMD_CLEAR_RDDBG = 0xEF
 
 
 def jwb_set_idelay(xvc, lane: int, tap: int):
@@ -370,6 +371,38 @@ def decode_state_bits(w: int) -> str:
             f"hb_low={hb}")
 
 
+def decode_rd_dbg_flags(w: int) -> str:
+    lane_mask = w & 0xFF
+    return (
+        f"rd_req={(w >> 15) & 1} rd_ack={(w >> 14) & 1} "
+        f"wr_req={(w >> 13) & 1} wr_ack={(w >> 12) & 1} "
+        f"capture={(w >> 11) & 1} valid={(w >> 10) & 1} "
+        f"lane_mask=0x{lane_mask:02x}"
+    )
+
+
+def decode_rd_dbg_read_counts(w: int) -> str:
+    return (
+        f"rd_req={(w >> 16) & 0xFF} rd_ack={(w >> 8) & 0xFF} "
+        f"capture={(w >> 0) & 0xFF}"
+    )
+
+
+def decode_rd_dbg_write_counts(w: int) -> str:
+    return (
+        f"valid={(w >> 16) & 0xFF} wr_req={(w >> 8) & 0xFF} "
+        f"wr_ack={(w >> 0) & 0xFF}"
+    )
+
+
+def decode_dqs_dbg_counts(w: int) -> str:
+    return (
+        f"edge_events={(w >> 16) & 0xFF} "
+        f"sticky_lane_mask=0x{(w >> 8) & 0xFF:02x} "
+        f"live_lane_mask=0x{w & 0xFF:02x}"
+    )
+
+
 REG_DECODERS = {
     0x00: ("STATUS_FLAGS", decode_status_flags),
     0x01: ("STATE_BITS",   decode_state_bits),
@@ -410,6 +443,14 @@ REG_DECODERS = {
         f"dq_hb_bit={(w>>14)&1} dq_ticks_lo={w & 0x3F}"
     )),
     0x1A: ("JWB_ADDR_HI", lambda w: f"magic=0x{w>>16:04x} addr_hi=0x{w & 0xffff:04x}"),
+    0x1D: ("DDR3_CH0_RDDBG_FLAGS", decode_rd_dbg_flags),
+    0x1E: ("DDR3_CH0_RDDBG_READ_COUNTS", decode_rd_dbg_read_counts),
+    0x1F: ("DDR3_CH0_RDDBG_WRITE_COUNTS", decode_rd_dbg_write_counts),
+    0x60: ("DDR3_CH1_RDDBG_FLAGS", decode_rd_dbg_flags),
+    0x61: ("DDR3_CH1_RDDBG_READ_COUNTS", decode_rd_dbg_read_counts),
+    0x62: ("DDR3_CH1_RDDBG_WRITE_COUNTS", decode_rd_dbg_write_counts),
+    0x63: ("DDR3_CH0_DQSDBG", decode_dqs_dbg_counts),
+    0x64: ("DDR3_CH1_DQSDBG", decode_dqs_dbg_counts),
     0xFE: ("VERSION",    lambda w: f"magic=0x{w>>16:04x} iter={w & 0xFFFF}"),
     0xFF: ("ECHO",       lambda w: f"{w:#010x}"),
 }

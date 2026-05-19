@@ -82,6 +82,7 @@ module ddr3_phy #(
     input  wire                            i_rd_capture,
     output wire                            o_rd_valid,
     output wire [NUM_BYTE_LANES-1:0]       o_rd_valid_lane,
+    output wire [NUM_BYTE_LANES-1:0]       o_dqs_edge_lane,
     output wire [NUM_BYTE_LANES*DQ_BITS*SERDES_RATIO-1:0] o_rd_data,
 
     // -------- Calibration control --------
@@ -539,6 +540,7 @@ module ddr3_phy #(
 
         .o_rd_data                (lane_rd_data),
         .o_rd_valid_lane          (lane_rd_valid),
+        .o_dqs_edge_lane          (o_dqs_edge_lane),
         .o_rd_valid_all           (o_rd_valid),
 
         .i_cal_dq_load_lane       (cal_dq_load_lane),

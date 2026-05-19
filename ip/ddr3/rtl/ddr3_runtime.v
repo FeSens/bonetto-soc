@@ -330,11 +330,18 @@ module ddr3_runtime #(
     assign o_wb_stall = ~wb_accept_ok;
 `endif
     assign o_wb_err   = 1'b0;
+`ifdef DDR3_WIDE_RD_CAPTURE
+    assign o_rd_capture =
+        (state == S_RD) || (state == S_WAIT_CL) || (state == S_DATA_RD) ||
+        (state == S_MPR_RD) || (state == S_MPR_WAIT_CL) ||
+        (state == S_MPR_DATA);
+`else
     assign o_rd_capture =
         ((state == S_WAIT_CL) && (wait_ctr == CL_SYS - 2)) ||
         ((state == S_DATA_RD) && (beat_ctr < READ_CAPTURE_SYS_CYCLES)) ||
         ((state == S_MPR_WAIT_CL) && (wait_ctr == CL_SYS - 2)) ||
         ((state == S_MPR_DATA) && (beat_ctr < READ_CAPTURE_SYS_CYCLES));
+`endif
     assign o_cmd_odt = (state == S_WR) || (state == S_WAIT_CWL) ||
                        (state == S_DATA_WR) || (state == S_WR_RECOV);
 

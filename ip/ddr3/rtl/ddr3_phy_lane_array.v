@@ -33,6 +33,7 @@ module ddr3_phy_lane_array #(
     input  wire                              i_rd_capture,
     output wire [NUM_BYTE_LANES*DQ_BITS*RATIO-1:0] o_rd_data,
     output wire [NUM_BYTE_LANES-1:0]         o_rd_valid_lane,
+    output wire [NUM_BYTE_LANES-1:0]         o_dqs_edge_lane,
     output wire                              o_rd_valid_all,
 
     // -------- Calibration: per-bit DQ IDELAYE2 (rdlvl per-bit, future) ---
@@ -67,6 +68,7 @@ module ddr3_phy_lane_array #(
     assign o_ddr3_dm       = {NUM_BYTE_LANES{1'b0}};
     assign o_rd_data       = {(NUM_BYTE_LANES*DQ_BITS*RATIO){1'b0}};
     assign o_rd_valid_lane = {NUM_BYTE_LANES{1'b0}};
+    assign o_dqs_edge_lane = {NUM_BYTE_LANES{1'b0}};
     assign o_rd_valid_all  = 1'b0;
     assign o_idelay_ready  = ~i_rst;
 
@@ -143,6 +145,7 @@ module ddr3_phy_lane_array #(
 
                 .o_rd_data           (o_rd_data[bl*DQ_BITS*RATIO +: DQ_BITS*RATIO]),
                 .o_rd_valid          (o_rd_valid_lane[bl]),
+                .o_dqs_edge_event    (o_dqs_edge_lane[bl]),
 
                 .i_cal_dq_load       (i_cal_dq_load_lane[bl]),
                 .i_cal_dq_sel        (i_cal_dq_sel),

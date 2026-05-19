@@ -45,6 +45,7 @@ module ddr3_phy_dq #(
 
     output wire [DQ_BITS*RATIO-1:0] o_rd_data,
     output wire                     o_rd_valid,
+    output wire                     o_dqs_edge_event,
 
     input  wire                     i_cal_dq_load,
     input  wire [DQ_BITS-1:0]       i_cal_dq_sel,
@@ -71,6 +72,7 @@ module ddr3_phy_dq #(
     assign io_ddr3_dqs_n = 1'bz;
     assign o_rd_data     = {(DQ_BITS*RATIO){1'b0}};
     assign o_rd_valid    = 1'b0;
+    assign o_dqs_edge_event = 1'b0;
 
     /* verilator lint_off UNUSED */
     wire _u = &{1'b0, i_clk_sys, i_clk_phy_x4, i_clk_dq, i_rst,
@@ -436,6 +438,7 @@ module ddr3_phy_dq #(
 
             assign o_rd_data  = rd_data_sys;
             assign o_rd_valid = rd_valid_q;
+            assign o_dqs_edge_event = 1'b0;
         end else begin : g_read_dqs
             reg [DQ_BITS*RATIO-1:0] rd_data_dqs = {(DQ_BITS*RATIO){1'b0}};
             reg [DQ_BITS*RATIO-1:0] rd_data_sys = {(DQ_BITS*RATIO){1'b0}};
@@ -444,6 +447,7 @@ module ddr3_phy_dq #(
             reg [7:0] dqs_edges_dqs = 8'd0;
             reg [7:0] dqs_edges_sys = 8'd0;
             reg       dqs_event_toggle = 1'b0;
+            reg       dqs_first_edge_toggle = 1'b0;
             wire [DQ_BITS*RATIO-1:0] rd_data_complete;
             wire rd_iddr_ce;
             wire rd_dqs_sample_en;
@@ -541,6 +545,7 @@ module ddr3_phy_dq #(
 
             if (FULL_BL8_MODE) begin : g_full_bl8_dqs_arm
                 reg  rd_arm_dqs = 1'b0;
+                reg  dqs_first_edge_seen_dqs = 1'b0;
                 wire rd_capture_dqs_en = i_rd_capture;
 
                 assign rd_iddr_ce = 1'b1;
@@ -550,7 +555,12 @@ module ddr3_phy_dq #(
                     if (!rd_capture_dqs_en) begin
                         rd_arm_dqs <= 1'b0;
                         dqs_edges_dqs <= 8'd0;
+                        dqs_first_edge_seen_dqs <= 1'b0;
                     end else if (!dqs_drive) begin
+                        if (!dqs_first_edge_seen_dqs) begin
+                            dqs_first_edge_seen_dqs <= 1'b1;
+                            dqs_first_edge_toggle <= ~dqs_first_edge_toggle;
+                        end
                         rd_arm_dqs <= 1'b1;
                         dqs_edges_dqs <= rd_arm_dqs ? (dqs_edges_dqs + 8'd1) : 8'd1;
                     end
@@ -562,15 +572,23 @@ module ddr3_phy_dq #(
                     end
                 end
             end else begin : g_legacy_dqs_arm
+                reg dqs_first_edge_seen_dqs = 1'b0;
+
                 assign rd_iddr_ce = i_rd_capture;
                 assign rd_dqs_sample_en = i_rd_capture && !dqs_drive;
 
                 always @(posedge dqs_in_raw or posedge i_rst or negedge i_rd_capture) begin
                     if (i_rst) begin
                         dqs_edges_dqs <= 8'd0;
+                        dqs_first_edge_seen_dqs <= 1'b0;
                     end else if (!i_rd_capture) begin
                         dqs_edges_dqs <= 8'd0;
+                        dqs_first_edge_seen_dqs <= 1'b0;
                     end else if (!dqs_drive) begin
+                        if (!dqs_first_edge_seen_dqs) begin
+                            dqs_first_edge_seen_dqs <= 1'b1;
+                            dqs_first_edge_toggle <= ~dqs_first_edge_toggle;
+                        end
                         dqs_edges_dqs <= dqs_edges_dqs + 8'd1;
                     end
                 end
@@ -589,8 +607,11 @@ module ddr3_phy_dq #(
             reg       rd_valid_q = 1'b0;
             reg       dqs_seen_q = 1'b0;
             reg [2:0] dqs_event_sync = 3'b000;
+            reg [2:0] dqs_first_edge_sync = 3'b000;
 
             wire dqs_event_sys = dqs_event_sync[2] ^ dqs_event_sync[1];
+            wire dqs_first_edge_sys =
+                dqs_first_edge_sync[2] ^ dqs_first_edge_sync[1];
             wire rd_capture_start_sys = FULL_BL8_MODE ? (rd_capture_q && !rd_capture_qq) :
                                                          (i_rd_capture && !rd_capture_q);
             wire rd_capture_done_sys = FULL_BL8_MODE ? (!rd_capture_q && rd_capture_qq) :
@@ -605,10 +626,14 @@ module ddr3_phy_dq #(
                     rd_valid_q     <= 1'b0;
                     dqs_seen_q     <= 1'b0;
                     dqs_event_sync <= 3'b000;
+                    dqs_first_edge_sync <= 3'b000;
                 end else begin
                     rd_capture_q   <= i_rd_capture;
                     rd_capture_qq  <= rd_capture_q;
                     dqs_event_sync <= {dqs_event_sync[1:0], dqs_event_toggle};
+                    dqs_first_edge_sync <= {
+                        dqs_first_edge_sync[1:0], dqs_first_edge_toggle
+                    };
                     dqs_edges_sys  <= dqs_edges_dqs;
 
                     if (rd_capture_start_sys) begin
@@ -635,6 +660,7 @@ module ddr3_phy_dq #(
 
             assign o_rd_data  = rd_data_sys;
             assign o_rd_valid = rd_valid_q;
+            assign o_dqs_edge_event = dqs_first_edge_sys;
         end
     endgenerate
 
