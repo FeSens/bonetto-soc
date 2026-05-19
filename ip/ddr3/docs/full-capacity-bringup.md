@@ -1652,6 +1652,15 @@ otherwise noted.
   1557.63 MHz `clk_phy_x4`. Do not spend more route-only time on this knob; the
   next step still needs RTL or placement-ownership change around the
   runtime-to-PHY write-data boundary.
+- Additional route-only tool knobs on the keeper design also failed to recover
+  the target. Rerouting the seed-1 JSON at `--freq 208 --cstrweight 0` reached
+  the same physical endpoint: 154.42 MHz `u_blu.i_clk_50`, 199.52 MHz
+  `clk_sys`, 906.62 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. A temporary
+  nextpnr Python `ctx.addClock("u_blu.i_clk_50", 50)` pre-pack hook fixed the
+  misleading 50 MHz board-clock classification but regressed the real timing
+  to 156.81 MHz `clk_sys` and 949.67 MHz `clk_dq`; the equivalent post-route
+  hook ran too late to affect reported timing. Keep these as diagnostics, not
+  target flow changes.
 - Removing reset from the per-lane PHY `wr_data_sys_q` write-data holding
   registers under a temporary `DDR3_PHY_WR_DATA_NORESET` define was tested and
   reverted. `git diff --check`, `make -C ip/ddr3
@@ -1685,6 +1694,21 @@ otherwise noted.
   logic at 0.8 ns logic and 4.4 ns routing. Do not repeat this standalone
   bypass; it trades the near-miss write-data route for a worse read-valid
   control route.
+- Pairing `DDR3_PHY_DIRECT_OSERDES_WR` with a one-cycle controller-local
+  read-valid register was tested and reverted as a follow-up companion fix.
+  Focused checks passed: `git diff --check`, `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_PHY_DIRECT_OSERDES_WR" synth-phy-dq-ratio8`, and
+  `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER
+  -DDDR3_RUNTIME_RMW_INPLACE -DDDR3_CTRL_INPUT_REQ_BUFFER
+  -DDDR3_PHY_DIRECT_OSERDES_WR -DDDR3_CTRL_RD_VALID_REG" sim-init
+  sim-runtime-addr`. The full dual-channel seed-1 late-flat route at a 208 MHz
+  target regressed to 190.22 MHz `u_blu.i_clk_50`, 156.62 MHz `clk_sys`,
+  773.99 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`; the route log is
+  `boards/ypcb-00338/build/full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_ctrlreq_topreq_directoserdes_rdvalid_lateflat_seed1_route.log`.
+  The limiter moved into CH1 init FSM/control logic instead of staying on
+  read-valid, and the DQ domain fell below the DDR3-1600 800 MHz intent. Do not
+  repeat this one-cycle read-valid companion path without a larger control-path
+  restructure.
 
 ## Validation Gates
 
