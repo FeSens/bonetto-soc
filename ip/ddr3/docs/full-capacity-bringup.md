@@ -1709,6 +1709,26 @@ otherwise noted.
   read-valid, and the DQ domain fell below the DDR3-1600 800 MHz intent. Do not
   repeat this one-cycle read-valid companion path without a larger control-path
   restructure.
+- A temporary `DDR3_WR_DATA_PRELOAD` split was tested and reverted. The change
+  added a one-cycle runtime `S_WR_LOAD` state so the PHY write-data holding
+  registers could preload before the WRITE command, while the DQ output-enable
+  window was driven from the write-command launch. Focused checks passed:
+  `git diff --check`, `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER
+  -DDDR3_RUNTIME_RMW_INPLACE -DDDR3_CTRL_INPUT_REQ_BUFFER
+  -DDDR3_WR_DATA_PRELOAD" sim-init sim-runtime-addr`, and `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_WR_DATA_PRELOAD" synth-phy-dq-ratio8`. The first
+  seed-1 late-flat route removed the previous `phy_wr_data[328]` limiter, but
+  only reached 147.99 MHz `u_blu.i_clk_50`, 196.46 MHz `clk_sys`,
+  969.93 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`; the new limiter was the
+  global `phy_wr_valid` route into per-lane `i_wr_dqs_en`/CE logic. A follow-up
+  variant that continuously tracked `i_wr_data` in the PHY holding registers
+  also passed the focused checks but routed much worse: 125.91 MHz
+  `u_blu.i_clk_50`, 168.95 MHz `clk_sys`, 811.03 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`. Write-data preload alone trades the payload route
+  for high-fanout preload/control routing, and continuous tracking perturbs
+  placement too much. Do not repeat it as a standalone fix; a useful version
+  needs localized ownership of both the payload and the data-load control near
+  each PHY lane group.
 
 ## Validation Gates
 
