@@ -303,7 +303,11 @@ module ddr3_phy #(
     //
     // DDR3_SERDES_CMD keeps the same 1:4 command contract, but uses OSERDESE2
     // on the command/address/control pins so the 800 MHz DDR3-1600 diagnostic
-    // does not need fabric FFs clocked by clk_dq for those outputs.
+    // does not need fabric FFs clocked by clk_dq for those outputs. Command
+    // and address bits are centered around the second CK rising edge in the
+    // sys-cycle slot: idle on D1, active on D2/D3, idle after D4. This mirrors
+    // the old clk_dq-launched command path without requiring a phase-shifted
+    // OSERDES clock.
     // ============================================================
     reg cke_shadow, reset_shadow, odt_shadow;
     reg wr_shadow;
@@ -361,11 +365,25 @@ module ddr3_phy #(
     wire [3:0]            cmd_ser;
     wire                  wr_cmd_launch_q = wr_shadow;
 
+    function [7:0] serdes_cmd_active_low;
+        input bit_value;
+        begin
+            serdes_cmd_active_low = {5'b11111, bit_value, bit_value, 1'b1};
+        end
+    endfunction
+
+    function [7:0] serdes_cmd_data;
+        input bit_value;
+        begin
+            serdes_cmd_data = {5'b00000, bit_value, bit_value, 1'b0};
+        end
+    endfunction
+
     ddr3_phy_oserdes8 u_cmd_oserdes_cs (
         .i_clk    (o_clk_phy_x4),
         .i_clkdiv (o_clk_sys),
         .i_rst    (phy_io_rst),
-        .i_d      ({6'b111111, cmd_shadow[3], cmd_shadow[3]}),
+        .i_d      (serdes_cmd_active_low(cmd_shadow[3])),
         .o_q      (cmd_ser[3])
     );
 
@@ -373,7 +391,7 @@ module ddr3_phy #(
         .i_clk    (o_clk_phy_x4),
         .i_clkdiv (o_clk_sys),
         .i_rst    (phy_io_rst),
-        .i_d      ({6'b111111, cmd_shadow[2], cmd_shadow[2]}),
+        .i_d      (serdes_cmd_active_low(cmd_shadow[2])),
         .o_q      (cmd_ser[2])
     );
 
@@ -381,7 +399,7 @@ module ddr3_phy #(
         .i_clk    (o_clk_phy_x4),
         .i_clkdiv (o_clk_sys),
         .i_rst    (phy_io_rst),
-        .i_d      ({6'b111111, cmd_shadow[1], cmd_shadow[1]}),
+        .i_d      (serdes_cmd_active_low(cmd_shadow[1])),
         .o_q      (cmd_ser[1])
     );
 
@@ -389,7 +407,7 @@ module ddr3_phy #(
         .i_clk    (o_clk_phy_x4),
         .i_clkdiv (o_clk_sys),
         .i_rst    (phy_io_rst),
-        .i_d      ({6'b111111, cmd_shadow[0], cmd_shadow[0]}),
+        .i_d      (serdes_cmd_active_low(cmd_shadow[0])),
         .o_q      (cmd_ser[0])
     );
 
@@ -426,7 +444,7 @@ module ddr3_phy #(
                 .i_clk    (o_clk_phy_x4),
                 .i_clkdiv (o_clk_sys),
                 .i_rst    (phy_io_rst),
-                .i_d      ({6'b000000, ba_shadow[cmd_bi], ba_shadow[cmd_bi]}),
+                .i_d      (serdes_cmd_data(ba_shadow[cmd_bi])),
                 .o_q      (ba_q[cmd_bi])
             );
         end
@@ -439,7 +457,7 @@ module ddr3_phy #(
                 .i_clk    (o_clk_phy_x4),
                 .i_clkdiv (o_clk_sys),
                 .i_rst    (phy_io_rst),
-                .i_d      ({6'b000000, addr_shadow[cmd_ai], addr_shadow[cmd_ai]}),
+                .i_d      (serdes_cmd_data(addr_shadow[cmd_ai])),
                 .o_q      (addr_q[cmd_ai])
             );
         end
