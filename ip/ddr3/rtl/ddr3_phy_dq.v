@@ -567,7 +567,9 @@ module ddr3_phy_dq #(
                 end
 
                 always @(posedge dqs_in_raw) begin
-                    if (rd_arm_dqs && !dqs_drive && (dqs_edges_dqs[2:0] == 3'd3)) begin
+                    // The final BL8 falling sample is taken after edge 3, so
+                    // announce completion on the next rising edge.
+                    if (rd_arm_dqs && !dqs_drive && (dqs_edges_dqs[2:0] == 3'd4)) begin
                         dqs_event_toggle <= ~dqs_event_toggle;
                     end
                 end
