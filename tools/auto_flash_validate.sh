@@ -11,6 +11,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 BOARD=boards/ypcb-00338
 PROJECT=${PROJECT:-bonetto_soc_ypcb00338}
+PROGRAM_TARGET=${PROGRAM_TARGET:-}
 LOG=/tmp/auto_flash_validate.log
 NEXT=/tmp/silicon_next_steps.txt
 : > "$LOG"
@@ -19,8 +20,15 @@ NEXT=/tmp/silicon_next_steps.txt
 echo "== auto_flash_validate $(date) ==" | tee -a "$LOG"
 
 # 1. Flash
-echo "[1/3] flashing bitstream for PROJECT=$PROJECT..." | tee -a "$LOG"
-if (cd $BOARD && make PROJECT="$PROJECT" program 2>&1 | tail -20 | tee -a "$LOG" | grep -q "Done"); then
+if [ -n "$PROGRAM_TARGET" ]; then
+    echo "[1/3] flashing bitstream with target $PROGRAM_TARGET..." | tee -a "$LOG"
+    FLASH_CMD=(make "$PROGRAM_TARGET")
+else
+    echo "[1/3] flashing bitstream for PROJECT=$PROJECT..." | tee -a "$LOG"
+    FLASH_CMD=(make PROJECT="$PROJECT" program)
+fi
+
+if (cd "$BOARD" && "${FLASH_CMD[@]}" 2>&1 | tail -20 | tee -a "$LOG" | grep -q "Done"); then
     echo "  flash OK" | tee -a "$LOG"
 else
     echo "  flash FAILED" | tee -a "$LOG"

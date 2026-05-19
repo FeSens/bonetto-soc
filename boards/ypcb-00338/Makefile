@@ -57,7 +57,10 @@ YOSYS_SYNTH_ARGS ?= -flatten -abc9
 YOSYS_POST_SYNTH ?=
 DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
-.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-serdescmd-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-lateflat-json full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagdirect-bitstream full-2ch-ddr1600-serdescmd-ddronly-json full-2ch-ddr1600-serdescmd-ddronly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
+ROUTER1_DDR1600_PROJECT := bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_ctrlreq_topreq_router1_lateflat
+ROUTER1_DDR1600_BIT     := $(BUILD)/$(ROUTER1_DDR1600_PROJECT).bit
+
+.PHONY: bitstream program detect memtest xvc validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-serdescmd-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-lateflat-json full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat-bitstream program-full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat full-2ch-ddr1600-serdescmd-jtagdirect-bitstream full-2ch-ddr1600-serdescmd-ddronly-json full-2ch-ddr1600-serdescmd-ddronly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -401,6 +404,17 @@ program: $(BUILD)/$(PROJECT).bit $(FIRMWARE)
 	echo "unplug+replug of the USB cable from the Mac is required."; \
 	exit 1
 
+program-full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat: full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat-bitstream $(FIRMWARE)
+	@for i in $(RETRIES); do \
+	  echo ">> program router1 DDR3-1600 attempt $$i"; \
+	  $(OFL_BASE) $(FREQ_PROGRAM) --index-chain 0 $(ROUTER1_DDR1600_BIT) && exit 0; \
+	  sleep 2; \
+	done; \
+	echo "program failed after 10 attempts -- if all attempts after #1"; \
+	echo "showed 'Unable to read constant', the cable is wedged. Physical"; \
+	echo "unplug+replug of the USB cable from the Mac is required."; \
+	exit 1
+
 memtest: program
 	@echo ">> memtest runs on the FPGA; observe the LEDs:"
 	@echo "   led[0]=last_ok (should be on)  led[1]=heartbeat (blinking)  led[2]=sticky_err (should be OFF)"
@@ -479,6 +493,7 @@ help:
 	@echo "  make full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream  route hard-command diagnostic with late flatten"
 	@echo "  make full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream  route current request-buffer timing diagnostic"
 	@echo "  make full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat-bitstream  route router1 DDR3-1600 timing diagnostic"
+	@echo "  make program-full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat  build and program router1 DDR3-1600 image"
 	@echo "  make full-2ch-ddr1600-serdescmd-jtagdirect-bitstream  route hard-command direct-write diagnostic"
 	@echo "  make full-2ch-ddr1600-serdescmd-ddronly-json  synth hard-command DDR-only diagnostic"
 	@echo "  make full-2ch-ddr1600-serdescmd-ddronly-bitstream  route hard-command diagnostic without BRAM/memtest bus mux"
