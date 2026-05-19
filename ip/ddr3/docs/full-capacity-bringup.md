@@ -1760,6 +1760,19 @@ otherwise noted.
   several lane-local `dqs_in_raw` diagnostic clocks still report below the
   DDR3-1600/1660 DQS rate, and the flow uses `--timing-allow-fail` only because
   `u_blu.i_clk_50` is still classified against the high global target.
+- Hardware programming for this checkpoint must use the router1 project name,
+  not the board Makefile default. The direct command is:
+
+  ```sh
+  make -C boards/ypcb-00338 PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_ctrlreq_topreq_router1_lateflat program
+  ```
+
+  The auto-flash helper is project-aware as well. After the DLC10 cable
+  re-enumerates, run:
+
+  ```sh
+  PROJECT=bonetto_soc_ypcb00338_full_2ch_ddr1600_serdescmd_jtagonly_reqbuf_rmwpatch_ctrlreq_topreq_router1_lateflat tools/auto_flash_validate.sh
+  ```
 
 ## Validation Gates
 
