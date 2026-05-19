@@ -1669,6 +1669,22 @@ otherwise noted.
   892.86 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. Simple duplicate WB-data
   source registers perturb placement more than they help the current write-data
   boundary.
+- A temporary `DDR3_PHY_DIRECT_OSERDES_WR` define was tested and reverted after
+  bypassing the per-lane soft `clk_sys` write-data holding registers in the
+  RATIO8 OSERDES path. This matched the UberDDR3/LiteDRAM instinct to feed a
+  complete stable write burst into the hard serializer boundary, but it did not
+  improve this placement. `git diff --check`, `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_PHY_DIRECT_OSERDES_WR" synth-phy-dq-ratio8`, and
+  `make -C ip/ddr3 DDR3_DEFINES="-DDDR3_RUNTIME_REQ_BUFFER
+  -DDDR3_RUNTIME_RMW_INPLACE -DDDR3_CTRL_INPUT_REQ_BUFFER
+  -DDDR3_PHY_DIRECT_OSERDES_WR" sim-init sim-runtime-addr` passed. The seed-1
+  late-flat route at a 208 MHz target regressed to 155.86 MHz
+  `u_blu.i_clk_50`, 191.50 MHz `clk_sys`, 908.27 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`. The `clk_sys` limiter moved off the previous
+  `phy_wr_data[328]` route and onto CH1 `phy_rd_valid_ch1` feeding runtime CE
+  logic at 0.8 ns logic and 4.4 ns routing. Do not repeat this standalone
+  bypass; it trades the near-miss write-data route for a worse read-valid
+  control route.
 
 ## Validation Gates
 
