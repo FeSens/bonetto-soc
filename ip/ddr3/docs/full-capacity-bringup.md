@@ -1775,6 +1775,19 @@ otherwise noted.
   PROGRAM_TARGET=program-full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat tools/auto_flash_validate.sh
   ```
 
+- DLC10 hardware attempt after the safe program target was added: commit
+  `5e1fc52` rebuilt with the full router1 DDR3 define set, programmed the FPGA
+  through openFPGALoader on attempt 2, and finished with `isc_done=1`,
+  `init=1`, `done=1`. The follow-up `validate-ddr3-full-2ch` command saw a
+  good initial silicon status (`magic=0xb07e`, `cal_done=1`, `cal_error=0`,
+  `init_done=1`, `init_error=0`, `mmcm_locked=1`, `idelay_ready=1`,
+  `mtest_any_err=0`) but failed before DDR3 data coverage on
+  `status mux magic mismatch`. Subsequent XVC/JTAG reads returned zero and the
+  XVC log showed repeated XPCU `LIBUSB_ERROR_TIMEOUT` control-transfer
+  failures; a final `make -C boards/ypcb-00338 detect` retried 10 times with
+  `Unable to read constant`. Treat this as "programmed plus initial status
+  good, validation blocked by DLC10 wedge", not a DDR3 signoff.
+
 ## Validation Gates
 
 Full-capacity signoff requires hardware evidence, not just simulation:
