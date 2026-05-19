@@ -1729,6 +1729,18 @@ otherwise noted.
   placement too much. Do not repeat it as a standalone fix; a useful version
   needs localized ownership of both the payload and the data-load control near
   each PHY lane group.
+- A narrower temporary `DDR3_PHY_WR_DATA_LANE15_LUTBUF` probe was also tested
+  and reverted. It inserted kept `LUT1` identity buffers only on PHY write-data
+  lanes 1 and 5, targeting the current keeper's `phy_wr_data[328]` fanout
+  route without repeating the previous all-lane payload buffer. `git diff
+  --check` and `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_PHY_WR_DATA_LANE15_LUTBUF" synth-phy-dq-ratio8` passed,
+  and the full opt-in route completed. Timing regressed to 134.57 MHz
+  `u_blu.i_clk_50`, 181.19 MHz `clk_sys`, 862.81 MHz `clk_dq`, and
+  1557.63 MHz `clk_phy_x4`; the `clk_sys` critical path moved back into
+  JTAG/Wishbone ack/control routing with 0.8 ns logic and 4.7 ns routing.
+  Selective lane-local LUT buffering is still a placement perturbation, not a
+  closure strategy for the remaining 200 MHz near miss.
 
 ## Validation Gates
 
