@@ -1741,6 +1741,21 @@ otherwise noted.
   JTAG/Wishbone ack/control routing with 0.8 ns logic and 4.7 ns routing.
   Selective lane-local LUT buffering is still a placement perturbation, not a
   closure strategy for the remaining 200 MHz near miss.
+- Rerouting the current controller-input-buffer keeper JSON with nextpnr's
+  `--router router1` is the first route-only result that clears the main
+  DDR3-1600 clocks. The direct command used the existing seed-1 JSON with
+  `--router router1 --seed 1 --timing-allow-fail`; the final routed timing was
+  174.89 MHz `u_blu.i_clk_50` (still reported as a failure against the global
+  200 MHz target), 211.77 MHz `clk_sys`, 966.18 MHz `clk_dq`, and 1557.63 MHz
+  `clk_phy_x4`. The critical `clk_sys` path remains a long runtime-to-PHY
+  write-data route (`phy_wr_data[152]`) but now has enough margin at 200 MHz:
+  0.2 ns logic and 4.5 ns routing. Device usage for the routed design remained
+  modest: 2237 `SLICE_LUTX`, 3340 `SLICE_FFX`, 16 `RAMB36E1`, 178
+  `OSERDESE2`, 16 `IDELAYE2`, 6 `IDELAYCTRL`, and 22 `BUFGCTRL`. Treat this as
+  a timing breakthrough, not hardware signoff: several lane-local
+  `dqs_in_raw` diagnostic clocks still report below 800 MHz, and the flow uses
+  `--timing-allow-fail` only because `u_blu.i_clk_50` is still classified
+  against the 200 MHz global target.
 
 ## Validation Gates
 
@@ -1759,6 +1774,7 @@ Full-capacity signoff requires hardware evidence, not just simulation:
 | Dual-channel DDR3-1600 hard-command direct-write diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagdirect-bitstream` isolates no-RMW writes under the hard-command path |
 | Dual-channel DDR3-1600 request-buffer diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream` is a historical checkpoint, still failing at 149.37 MHz `clk_sys` |
 | Dual-channel DDR3-1600 controller-input-buffer diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-lateflat-bitstream` is the current best route, seed 1 at 199.52 MHz `clk_sys`, 906.62 MHz `clk_dq`, 1557.63 MHz `clk_phy_x4` |
+| Dual-channel DDR3-1600 router1 timing diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat-bitstream` recreates the first main-clock passing route, but uses `--timing-allow-fail` until the board-clock report and lane-local DQS diagnostics are resolved |
 | Dual-channel DDR3-1600 hard-command DDR-only diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-ddronly-bitstream` removes BRAM/decode but still fails timing with seed 1 |
 | Dual-channel DDR3-1600 hard-command/ISERDES diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream` still hits the ISERDES overuse plateau |
 | Dual-channel DDR3-1600 direct-write diagnostic | `make -C boards/ypcb-00338 full-2ch-ddr1600-jtagdirect-bitstream` isolates the old no-RMW write path |
