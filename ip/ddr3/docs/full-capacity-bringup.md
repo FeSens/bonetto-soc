@@ -1652,6 +1652,15 @@ otherwise noted.
   1557.63 MHz `clk_phy_x4`. Do not spend more route-only time on this knob; the
   next step still needs RTL or placement-ownership change around the
   runtime-to-PHY write-data boundary.
+- Removing reset from the per-lane PHY `wr_data_sys_q` write-data holding
+  registers under a temporary `DDR3_PHY_WR_DATA_NORESET` define was tested and
+  reverted. `git diff --check`, `make -C ip/ddr3
+  DDR3_DEFINES="-DDDR3_PHY_WR_DATA_NORESET" synth-phy-dq-ratio8`, and opt-in
+  init/runtime-address checks passed, but the seed-1 late-flat route regressed
+  badly: final timing was 133.71 MHz `u_blu.i_clk_50`, 168.15 MHz `clk_sys`,
+  573.39 MHz `clk_dq`, and 1557.63 MHz `clk_phy_x4`. The reset removal perturbs
+  PHY placement and loses the DDR3-1600 DQ margin, so do not repeat it as a
+  standalone write-data timing fix.
 
 ## Validation Gates
 
