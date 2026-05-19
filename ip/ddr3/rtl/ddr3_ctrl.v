@@ -94,7 +94,14 @@ module ddr3_ctrl #(
     output wire                     o_init_done,
     output wire                     o_init_error,
     output wire [3:0]               o_init_error_code,
-    output wire [4:0]               o_init_state
+    output wire [4:0]               o_init_state,
+
+    output wire [31:0]              o_dbg_status,
+    output wire [31:0]              o_dbg_onehot,
+    output wire [31:0]              o_dbg_phy_rd_word,
+    output wire [31:0]              o_dbg_rd_word,
+    output wire [31:0]              o_dbg_sample_lo,
+    output wire [31:0]              o_dbg_sample_hi
 );
 
     // -------- Wishbone error tied off, no faults raised in iter-2 --------
@@ -251,7 +258,14 @@ module ddr3_ctrl #(
         .i_mrs_req   (i_mrs_req),
         .i_mrs_ba    (i_mrs_ba),
         .i_mrs_addr  (i_mrs_addr),
-        .o_mrs_busy  (o_mrs_busy)
+        .o_mrs_busy  (o_mrs_busy),
+
+        .o_dbg_status     (o_dbg_status),
+        .o_dbg_onehot     (o_dbg_onehot),
+        .o_dbg_phy_rd_word(o_dbg_phy_rd_word),
+        .o_dbg_rd_word    (o_dbg_rd_word),
+        .o_dbg_sample_lo  (o_dbg_sample_lo),
+        .o_dbg_sample_hi  (o_dbg_sample_hi)
     );
 
     // ---------------- Command bus mux ----------------

@@ -873,6 +873,14 @@ module top (
     wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane;
     wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_dqs_edge_lane;
     wire [DDR3_PHY_DATA_W-1:0] phy_rd_data;
+`ifdef DDR3_DEBUG_RUNTIME_SUMMARY
+    wire [31:0] rt_dbg_ch0_status;
+    wire [31:0] rt_dbg_ch0_onehot;
+    wire [31:0] rt_dbg_ch0_phy_rd_word;
+    wire [31:0] rt_dbg_ch0_rd_word;
+    wire [31:0] rt_dbg_ch0_sample_lo;
+    wire [31:0] rt_dbg_ch0_sample_hi;
+`endif
 `ifdef DDR3_DEBUG_PHY_RD_DATA
     localparam integer PHY_RD_DATA_STATUS_WORDS = DDR3_PHY_DATA_W / 32;
     reg  [DDR3_PHY_DATA_W-1:0] phy_rd_data_last = {DDR3_PHY_DATA_W{1'b0}};
@@ -981,6 +989,15 @@ module top (
         .o_init_error       (ctrl_init_error),
         .o_init_error_code  (ctrl_init_error_code),
         .o_init_state       (ctrl_init_state)
+`ifdef DDR3_DEBUG_RUNTIME_SUMMARY
+        ,
+        .o_dbg_status       (rt_dbg_ch0_status),
+        .o_dbg_onehot       (rt_dbg_ch0_onehot),
+        .o_dbg_phy_rd_word  (rt_dbg_ch0_phy_rd_word),
+        .o_dbg_rd_word      (rt_dbg_ch0_rd_word),
+        .o_dbg_sample_lo    (rt_dbg_ch0_sample_lo),
+        .o_dbg_sample_hi    (rt_dbg_ch0_sample_hi)
+`endif
     );
 
     ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(DDR3_SKIP_RDLVL)) u_cal_seq (
@@ -1120,6 +1137,14 @@ module top (
     wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_rd_valid_lane_ch1;
     wire [DDR3_ACTIVE_BYTE_LANES-1:0] phy_dqs_edge_lane_ch1;
     wire [DDR3_PHY_DATA_W-1:0] phy_rd_data_ch1;
+`ifdef DDR3_DEBUG_RUNTIME_SUMMARY
+    wire [31:0] rt_dbg_ch1_status;
+    wire [31:0] rt_dbg_ch1_onehot;
+    wire [31:0] rt_dbg_ch1_phy_rd_word;
+    wire [31:0] rt_dbg_ch1_rd_word;
+    wire [31:0] rt_dbg_ch1_sample_lo;
+    wire [31:0] rt_dbg_ch1_sample_hi;
+`endif
 
     ddr3_ctrl #(
         .WB_DATA_W(32),
@@ -1171,6 +1196,15 @@ module top (
         .o_init_error       (ctrl_init_error_ch1),
         .o_init_error_code  (ctrl_init_error_code_ch1),
         .o_init_state       (ctrl_init_state_ch1)
+`ifdef DDR3_DEBUG_RUNTIME_SUMMARY
+        ,
+        .o_dbg_status       (rt_dbg_ch1_status),
+        .o_dbg_onehot       (rt_dbg_ch1_onehot),
+        .o_dbg_phy_rd_word  (rt_dbg_ch1_phy_rd_word),
+        .o_dbg_rd_word      (rt_dbg_ch1_rd_word),
+        .o_dbg_sample_lo    (rt_dbg_ch1_sample_lo),
+        .o_dbg_sample_hi    (rt_dbg_ch1_sample_hi)
+`endif
     );
 
     ddr3_cal_seq #(.SKIP_WLVL(1), .SKIP_RDLVL(DDR3_SKIP_RDLVL)) u_cal_seq_ch1 (
@@ -1282,6 +1316,49 @@ module top (
                           ddr3_ch1_dqs_n[4], ddr3_ch1_dqs_n[2:0]}),
         .o_ddr3_dm      ()
     );
+`endif
+
+`ifdef DDR3_DEBUG_PHY_SUMMARY
+    reg [31:0] phy_dbg_ch0_wr_lo_sys = 32'hAB65_0000;
+    reg [31:0] phy_dbg_ch0_wr_hi_sys = 32'hAB66_0000;
+    reg [31:0] phy_dbg_ch0_rd_lo_sys = 32'hAB67_0000;
+    reg [31:0] phy_dbg_ch0_rd_hi_sys = 32'hAB68_0000;
+    reg [31:0] phy_dbg_ch1_wr_lo_sys = 32'hAB69_0000;
+    reg [31:0] phy_dbg_ch1_wr_hi_sys = 32'hAB6A_0000;
+    reg [31:0] phy_dbg_ch1_rd_lo_sys = 32'hAB6B_0000;
+    reg [31:0] phy_dbg_ch1_rd_hi_sys = 32'hAB6C_0000;
+
+    always @(posedge clk_sys) begin
+        if (rst_status) begin
+            phy_dbg_ch0_wr_lo_sys <= 32'hAB65_0000;
+            phy_dbg_ch0_wr_hi_sys <= 32'hAB66_0000;
+            phy_dbg_ch0_rd_lo_sys <= 32'hAB67_0000;
+            phy_dbg_ch0_rd_hi_sys <= 32'hAB68_0000;
+            phy_dbg_ch1_wr_lo_sys <= 32'hAB69_0000;
+            phy_dbg_ch1_wr_hi_sys <= 32'hAB6A_0000;
+            phy_dbg_ch1_rd_lo_sys <= 32'hAB6B_0000;
+            phy_dbg_ch1_rd_hi_sys <= 32'hAB6C_0000;
+        end else begin
+            if (phy_wr_valid) begin
+                phy_dbg_ch0_wr_lo_sys <= phy_wr_data[31:0];
+                phy_dbg_ch0_wr_hi_sys <= phy_wr_data[63:32];
+            end
+            if (phy_rd_valid) begin
+                phy_dbg_ch0_rd_lo_sys <= phy_rd_data[31:0];
+                phy_dbg_ch0_rd_hi_sys <= phy_rd_data[63:32];
+            end
+`ifdef DDR3_FULL_2CH
+            if (phy_wr_valid_ch1) begin
+                phy_dbg_ch1_wr_lo_sys <= phy_wr_data_ch1[31:0];
+                phy_dbg_ch1_wr_hi_sys <= phy_wr_data_ch1[63:32];
+            end
+            if (phy_rd_valid_ch1) begin
+                phy_dbg_ch1_rd_lo_sys <= phy_rd_data_ch1[31:0];
+                phy_dbg_ch1_rd_hi_sys <= phy_rd_data_ch1[63:32];
+            end
+`endif
+        end
+    end
 `endif
 
 `ifdef DDR3_FULL_2CH
@@ -1606,6 +1683,16 @@ module top (
     // 0x61  | DDR3_CH1_RDDBG_READ_COUNTS {rd_req, rd_ack, capture_window}
     // 0x62  | DDR3_CH1_RDDBG_WRITE_COUNTS {valid, wr_req, wr_ack}
     // 0x64  | DDR3_CH1_DQSDBG {event_count, sticky_lane_mask, live_lane_mask}
+    // 0x65  | DDR3_CH0_PHY_WR_LO last phy_wr_data[31:0]  (DDR3_DEBUG_PHY_SUMMARY)
+    // 0x66  | DDR3_CH0_PHY_WR_HI last phy_wr_data[63:32] (DDR3_DEBUG_PHY_SUMMARY)
+    // 0x67  | DDR3_CH0_PHY_RD_LO last phy_rd_data[31:0]  (DDR3_DEBUG_PHY_SUMMARY)
+    // 0x68  | DDR3_CH0_PHY_RD_HI last phy_rd_data[63:32] (DDR3_DEBUG_PHY_SUMMARY)
+    // 0x69  | DDR3_CH1_PHY_WR_LO last phy_wr_data[31:0]  (DDR3_DEBUG_PHY_SUMMARY)
+    // 0x6A  | DDR3_CH1_PHY_WR_HI last phy_wr_data[63:32] (DDR3_DEBUG_PHY_SUMMARY)
+    // 0x6B  | DDR3_CH1_PHY_RD_LO last phy_rd_data[31:0]  (DDR3_DEBUG_PHY_SUMMARY)
+    // 0x6C  | DDR3_CH1_PHY_RD_HI last phy_rd_data[63:32] (DDR3_DEBUG_PHY_SUMMARY)
+    // 0x70-0x75 | DDR3_CH0 runtime selected-word summary (DDR3_DEBUG_RUNTIME_SUMMARY)
+    // 0x76-0x7B | DDR3_CH1 runtime selected-word summary (DDR3_DEBUG_RUNTIME_SUMMARY)
     //         (iter-13 — detect prjxray-gap CLKOUT routing failures.
     //         Each CLKOUT can fail independently because per-output
     //         CMT_LR_LOWER_B_MMCM_CLKOUT segbits are independently missing
@@ -1746,6 +1833,30 @@ module top (
     reg [31:0] phy_rd_data_status_word_sync [1:0];
     reg [31:0] phy_wr_data_status_word_sync [1:0];
 `endif
+`ifdef DDR3_DEBUG_PHY_SUMMARY
+    reg [31:0] phy_dbg_ch0_wr_lo_sync [1:0];
+    reg [31:0] phy_dbg_ch0_wr_hi_sync [1:0];
+    reg [31:0] phy_dbg_ch0_rd_lo_sync [1:0];
+    reg [31:0] phy_dbg_ch0_rd_hi_sync [1:0];
+    reg [31:0] phy_dbg_ch1_wr_lo_sync [1:0];
+    reg [31:0] phy_dbg_ch1_wr_hi_sync [1:0];
+    reg [31:0] phy_dbg_ch1_rd_lo_sync [1:0];
+    reg [31:0] phy_dbg_ch1_rd_hi_sync [1:0];
+`endif
+`ifdef DDR3_DEBUG_RUNTIME_SUMMARY
+    reg [31:0] rt_dbg_ch0_status_sync [1:0];
+    reg [31:0] rt_dbg_ch0_onehot_sync [1:0];
+    reg [31:0] rt_dbg_ch0_phy_rd_word_sync [1:0];
+    reg [31:0] rt_dbg_ch0_rd_word_sync [1:0];
+    reg [31:0] rt_dbg_ch0_sample_lo_sync [1:0];
+    reg [31:0] rt_dbg_ch0_sample_hi_sync [1:0];
+    reg [31:0] rt_dbg_ch1_status_sync [1:0];
+    reg [31:0] rt_dbg_ch1_onehot_sync [1:0];
+    reg [31:0] rt_dbg_ch1_phy_rd_word_sync [1:0];
+    reg [31:0] rt_dbg_ch1_rd_word_sync [1:0];
+    reg [31:0] rt_dbg_ch1_sample_lo_sync [1:0];
+    reg [31:0] rt_dbg_ch1_sample_hi_sync [1:0];
+`endif
     reg [7:0]  d3_ctrl_sync             [1:0];
     always @(posedge clk_50) begin
         jwb_busy_sync        <= {jwb_busy_sync[0],        jwb_busy};
@@ -1771,6 +1882,65 @@ module top (
         phy_rd_data_status_word_sync[1] <= phy_rd_data_status_word_sync[0];
         phy_wr_data_status_word_sync[0] <= phy_wr_data_status_word_sys;
         phy_wr_data_status_word_sync[1] <= phy_wr_data_status_word_sync[0];
+`endif
+`ifdef DDR3_DEBUG_PHY_SUMMARY
+        phy_dbg_ch0_wr_lo_sync[0] <= phy_dbg_ch0_wr_lo_sys;
+        phy_dbg_ch0_wr_lo_sync[1] <= phy_dbg_ch0_wr_lo_sync[0];
+        phy_dbg_ch0_wr_hi_sync[0] <= phy_dbg_ch0_wr_hi_sys;
+        phy_dbg_ch0_wr_hi_sync[1] <= phy_dbg_ch0_wr_hi_sync[0];
+        phy_dbg_ch0_rd_lo_sync[0] <= phy_dbg_ch0_rd_lo_sys;
+        phy_dbg_ch0_rd_lo_sync[1] <= phy_dbg_ch0_rd_lo_sync[0];
+        phy_dbg_ch0_rd_hi_sync[0] <= phy_dbg_ch0_rd_hi_sys;
+        phy_dbg_ch0_rd_hi_sync[1] <= phy_dbg_ch0_rd_hi_sync[0];
+        phy_dbg_ch1_wr_lo_sync[0] <= phy_dbg_ch1_wr_lo_sys;
+        phy_dbg_ch1_wr_lo_sync[1] <= phy_dbg_ch1_wr_lo_sync[0];
+        phy_dbg_ch1_wr_hi_sync[0] <= phy_dbg_ch1_wr_hi_sys;
+        phy_dbg_ch1_wr_hi_sync[1] <= phy_dbg_ch1_wr_hi_sync[0];
+        phy_dbg_ch1_rd_lo_sync[0] <= phy_dbg_ch1_rd_lo_sys;
+        phy_dbg_ch1_rd_lo_sync[1] <= phy_dbg_ch1_rd_lo_sync[0];
+        phy_dbg_ch1_rd_hi_sync[0] <= phy_dbg_ch1_rd_hi_sys;
+        phy_dbg_ch1_rd_hi_sync[1] <= phy_dbg_ch1_rd_hi_sync[0];
+`endif
+`ifdef DDR3_DEBUG_RUNTIME_SUMMARY
+        rt_dbg_ch0_status_sync[0] <= rt_dbg_ch0_status;
+        rt_dbg_ch0_status_sync[1] <= rt_dbg_ch0_status_sync[0];
+        rt_dbg_ch0_onehot_sync[0] <= rt_dbg_ch0_onehot;
+        rt_dbg_ch0_onehot_sync[1] <= rt_dbg_ch0_onehot_sync[0];
+        rt_dbg_ch0_phy_rd_word_sync[0] <= rt_dbg_ch0_phy_rd_word;
+        rt_dbg_ch0_phy_rd_word_sync[1] <= rt_dbg_ch0_phy_rd_word_sync[0];
+        rt_dbg_ch0_rd_word_sync[0] <= rt_dbg_ch0_rd_word;
+        rt_dbg_ch0_rd_word_sync[1] <= rt_dbg_ch0_rd_word_sync[0];
+        rt_dbg_ch0_sample_lo_sync[0] <= rt_dbg_ch0_sample_lo;
+        rt_dbg_ch0_sample_lo_sync[1] <= rt_dbg_ch0_sample_lo_sync[0];
+        rt_dbg_ch0_sample_hi_sync[0] <= rt_dbg_ch0_sample_hi;
+        rt_dbg_ch0_sample_hi_sync[1] <= rt_dbg_ch0_sample_hi_sync[0];
+`ifdef DDR3_FULL_2CH
+        rt_dbg_ch1_status_sync[0] <= rt_dbg_ch1_status;
+        rt_dbg_ch1_status_sync[1] <= rt_dbg_ch1_status_sync[0];
+        rt_dbg_ch1_onehot_sync[0] <= rt_dbg_ch1_onehot;
+        rt_dbg_ch1_onehot_sync[1] <= rt_dbg_ch1_onehot_sync[0];
+        rt_dbg_ch1_phy_rd_word_sync[0] <= rt_dbg_ch1_phy_rd_word;
+        rt_dbg_ch1_phy_rd_word_sync[1] <= rt_dbg_ch1_phy_rd_word_sync[0];
+        rt_dbg_ch1_rd_word_sync[0] <= rt_dbg_ch1_rd_word;
+        rt_dbg_ch1_rd_word_sync[1] <= rt_dbg_ch1_rd_word_sync[0];
+        rt_dbg_ch1_sample_lo_sync[0] <= rt_dbg_ch1_sample_lo;
+        rt_dbg_ch1_sample_lo_sync[1] <= rt_dbg_ch1_sample_lo_sync[0];
+        rt_dbg_ch1_sample_hi_sync[0] <= rt_dbg_ch1_sample_hi;
+        rt_dbg_ch1_sample_hi_sync[1] <= rt_dbg_ch1_sample_hi_sync[0];
+`else
+        rt_dbg_ch1_status_sync[0] <= 32'hDB76_0000;
+        rt_dbg_ch1_status_sync[1] <= rt_dbg_ch1_status_sync[0];
+        rt_dbg_ch1_onehot_sync[0] <= 32'hDB77_0000;
+        rt_dbg_ch1_onehot_sync[1] <= rt_dbg_ch1_onehot_sync[0];
+        rt_dbg_ch1_phy_rd_word_sync[0] <= 32'hDB78_0000;
+        rt_dbg_ch1_phy_rd_word_sync[1] <= rt_dbg_ch1_phy_rd_word_sync[0];
+        rt_dbg_ch1_rd_word_sync[0] <= 32'hDB79_0000;
+        rt_dbg_ch1_rd_word_sync[1] <= rt_dbg_ch1_rd_word_sync[0];
+        rt_dbg_ch1_sample_lo_sync[0] <= 32'hDB7A_0000;
+        rt_dbg_ch1_sample_lo_sync[1] <= rt_dbg_ch1_sample_lo_sync[0];
+        rt_dbg_ch1_sample_hi_sync[0] <= 32'hDB7B_0000;
+        rt_dbg_ch1_sample_hi_sync[1] <= rt_dbg_ch1_sample_hi_sync[0];
+`endif
 `endif
         d3_ctrl_sync[0]  <= {d3_cyc, d3_stb, d3_we, d3_ack, d3_stall,
                              d3_err, phy_wr_valid, phy_rd_valid};
@@ -1845,6 +2015,52 @@ module top (
     wire [31:0] phy_rd_data_status_word = {16'hAB20, 11'd0, host_to_fpga[4:0]};
     wire [31:0] phy_wr_data_status_word = {16'hAB40, 11'd0, host_to_fpga[4:0]};
 `endif
+`ifdef DDR3_DEBUG_PHY_SUMMARY
+    wire [31:0] phy_dbg_ch0_wr_lo = phy_dbg_ch0_wr_lo_sync[1];
+    wire [31:0] phy_dbg_ch0_wr_hi = phy_dbg_ch0_wr_hi_sync[1];
+    wire [31:0] phy_dbg_ch0_rd_lo = phy_dbg_ch0_rd_lo_sync[1];
+    wire [31:0] phy_dbg_ch0_rd_hi = phy_dbg_ch0_rd_hi_sync[1];
+    wire [31:0] phy_dbg_ch1_wr_lo = phy_dbg_ch1_wr_lo_sync[1];
+    wire [31:0] phy_dbg_ch1_wr_hi = phy_dbg_ch1_wr_hi_sync[1];
+    wire [31:0] phy_dbg_ch1_rd_lo = phy_dbg_ch1_rd_lo_sync[1];
+    wire [31:0] phy_dbg_ch1_rd_hi = phy_dbg_ch1_rd_hi_sync[1];
+`else
+    wire [31:0] phy_dbg_ch0_wr_lo = 32'hAB65_0000;
+    wire [31:0] phy_dbg_ch0_wr_hi = 32'hAB66_0000;
+    wire [31:0] phy_dbg_ch0_rd_lo = 32'hAB67_0000;
+    wire [31:0] phy_dbg_ch0_rd_hi = 32'hAB68_0000;
+    wire [31:0] phy_dbg_ch1_wr_lo = 32'hAB69_0000;
+    wire [31:0] phy_dbg_ch1_wr_hi = 32'hAB6A_0000;
+    wire [31:0] phy_dbg_ch1_rd_lo = 32'hAB6B_0000;
+    wire [31:0] phy_dbg_ch1_rd_hi = 32'hAB6C_0000;
+`endif
+`ifdef DDR3_DEBUG_RUNTIME_SUMMARY
+    wire [31:0] rt_dbg_ch0_status_word = rt_dbg_ch0_status_sync[1];
+    wire [31:0] rt_dbg_ch0_onehot_word = rt_dbg_ch0_onehot_sync[1];
+    wire [31:0] rt_dbg_ch0_phy_rd_word_word = rt_dbg_ch0_phy_rd_word_sync[1];
+    wire [31:0] rt_dbg_ch0_rd_word_word = rt_dbg_ch0_rd_word_sync[1];
+    wire [31:0] rt_dbg_ch0_sample_lo_word = rt_dbg_ch0_sample_lo_sync[1];
+    wire [31:0] rt_dbg_ch0_sample_hi_word = rt_dbg_ch0_sample_hi_sync[1];
+    wire [31:0] rt_dbg_ch1_status_word = rt_dbg_ch1_status_sync[1];
+    wire [31:0] rt_dbg_ch1_onehot_word = rt_dbg_ch1_onehot_sync[1];
+    wire [31:0] rt_dbg_ch1_phy_rd_word_word = rt_dbg_ch1_phy_rd_word_sync[1];
+    wire [31:0] rt_dbg_ch1_rd_word_word = rt_dbg_ch1_rd_word_sync[1];
+    wire [31:0] rt_dbg_ch1_sample_lo_word = rt_dbg_ch1_sample_lo_sync[1];
+    wire [31:0] rt_dbg_ch1_sample_hi_word = rt_dbg_ch1_sample_hi_sync[1];
+`else
+    wire [31:0] rt_dbg_ch0_status_word = 32'hDB70_0000;
+    wire [31:0] rt_dbg_ch0_onehot_word = 32'hDB71_0000;
+    wire [31:0] rt_dbg_ch0_phy_rd_word_word = 32'hDB72_0000;
+    wire [31:0] rt_dbg_ch0_rd_word_word = 32'hDB73_0000;
+    wire [31:0] rt_dbg_ch0_sample_lo_word = 32'hDB74_0000;
+    wire [31:0] rt_dbg_ch0_sample_hi_word = 32'hDB75_0000;
+    wire [31:0] rt_dbg_ch1_status_word = 32'hDB76_0000;
+    wire [31:0] rt_dbg_ch1_onehot_word = 32'hDB77_0000;
+    wire [31:0] rt_dbg_ch1_phy_rd_word_word = 32'hDB78_0000;
+    wire [31:0] rt_dbg_ch1_rd_word_word = 32'hDB79_0000;
+    wire [31:0] rt_dbg_ch1_sample_lo_word = 32'hDB7A_0000;
+    wire [31:0] rt_dbg_ch1_sample_hi_word = 32'hDB7B_0000;
+`endif
 
     reg [31:0] status_word_comb;
     always @(*) begin
@@ -1898,6 +2114,26 @@ module top (
             8'h62:   status_word_comb = rd_dbg_ch1_write_counts;
             8'h63:   status_word_comb = rd_dbg_ch0_dqs_counts;
             8'h64:   status_word_comb = rd_dbg_ch1_dqs_counts;
+            8'h65:   status_word_comb = phy_dbg_ch0_wr_lo;
+            8'h66:   status_word_comb = phy_dbg_ch0_wr_hi;
+            8'h67:   status_word_comb = phy_dbg_ch0_rd_lo;
+            8'h68:   status_word_comb = phy_dbg_ch0_rd_hi;
+            8'h69:   status_word_comb = phy_dbg_ch1_wr_lo;
+            8'h6A:   status_word_comb = phy_dbg_ch1_wr_hi;
+            8'h6B:   status_word_comb = phy_dbg_ch1_rd_lo;
+            8'h6C:   status_word_comb = phy_dbg_ch1_rd_hi;
+            8'h70:   status_word_comb = rt_dbg_ch0_status_word;
+            8'h71:   status_word_comb = rt_dbg_ch0_onehot_word;
+            8'h72:   status_word_comb = rt_dbg_ch0_phy_rd_word_word;
+            8'h73:   status_word_comb = rt_dbg_ch0_rd_word_word;
+            8'h74:   status_word_comb = rt_dbg_ch0_sample_lo_word;
+            8'h75:   status_word_comb = rt_dbg_ch0_sample_hi_word;
+            8'h76:   status_word_comb = rt_dbg_ch1_status_word;
+            8'h77:   status_word_comb = rt_dbg_ch1_onehot_word;
+            8'h78:   status_word_comb = rt_dbg_ch1_phy_rd_word_word;
+            8'h79:   status_word_comb = rt_dbg_ch1_rd_word_word;
+            8'h7A:   status_word_comb = rt_dbg_ch1_sample_lo_word;
+            8'h7B:   status_word_comb = rt_dbg_ch1_sample_hi_word;
             8'hFE:   status_word_comb = {16'hB07E, 16'h0012};
             8'hFF:   status_word_comb = host_to_fpga;
             default: status_word_comb = {24'hDEADBA, host_to_fpga[7:0]};

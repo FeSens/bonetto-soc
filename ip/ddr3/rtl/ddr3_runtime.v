@@ -96,7 +96,14 @@ module ddr3_runtime #(
     input  wire                       i_mrs_req,
     input  wire [BANK_BITS-1:0]       i_mrs_ba,
     input  wire [ROW_BITS-1:0]        i_mrs_addr,
-    output wire                       o_mrs_busy
+    output wire                       o_mrs_busy,
+
+    output wire [31:0]                o_dbg_status,
+    output wire [31:0]                o_dbg_onehot,
+    output wire [31:0]                o_dbg_phy_rd_word,
+    output wire [31:0]                o_dbg_rd_word,
+    output wire [31:0]                o_dbg_sample_lo,
+    output wire [31:0]                o_dbg_sample_hi
 );
     localparam integer WB_BYTES = WB_DATA_W / 8;
     localparam integer PHY_DATA_W = NUM_BYTE_LANES * DQ_BITS * SERDES_RATIO;
@@ -663,11 +670,34 @@ module ddr3_runtime #(
         legacy_wr_data;
 
     wire rd_capture_fire = (state == S_DATA_RD) && rd_armed && i_rd_valid && !rd_seen;
+    wire [3:0] dbg_saved_burst_word_offset;
+    generate
+        if (WB_BURST_WORD_W >= 4) begin : g_dbg_offset_full
+            assign dbg_saved_burst_word_offset = saved_burst_word_offset[3:0];
+        end else begin : g_dbg_offset_pad
+            assign dbg_saved_burst_word_offset =
+                {{(4-WB_BURST_WORD_W){1'b0}}, saved_burst_word_offset};
+        end
+    endgenerate
 
-    always @(posedge i_clk_phy) begin
-        if (rd_capture_fire)
-            rd_data_q <= i_rd_data;
-    end
+    assign o_dbg_status = {
+        8'hDB,
+        state,
+        saved_we,
+        rd_seen,
+        rd_armed,
+        i_rd_valid,
+        rd_capture_fire,
+        o_wb_ack,
+        dbg_saved_burst_word_offset,
+        saved_burst_word_onehot[7:0],
+        1'b0
+    };
+    assign o_dbg_onehot     = {16'hDB01, saved_burst_word_onehot};
+    assign o_dbg_phy_rd_word = phy_rd_word;
+    assign o_dbg_rd_word    = rd_word_q;
+    assign o_dbg_sample_lo  = rd_sample_q[31:0];
+    assign o_dbg_sample_hi  = rd_sample_q[63:32];
 
     // Default mode acks each WB write/read after one BL8 command. Offset mode
     // first reads the whole BL8 payload for writes, merges the selected WB
@@ -688,9 +718,10 @@ module ddr3_runtime #(
             saved_burst_word_offset <= {WB_BURST_WORD_W{1'b0}};
             saved_burst_word_onehot <= 16'd1;
             saved_sel   <= {WB_BYTES{1'b0}};
+`endif
+            rd_data_q   <= {PHY_DATA_W{1'b0}};
             rd_sample_q <= 64'd0;
             rd_word_q   <= {WB_DATA_W{1'b0}};
-`endif
             rd_seen     <= 1'b0;
             rd_armed    <= 1'b0;
             ref_clear   <= 1'b0;
@@ -789,6 +820,7 @@ module ddr3_runtime #(
                     if (!i_rd_valid)
                         rd_armed <= 1'b1;
                     if (rd_capture_fire) begin
+                        rd_data_q <= i_rd_data;
                         rd_seen   <= 1'b1;
                     end
 
