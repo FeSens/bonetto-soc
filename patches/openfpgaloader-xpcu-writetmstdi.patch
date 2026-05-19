@@ -1,62 +1,221 @@
-From: Felipe Bonetto <felipesensbonetto@gmail.com>
+From 84deaf696a9d6a03b233732e34c4410e2f1dc7e6 Mon Sep 17 00:00:00 2001
+From: Felipe Sens Bonetto <felipesensbonetto@gmail.com>
+Date: Tue, 19 May 2026 01:04:42 -0300
 Subject: [PATCH] XilinxPlatformCableUSB: implement writeTMSTDI for XVC shifts
 
-The base `JtagInterface::writeTMSTDI` returns false without doing
-anything, and XPCU never overrode it. The XVC server (after the
-xvc-xpcu-dispatch patch) calls `writeTMSTDI` for every XVC `shift:`
-command, which therefore silently no-ops on the XPCU and the host
-reads back all-zero TDO regardless of what the chain holds.
+The base JtagInterface::writeTMSTDI returns false, so XPCU-backed XVC traffic cannot complete shift commands unless the cable class overrides it.
 
-This patch adds the override, modelled on writeTDI but with TMS and
-TDI both coming from the caller's byte streams (one bit per array bit
-position, LSB-first) and TDO captured into the result buffer.
+XPCU can only decode readback packets when every buffered bit requests TDO. Track the TAP state locally, drive navigation bits without TDO, and only request TDO for bits clocked while the TAP is in Shift-IR or Shift-DR.
+---
+ src/xilinxPlatformCableUSB.cpp | 159 ++++++++++++++++++++++++++++++++-
+ src/xilinxPlatformCableUSB.hpp |   5 ++
+ 2 files changed, 163 insertions(+), 1 deletion(-)
 
---- a/src/xilinxPlatformCableUSB.hpp
-+++ b/src/xilinxPlatformCableUSB.hpp
-@@ -53,6 +53,10 @@
- 	 */
- 	int writeTDI(const uint8_t *tx, uint8_t *rx, uint32_t len, bool end) override;
-
-+	/* drive per-bit TMS+TDI and capture TDO — needed by the XVC
-+	 * server's shift handler */
-+	bool writeTMSTDI(const uint8_t *tms, const uint8_t *tdi, uint8_t *tdo, uint32_t len) override;
-+
- 	/*!
- 	 * \brief toggle clock with static tms and tdi
- 	 * \param tms state of tms signal
+diff --git a/src/xilinxPlatformCableUSB.cpp b/src/xilinxPlatformCableUSB.cpp
+index 4245e90..3ad5ca7 100644
 --- a/src/xilinxPlatformCableUSB.cpp
 +++ b/src/xilinxPlatformCableUSB.cpp
-@@ -196,6 +196,33 @@
+@@ -43,12 +43,77 @@
+ #define TDI_IDX       (1 << TDI_OFFSET)
+ #define TMS_IDX       (1 << TMS_OFFSET)
+ 
++enum xpcu_tap_state_t : uint8_t {
++	XPCU_TAP_TEST_LOGIC_RESET = 0,
++	XPCU_TAP_RUN_TEST_IDLE,
++	XPCU_TAP_SELECT_DR_SCAN,
++	XPCU_TAP_CAPTURE_DR,
++	XPCU_TAP_SHIFT_DR,
++	XPCU_TAP_EXIT1_DR,
++	XPCU_TAP_PAUSE_DR,
++	XPCU_TAP_EXIT2_DR,
++	XPCU_TAP_UPDATE_DR,
++	XPCU_TAP_SELECT_IR_SCAN,
++	XPCU_TAP_CAPTURE_IR,
++	XPCU_TAP_SHIFT_IR,
++	XPCU_TAP_EXIT1_IR,
++	XPCU_TAP_PAUSE_IR,
++	XPCU_TAP_EXIT2_IR,
++	XPCU_TAP_UPDATE_IR
++};
++
++static uint8_t xpcuNextTapState(uint8_t state, uint8_t tms) noexcept
++{
++	switch (state) {
++	case XPCU_TAP_TEST_LOGIC_RESET:
++		return tms ? XPCU_TAP_TEST_LOGIC_RESET : XPCU_TAP_RUN_TEST_IDLE;
++	case XPCU_TAP_RUN_TEST_IDLE:
++		return tms ? XPCU_TAP_SELECT_DR_SCAN : XPCU_TAP_RUN_TEST_IDLE;
++	case XPCU_TAP_SELECT_DR_SCAN:
++		return tms ? XPCU_TAP_SELECT_IR_SCAN : XPCU_TAP_CAPTURE_DR;
++	case XPCU_TAP_CAPTURE_DR:
++		return tms ? XPCU_TAP_EXIT1_DR : XPCU_TAP_SHIFT_DR;
++	case XPCU_TAP_SHIFT_DR:
++		return tms ? XPCU_TAP_EXIT1_DR : XPCU_TAP_SHIFT_DR;
++	case XPCU_TAP_EXIT1_DR:
++		return tms ? XPCU_TAP_UPDATE_DR : XPCU_TAP_PAUSE_DR;
++	case XPCU_TAP_PAUSE_DR:
++		return tms ? XPCU_TAP_EXIT2_DR : XPCU_TAP_PAUSE_DR;
++	case XPCU_TAP_EXIT2_DR:
++		return tms ? XPCU_TAP_UPDATE_DR : XPCU_TAP_SHIFT_DR;
++	case XPCU_TAP_UPDATE_DR:
++		return tms ? XPCU_TAP_SELECT_DR_SCAN : XPCU_TAP_RUN_TEST_IDLE;
++	case XPCU_TAP_SELECT_IR_SCAN:
++		return tms ? XPCU_TAP_TEST_LOGIC_RESET : XPCU_TAP_CAPTURE_IR;
++	case XPCU_TAP_CAPTURE_IR:
++		return tms ? XPCU_TAP_EXIT1_IR : XPCU_TAP_SHIFT_IR;
++	case XPCU_TAP_SHIFT_IR:
++		return tms ? XPCU_TAP_EXIT1_IR : XPCU_TAP_SHIFT_IR;
++	case XPCU_TAP_EXIT1_IR:
++		return tms ? XPCU_TAP_UPDATE_IR : XPCU_TAP_PAUSE_IR;
++	case XPCU_TAP_PAUSE_IR:
++		return tms ? XPCU_TAP_EXIT2_IR : XPCU_TAP_PAUSE_IR;
++	case XPCU_TAP_EXIT2_IR:
++		return tms ? XPCU_TAP_UPDATE_IR : XPCU_TAP_SHIFT_IR;
++	case XPCU_TAP_UPDATE_IR:
++		return tms ? XPCU_TAP_SELECT_DR_SCAN : XPCU_TAP_RUN_TEST_IDLE;
++	default:
++		return XPCU_TAP_TEST_LOGIC_RESET;
++	}
++}
++
++static bool xpcuTapInShift(uint8_t state) noexcept
++{
++	return state == XPCU_TAP_SHIFT_DR || state == XPCU_TAP_SHIFT_IR;
++}
++
+ XilinxPlatformCableUSB::XilinxPlatformCableUSB(const uint16_t vid,
+ 	const uint16_t pid,
+ 	uint32_t clkHz,
+ 	const std::string &firmware_path,
+ 	int8_t verbose): _verbose(verbose), _nb_bit(0), _nb_tdo_bit(0),
+-		_curr_tms(0), _curr_tdi(0), _buffer_size(4096),
++		_curr_tms(0), _curr_tdi(0),
++		_xvc_tap_state(XPCU_TAP_RUN_TEST_IDLE), _buffer_size(4096),
+ 		_buffer_bit_size((_buffer_size / 2 * 4) - 1)
+ {
+ 	std::string firmware_file;
+@@ -196,6 +261,98 @@ int XilinxPlatformCableUSB::writeTDI(const uint8_t *tx, uint8_t *rx, uint32_t le
  	return len;
  }
-
-+bool XilinxPlatformCableUSB::writeTMSTDI(const uint8_t *tms, const uint8_t *tdi,
-+		uint8_t *tdo, uint32_t len)
+ 
++bool XilinxPlatformCableUSB::writeTMSTDI(const uint8_t *tms,
++		const uint8_t *tdi, uint8_t *tdo, uint32_t len)
 +{
 +	if (len == 0)
 +		return true;
 +
-+	if (tdo && _nb_bit != 0) {
-+		if (write(nullptr, 0) < 0)
-+			return false;
-+	}
++	if (tdo)
++		memset(tdo, 0, (len + 7) / 8);
 +
-+	uint32_t rx_offset = 0;
-+	for (uint32_t i = 0; i < len; i++) {
-+		_curr_tms = (tms[i >> 3] >> (i & 0x07)) & 0x01;
-+		_curr_tdi = (tdi[i >> 3] >> (i & 0x07)) & 0x01;
-+		if (storeBit(_curr_tdi, _curr_tms, 1, tdo ? 1 : 0)) {
-+			uint32_t bits = _nb_tdo_bit;
-+			if (write(tdo, rx_offset) < 0)
++	auto get_bit = [](const uint8_t *bits, uint32_t pos) -> uint8_t {
++		return bits ? ((bits[pos >> 3] >> (pos & 0x07)) & 0x01) : 0;
++	};
++
++	uint32_t i = 0;
++	while (i < len) {
++		if (xpcuTapInShift(_xvc_tap_state)) {
++			if (_nb_bit != 0 && write(nullptr, 0) < 0) {
++				printError("XPCU writeTMSTDI: pre-shift navigation flush failed");
 +				return false;
-+			rx_offset += bits;
++			}
++
++			const uint32_t start = i;
++			bool end_shift = false;
++			while (i < len && xpcuTapInShift(_xvc_tap_state)) {
++				const uint8_t tms_bit = get_bit(tms, i);
++				end_shift = tms_bit != 0;
++				_xvc_tap_state = xpcuNextTapState(_xvc_tap_state, tms_bit);
++				i++;
++				if (end_shift)
++					break;
++			}
++
++			const uint32_t seg_len = i - start;
++			const uint32_t seg_bytes = (seg_len + 7) / 8;
++			std::vector<uint8_t> tx(seg_bytes, 0);
++			std::vector<uint8_t> rx(seg_bytes, 0);
++			for (uint32_t bit = 0; bit < seg_len; bit++) {
++				if (get_bit(tdi, start + bit))
++					tx[bit >> 3] |= (1 << (bit & 0x07));
++			}
++
++			_curr_tms = 0;
++			if (writeTDI(tx.data(), tdo ? rx.data() : nullptr, seg_len,
++						end_shift) != static_cast<int>(seg_len)) {
++				char mess[128];
++				snprintf(mess, sizeof(mess),
++						"XPCU writeTMSTDI: shift segment failed start=%u len=%u end=%u",
++						start, seg_len, end_shift ? 1 : 0);
++				printError(mess);
++				return false;
++			}
++
++			if (tdo) {
++				for (uint32_t bit = 0; bit < seg_len; bit++) {
++					const uint32_t dst = start + bit;
++					if ((rx[bit >> 3] >> (bit & 0x07)) & 0x01)
++						tdo[dst >> 3] |= (1 << (dst & 0x07));
++				}
++			} else if (_nb_bit != 0 && write(nullptr, 0) < 0) {
++				printError("XPCU writeTMSTDI: final shift flush failed");
++				return false;
++			}
++
++			_curr_tms = get_bit(tms, i - 1);
++			_curr_tdi = get_bit(tdi, i - 1);
++			continue;
++		}
++
++		while (i < len && !xpcuTapInShift(_xvc_tap_state)) {
++			const uint8_t tms_bit = get_bit(tms, i);
++			const uint8_t tdi_bit = get_bit(tdi, i);
++			_curr_tms = tms_bit;
++			_curr_tdi = tdi_bit;
++			if (storeBit(_curr_tdi, _curr_tms, 1, 0)) {
++				if (write(nullptr, 0) < 0) {
++					printError("XPCU writeTMSTDI: navigation segment failed");
++					return false;
++				}
++			}
++			_xvc_tap_state = xpcuNextTapState(_xvc_tap_state, tms_bit);
++			i++;
++		}
++
++		if (_nb_bit != 0 && write(nullptr, 0) < 0) {
++			printError("XPCU writeTMSTDI: final navigation flush failed");
++			return false;
 +		}
 +	}
-+	if (_nb_bit != 0 && write(tdo, rx_offset) < 0)
-+		return false;
++
 +	return true;
 +}
 +
  int XilinxPlatformCableUSB::toggleClk([[maybe_unused]] uint8_t tms,
  	[[maybe_unused]] uint8_t tdi, uint32_t clk_len)
  {
+diff --git a/src/xilinxPlatformCableUSB.hpp b/src/xilinxPlatformCableUSB.hpp
+index 0ad44a5..0965699 100644
+--- a/src/xilinxPlatformCableUSB.hpp
++++ b/src/xilinxPlatformCableUSB.hpp
+@@ -54,6 +54,10 @@ class XilinxPlatformCableUSB : public JtagInterface {
+ 	 */
+ 	int writeTDI(const uint8_t *tx, uint8_t *rx, uint32_t len, bool end) override;
+ 
++	/* drive per-bit TMS+TDI and capture TDO for XVC shift commands */
++	bool writeTMSTDI(const uint8_t *tms, const uint8_t *tdi, uint8_t *tdo,
++		uint32_t len) override;
++
+ 	/*!
+ 	 * \brief toggle clock with static tms and tdi
+ 	 * \param tms state of tms signal
+@@ -100,6 +104,7 @@ class XilinxPlatformCableUSB : public JtagInterface {
+ 	uint32_t _nb_tdo_bit;
+ 	uint8_t _curr_tms;
+ 	uint8_t _curr_tdi;
++	uint8_t _xvc_tap_state;
+ 	uint32_t _buffer_size;
+ 	uint32_t _buffer_bit_size;
+ 	std::unique_ptr<FX2_ll> fx2;
+-- 
+2.50.1 (Apple Git-155)
+

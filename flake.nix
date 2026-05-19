@@ -64,6 +64,7 @@
               ./patches/openfpgaloader-xpcu-skip-missing-alt.patch
               ./patches/openfpgaloader-xvc-xpcu.patch
               ./patches/openfpgaloader-xpcu-writetmstdi.patch
+              ./patches/openfpgaloader-xpcu-gpio-timeout-recover.patch
             ];
           });
 

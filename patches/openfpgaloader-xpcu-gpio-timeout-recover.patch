@@ -1,0 +1,124 @@
+From fb0b3ae99119ce2908889f66708ada52cac61e7e Mon Sep 17 00:00:00 2001
+From: Felipe Bonetto <felipesensbonetto@gmail.com>
+Date: Tue, 19 May 2026 01:09:25 -0300
+Subject: [PATCH] xpcu: recover after GPIO transfer setup timeout
+
+On macOS with the DLC10 / Platform Cable USB II, the GPIO_TRANSFER
+vendor control request can time out on the host even though the FX2
+firmware has already accepted the request and is now waiting for the
+bulk OUT payload. If the host returns immediately without sending that
+payload, the cable firmware remains stuck waiting for data and every
+following vendor control request times out until a physical USB replug.
+
+When GPIO_TRANSFER control setup fails, attempt to complete the pending
+bulk phase anyway. If the setup reached the firmware, this drains the
+transaction and keeps the cable usable for the next XVC client. Also
+reset the internal JTAG bit counters on every failure so one bad transfer
+does not poison later shifts.
+
+The XVC server previously ignored writeTMSTDI() failures and sent an
+all-zero TDO vector back to the client. Propagate the error instead so
+the client sees a transport failure rather than treating zeros as valid
+FPGA status.
+---
+ src/xilinxPlatformCableUSB.cpp | 53 ++++++++++++++++++++++++++++++++--
+ src/xvc_server.cpp             |  5 +++-
+ 2 files changed, 55 insertions(+), 3 deletions(-)
+
+diff --git a/src/xilinxPlatformCableUSB.cpp b/src/xilinxPlatformCableUSB.cpp
+index 3ad5ca7..8dffb29 100644
+--- a/src/xilinxPlatformCableUSB.cpp
++++ b/src/xilinxPlatformCableUSB.cpp
+@@ -431,22 +431,71 @@ int XilinxPlatformCableUSB::write(uint8_t *rx, uint32_t rx_offset)
+ 	if (!fx2->write_ctrl(XPCU_BREQUEST, XPCU_CMD_GPIO_TRANSFER, nullptr, 0,
+ 				_nb_bit - 1)) {
+ 		printError("Fails to write GPIO transfer control message");
++		/* macOS recovery: the control request may have reached the FX2
++		 * firmware before the host timed out. In that state the firmware
++		 * waits for the bulk OUT payload and all later control requests
++		 * time out until physical unplug. Try to drain the pending bulk
++		 * phase, then drop the host-side buffered bits so the next XVC
++		 * shift starts from a clean packet. */
++		fx2->write(XPCU_EP_JTAG_OUT, _in_buf.get(), xfer_tx);
++		if (rx && _nb_tdo_bit == _nb_bit) {
++			const uint32_t xfer_rx = rxBufSize(_nb_tdo_bit);
++			std::vector<uint8_t> discard(xfer_rx);
++			fx2->read(XPCU_EP_JTAG_IN, discard.data(), xfer_rx);
++		}
++		_nb_bit = 0;
++		_nb_tdo_bit = 0;
+ 		return -1;
+ 	}
+ 
+-	if (fx2->write(XPCU_EP_JTAG_OUT, _in_buf.get(), xfer_tx) != (int)xfer_tx)
++	const int tx_actual = fx2->write(XPCU_EP_JTAG_OUT, _in_buf.get(), xfer_tx);
++	if (tx_actual != (int)xfer_tx) {
++		char mess[128];
++		snprintf(mess, sizeof(mess),
++				"XPCU bulk OUT short write: expected=%u actual=%d bits=%u tdo_bits=%u",
++				xfer_tx, tx_actual, _nb_bit, _nb_tdo_bit);
++		printError(mess);
++		_nb_bit = 0;
++		_nb_tdo_bit = 0;
+ 		return -1;
++	}
+ 
+ 	if (rx) {
+ 		if (_nb_tdo_bit != _nb_bit) {
+ 			printError("Unable to decode mixed TDO/non-TDO transfer");
++			_nb_bit = 0;
++			_nb_tdo_bit = 0;
+ 			return -1;
+ 		}
+ 
+ 		uint32_t xfer_rx = rxBufSize(_nb_tdo_bit);
+ 		std::vector<uint8_t> rx_buf(xfer_rx);
+-		if (fx2->read(XPCU_EP_JTAG_IN, rx_buf.data(), xfer_rx) != (int)xfer_rx)
++		uint32_t rx_done = 0;
++		while (rx_done < xfer_rx) {
++			const int rx_actual = fx2->read(XPCU_EP_JTAG_IN,
++					rx_buf.data() + rx_done, xfer_rx - rx_done);
++			if (rx_actual <= 0) {
++				char mess[128];
++				snprintf(mess, sizeof(mess),
++						"XPCU bulk IN read failed: expected=%u actual=%d got=%u bits=%u tdo_bits=%u",
++						xfer_rx, rx_actual, rx_done, _nb_bit, _nb_tdo_bit);
++				printError(mess);
++				_nb_bit = 0;
++				_nb_tdo_bit = 0;
++				return -1;
++			}
++			rx_done += rx_actual;
++		}
++		if (rx_done != xfer_rx) {
++			char mess[128];
++			snprintf(mess, sizeof(mess),
++					"XPCU bulk IN short read: expected=%u actual=%u bits=%u tdo_bits=%u",
++					xfer_rx, rx_done, _nb_bit, _nb_tdo_bit);
++			printError(mess);
++			_nb_bit = 0;
++			_nb_tdo_bit = 0;
+ 			return -1;
++		}
+ 
+ 		/* Decode shift-register encoded TDO bits into rx.
+ 		 * Each group of up to 32 bits occupies a 16 or 32-bit little-endian
+diff --git a/src/xvc_server.cpp b/src/xvc_server.cpp
+index 0c788f0..6f1bf82 100644
+--- a/src/xvc_server.cpp
++++ b/src/xvc_server.cpp
+@@ -381,7 +381,10 @@ int XVC_server::handle_data(int fd)
+ 				(_state == Jtag::EXIT1_DR && len == 4 && _tmstdi[0] == 0x6b))) {
+ 			// update state using tms sequence
+ 			set_state(_tmstdi, len);
+-			_jtag->writeTMSTDI(_tmstdi, _tmstdi + nr_bytes, _result, len);
++			if (!_jtag->writeTMSTDI(_tmstdi, _tmstdi + nr_bytes, _result, len)) {
++				printError("writeTMSTDI failed");
++				return 1;
++			}
+ 		}
+ 
+ 		/* send received TDO sequence */
+-- 
+2.50.1 (Apple Git-155)
+
