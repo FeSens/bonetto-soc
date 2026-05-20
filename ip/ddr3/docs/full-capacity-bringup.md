@@ -17,6 +17,23 @@ the target evidence ladder, not an already working DDR3 image.
 | Final transfer rate | DDR3-1600 |
 | Final CK | 800 MHz |
 
+## Address Map
+
+The live RTL now uses this 30-bit 32-bit-word address map:
+
+```text
+global[29]      channel select
+global[28:26]   bank
+global[25:11]   row
+global[10:4]    column[9:3]
+global[3:0]     word inside the 64-byte BL8 line
+```
+
+This keeps each 64-byte full-channel BL8 transfer contiguous in the Wishbone
+word address space and covers the full 4 GiB installed data capacity across the
+two 64-bit channels. The map is implemented in `rtl/ddr3_addr_decode.sv` and
+covered by `formal/addr_decode_wrapper.sv` plus `sim/tb_addr_decode.sv`.
+
 ## Speed Ladder
 
 Do not skip rungs:

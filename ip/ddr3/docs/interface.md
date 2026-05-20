@@ -27,6 +27,24 @@ The controller-level block should expose the same basic B4-style slave shape as
 Formal requirement: every implementation must pass `fwb_slave` before it is
 connected to the board top.
 
+## Address Map
+
+`rtl/ddr3_addr_decode.sv` defines the full-capacity global word-address map:
+
+```text
+global[29]      channel select
+global[28:26]   bank
+global[25:11]   row
+global[10:4]    column[9:3]
+global[3:0]     word inside the 64-byte BL8 line
+```
+
+For each channel this covers 8 banks, 32K rows, 128 BL8 column slots per row,
+and 16 32-bit words per BL8 line. Across two full 64-bit channels this is a
+30-bit 32-bit-word address space, or 4 GiB. The decoder also emits the
+scheduler-facing line address `{bank, row, column[9:3]}` and the DDR3 command
+column address `{column[9:3], 3'b000}`.
+
 `rtl/ddr3_wb_frontend.sv` is the first live slice of this contract. It accepts
 one 32-bit Wishbone request at a time, stalls while that request is outstanding,
 splits the word address into `{line address, word index}`, packs write data into

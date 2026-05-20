@@ -4,6 +4,9 @@ The active RTL slices are deliberately small and scheduler-facing:
 
 - `ddr3_params.vh`: shared command encodings, mode registers, geometry, and
   DDR3-800 timing waits;
+- `ddr3_addr_decode.sv`: full-capacity two-channel word-address decoder that
+  emits channel, local word address, BL8 line address, bank, row, aligned
+  column, and word index;
 - `ddr3_init_seq.sv`: reset, CKE, MR2, MR3, MR1, MR0, ZQCL, first REF, and
   post-DLL-lock wait before `done`;
 - `ddr3_single_read_seq.sv`: one conservative single-bank ACT, READ, PRE, REF
@@ -38,8 +41,9 @@ testbench DQS/DQ agent. The bank machine, scheduler, and refresh requester are
 the first scheduler-owned blocks, and the refresh requester now has idle plus
 focused active-traffic deadline proofs. The data boundary has one x8 lane, one
 full 64-bit-channel line packetizer, and a first Wishbone-to-channel bridge.
-There is still no pin-level controller-owned DQS/DQ PHY, integrated
-controller, calibration, dual-channel wrapper, or hardware-validated DDR3 path.
+The full-capacity address map is explicit and formally checked. There is still
+no pin-level controller-owned DQS/DQ PHY, integrated controller, calibration,
+dual-channel wrapper, or hardware-validated DDR3 path.
 
 Rules for adding new RTL:
 

@@ -13,9 +13,9 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 
 | Area | State |
 |---|---|
-| Controller RTL | DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, single-outstanding Wishbone-to-BL8 frontend, and a Wishbone-to-full-channel bridge; no controller-owned PHY |
-| Formal | Live command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, Wishbone frontend proof, and Wishbone-to-channel bridge proof |
-| Simulation | Live Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, reference init, RTL init, RTL single-read command, and x8 write/read loopback target using the byte-lane packetizer |
+| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, single-outstanding Wishbone-to-BL8 frontend, and a Wishbone-to-full-channel bridge; no controller-owned PHY |
+| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, Wishbone frontend proof, and Wishbone-to-channel bridge proof |
+| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, reference init, RTL init, RTL single-read command, and x8 write/read loopback target using the byte-lane packetizer |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
 
@@ -31,7 +31,8 @@ make validate-jtag-bram BOARD=ypcb-00338
 
 What these mean today:
 
-- `formal` proves the reusable DDR3 command timing monitor against a legal
+- `formal` proves the full-capacity address map for two 64-bit channels and
+  proves the reusable DDR3 command timing monitor against a legal
   trace and proves the controller-owned init sequencer emits reset, MRS, ZQCL,
   REF, and post-DLL-lock wait in order with minimum waits. It also proves the
   single-bank runtime slices emit ACT/READ/PRE/REF and
@@ -82,6 +83,7 @@ What these mean today:
 | Path | Role |
 |---|---|
 | `rtl/ddr3_params.vh` | Shared command encodings, mode registers, geometry, and DDR3-800 waits. |
+| `rtl/ddr3_addr_decode.sv` | Full-capacity two-channel word-address decoder for channel, bank, row, column, BL8 line, and word index. |
 | `rtl/ddr3_init_seq.sv` | DDR3-800 reset/MRS/ZQ/REF initialization sequencer. |
 | `rtl/ddr3_single_read_seq.sv` | Command-only single-bank ACT/READ/PRE/REF runtime slice. |
 | `rtl/ddr3_single_write_read_seq.sv` | Single-bank ACT/WRITE/READ/PRE/REF runtime slice for timing and x8 model bring-up. |
@@ -93,6 +95,7 @@ What these mean today:
 | `rtl/ddr3_wb_frontend.sv` | Single-outstanding Wishbone-to-BL8 frontend for 32-bit word packing, byte masks, and read word selection. |
 | `rtl/ddr3_wb_channel.sv` | Integration slice tying the Wishbone frontend to the full-channel line packetizer and exposing one BL8 line command. |
 | `formal/ddr3_cmd_timing_monitor.sv` | Reusable JEDEC command/timing assertion block. |
+| `formal/addr_decode_wrapper.sv` | Formal harness for the full-capacity two-channel address map and alias checks. |
 | `formal/timing_monitor_wrapper.sv` | Self-check harness for the timing monitor. |
 | `formal/init_seq_wrapper.sv` | Formal harness for init sequencer ordering and waits. |
 | `formal/single_read_wrapper.sv` | Formal harness for the single-bank runtime command slice. |
@@ -106,6 +109,7 @@ What these mean today:
 | `formal/wb_frontend_wrapper.sv` | Formal harness for Wishbone protocol, backend request stability, and BL8 word mapping. |
 | `formal/wb_channel_wrapper.sv` | Formal harness for the Wishbone-to-full-channel bridge command/data mapping. |
 | `sim/vendor/` | Vendored Micron DDR3 model and parameters. |
+| `sim/tb_addr_decode.sv` | Unit bench for boundary and mixed full-capacity address decoding. |
 | `sim/tb_byte_lane.sv` | Unit bench for the byte-lane packetizer. |
 | `sim/tb_channel_line.sv` | Unit bench for the full-channel BL8 line packetizer with per-lane stalls. |
 | `sim/tb_wb_frontend.sv` | Unit bench for the Wishbone-to-BL8 frontend. |

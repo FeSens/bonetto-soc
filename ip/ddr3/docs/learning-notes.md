@@ -71,34 +71,38 @@ Important constraints:
 
 Required future simulation stages:
 
-1. Micron model smoke: compile and run the model. This exists now.
-2. Reference init script: drive reset/CKE/MRS/ZQ/REF until the model accepts a
+1. Full-capacity address map: boundary and mixed addresses decode to channel,
+   bank, row, BL8 column, and word index. This exists now.
+2. Micron model smoke: compile and run the model. This exists now.
+3. Reference init script: drive reset/CKE/MRS/ZQ/REF until the model accepts a
    DDR3-800 initialization path. This exists now and should be kept as the
    known-good script.
-3. Init-only controller: drive reset/CKE/MRS/ZQ/DLL wait until the model accepts
+4. Init-only controller: drive reset/CKE/MRS/ZQ/DLL wait until the model accepts
    init completion.
-4. Command-only runtime: ACT/RD/WR/PRE/REF against one x8 model. This now
+5. Command-only runtime: ACT/RD/WR/PRE/REF against one x8 model. This now
    exists for single-bank READ and WRITE/READ command slices.
-5. Ideal x8 loopback: DQS/DQ write and read loopback with one x8 model driven
+6. Ideal x8 loopback: DQS/DQ write and read loopback with one x8 model driven
    by a testbench agent. This exists now and should remain a regression for
    command/data phasing.
-6. Controller-side x8 byte-lane packetizer: BL8 data/mask ordering and read
+7. Controller-side x8 byte-lane packetizer: BL8 data/mask ordering and read
    capture before a pin-level PHY. This exists now.
-7. Full-channel BL8 line packetizer: eight x8 lanes composed into one 512-bit
+8. Full-channel BL8 line packetizer: eight x8 lanes composed into one 512-bit
    line plus 64 byte-mask bits. This exists now.
-8. Wishbone-to-BL8 frontend: single-outstanding protocol adapter, address
+9. Wishbone-to-BL8 frontend: single-outstanding protocol adapter, address
    split, data/mask placement, and read word selection. This exists now.
-9. Wishbone-to-full-channel bridge: one bus word request drives one full-width
+10. Wishbone-to-full-channel bridge: one bus word request drives one full-width
    BL8 line transfer and scheduler-facing line command. This exists now.
-10. Controller-owned x8 PHY bridge: real DQS/DQ write and read timing, still
+11. Controller-owned x8 PHY bridge: real DQS/DQ write and read timing, still
    pending.
-11. Full channel: eight x8 models for 64-bit data, then optional ECC lane.
-12. Dual channel: two independent full-channel model stacks.
+12. Full channel: eight x8 models for 64-bit data, then optional ECC lane.
+13. Dual channel: two independent full-channel model stacks.
 
 ## Architecture Direction
 
 Build the new controller as small modules:
 
+- `ddr3_addr_decode`: full-capacity two-channel address map. This exists now
+  and is formally checked;
 - `ddr3_init_seq`: JEDEC initialization only;
 - `ddr3_bank`: one-bank row state and local timing. This exists now for one
   request at a time, supports command backpressure from the scheduler, and is

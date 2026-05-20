@@ -1,4 +1,4 @@
-.PHONY: formal formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel sim sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
+.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel sim sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
@@ -19,7 +19,9 @@ VVP          ?= vvp
 # keep verification infrastructure live while the clean-sheet controller is
 # designed.
 
-formal: formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel
+formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel
+
+formal-addr-decode: $(BUILD)/addr_decode.proof
 
 formal-timing: $(BUILD)/timing_monitor.proof
 
@@ -50,6 +52,12 @@ $(BUILD):
 
 $(SIM_BUILD):
 	mkdir -p $@
+
+$(BUILD)/addr_decode.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv formal/addr_decode_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_addr_decode.sv formal/addr_decode_wrapper.sv; \
+	  prep -top ddr3_addr_decode_wrapper; \
+	  write_smt2 -wires $@"
 
 $(BUILD)/timing_monitor.smt2: formal/ddr3_cmd_timing_monitor.sv formal/timing_monitor_wrapper.sv | $(BUILD)
 	$(YOSYS) -q -p "\
@@ -123,6 +131,11 @@ $(BUILD)/wb_channel.smt2: rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3
 	  prep -top ddr3_wb_channel_wrapper; \
 	  write_smt2 -wires $@"
 
+$(BUILD)/addr_decode.proof: $(BUILD)/addr_decode.smt2
+	@echo "[ddr3] formal: DDR3 full-capacity address decoder, solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t 1 $<
+	@touch $@
+
 $(BUILD)/timing_monitor.proof: $(BUILD)/timing_monitor.smt2
 	@echo "[ddr3] formal: DDR3 command timing monitor self-check, depth=$(SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SMTBMC_DEPTH) $<
@@ -183,7 +196,7 @@ $(BUILD)/wb_channel.proof: $(BUILD)/wb_channel.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(WB_CHANNEL_SMTBMC_DEPTH) $<
 	@touch $@
 
-sim: sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read
+sim: sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read
 
 cocotb:
 	@echo "[ddr3] cocotb disabled until Wishbone/runtime controller RTL exists; run 'make sim' for Micron init coverage."
@@ -195,6 +208,10 @@ sim-micron-smoke: $(SIM_BUILD)/micron_model_smoke.vvp
 
 sim-byte-lane: $(SIM_BUILD)/byte_lane.vvp
 	@echo "[ddr3] sim: DDR3 x8 byte-lane packetizer"
+	$(VVP) $<
+
+sim-addr-decode: $(SIM_BUILD)/addr_decode.vvp
+	@echo "[ddr3] sim: DDR3 full-capacity address decoder"
 	$(VVP) $<
 
 sim-channel-line: $(SIM_BUILD)/channel_line.vvp
@@ -280,6 +297,11 @@ $(SIM_BUILD)/channel_line.vvp: rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv si
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_channel_line \
 	  -o $@ rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv sim/tb_channel_line.sv
+
+$(SIM_BUILD)/addr_decode.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv sim/tb_addr_decode.sv | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl \
+	  -s tb_addr_decode \
+	  -o $@ rtl/ddr3_addr_decode.sv sim/tb_addr_decode.sv
 
 $(SIM_BUILD)/wb_frontend.vvp: rtl/ddr3_wb_frontend.sv sim/tb_wb_frontend.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \

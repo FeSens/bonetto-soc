@@ -13,9 +13,12 @@ make -C ip/ddr3 sim
 
 Current coverage:
 
-- `formal`: proves the reusable DDR3 command timing monitor is internally
-  consistent on a legal ACT/RD/PRE/REF/WR/ZQ trace, and proves the
-  controller-owned init sequencer emits reset, MRS, ZQCL, and REF in order with
+- `formal`: proves the full-capacity two-channel address map, including
+  channel/bank/row/column/word split, line-address recomposition, BL8 column
+  alignment, and no alias for matching `{channel, line, word}` fields. It also
+  proves the reusable DDR3 command timing monitor is internally consistent on a
+  legal ACT/RD/PRE/REF/WR/ZQ trace, and proves the controller-owned init
+  sequencer emits reset, MRS, ZQCL, and REF in order with
   minimum waits plus the post-DLL-lock wait. It also proves the single-bank
   runtime slices emit ACT, READ, PRE, REF and ACT, WRITE, READ, PRE, REF in
   order through the monitor. The bank-machine proof wraps arbitrary serialized
@@ -41,17 +44,18 @@ Current coverage:
   The Wishbone-to-channel bridge proof connects those two contracts and checks
   command emission, command stability under scheduler backpressure, full-width
   write word/mask placement, and read word return from a completed channel line.
-- `sim`: compiles and runs the vendored Micron x8 2Gb DDR3 model at a valid
-  DDR3-800 clock, then drives both a handwritten reset/MRS/ZQ/REF reference
-  script and the RTL init sequencer through the model. It also drives the RTL
-  init sequencer into one single-bank READ command sequence and one single-bank
-  WRITE/READ loopback using the byte-lane packetizer for one BL8 payload plus
-  an ideal x8 DQS/DQ testbench agent. It also runs a unit bench for the
-  full-channel line packetizer with independent per-lane stalls, plus a unit
-  bench for the Wishbone frontend address split, write data/mask placement, and
-  read word selection. The Wishbone-to-channel unit bench drives one write and
-  one read from the bus through all eight byte lanes. The protocol benches fail
-  if the model reports timing or protocol errors or warnings.
+- `sim`: runs a unit bench for the full-capacity address map, then compiles and
+  runs the vendored Micron x8 2Gb DDR3 model at a valid DDR3-800 clock. It
+  drives both a handwritten reset/MRS/ZQ/REF reference script and the RTL init
+  sequencer through the model. It also drives the RTL init sequencer into one
+  single-bank READ command sequence and one single-bank WRITE/READ loopback
+  using the byte-lane packetizer for one BL8 payload plus an ideal x8 DQS/DQ
+  testbench agent. It also runs a unit bench for the full-channel line
+  packetizer with independent per-lane stalls, plus a unit bench for the
+  Wishbone frontend address split, write data/mask placement, and read word
+  selection. The Wishbone-to-channel unit bench drives one write and one read
+  from the bus through all eight byte lanes. The protocol benches fail if the
+  model reports timing or protocol errors or warnings.
 
 Current non-coverage:
 
@@ -66,6 +70,7 @@ Every new RTL slice should add or extend one of these harnesses:
 
 | Stage | Required proof |
 |---|---|
+| Address decode | Full 4 GiB word-address space splits into channel, bank, row, BL8 column, line address, and word index without aliasing. First proof exists. |
 | Command definitions | All command encodings decode uniquely; NOP/DES are harmless. |
 | Init sequencer | Reset, CKE, MRS, ZQCL, DLL wait, and first REF occur in order with minimum waits. |
 | Bank machine | No ACT/RD/WR/PRE violates tRC, tRAS, tRP, tRCD, tWR, tRTP, tCCD, or write-to-read wait. |
@@ -88,6 +93,7 @@ Use the real Micron model for protocol validation:
 
 | Stage | Model stack | Pass condition |
 |---|---|---|
+| Address map unit | combinational decoder | boundary and mixed addresses decode to the documented full-capacity fields |
 | Smoke | one x8 model, held in reset | model compiles and clocks with selected defines |
 | Reference init | handwritten script + one x8 model | reset/MRS/ZQ/REF completes without model timing errors |
 | Controller init | controller + one x8 model | controller init completes without model timing errors |

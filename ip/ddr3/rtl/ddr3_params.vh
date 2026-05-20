@@ -8,6 +8,7 @@
 
 `define DDR3_BANK_BITS 3
 `define DDR3_ROW_BITS  15
+`define DDR3_COL_BITS  10
 `define DDR3_ADDR_BITS 15
 
 // DDR3 command encoding as {cs_n, ras_n, cas_n, we_n}.

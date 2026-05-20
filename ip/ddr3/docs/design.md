@@ -23,6 +23,7 @@ describes the target architecture, not an existing implementation.
 
 | Module | Responsibility |
 |---|---|
+| `ddr3_addr_decode` | Full-capacity global word-address split into channel, bank, row, BL8 column, line address, and word index. This exists now. |
 | `ddr3_cmd` | Command encoding/decoding helpers and mode-register fields. |
 | `ddr3_init_seq` | JEDEC reset, CKE, MRS, ZQCL, first refresh, and DLL-lock release wait. |
 | `ddr3_single_read_seq` | Temporary command-only ACT/READ/PRE/REF slice for Micron and formal timing bring-up. |
@@ -50,23 +51,25 @@ Per-channel DDR3 geometry for MT41K256M8DA-125:
 - BL8 command granularity
 
 A full 64-bit channel transfers 64 bytes per BL8 command, or sixteen 32-bit
-Wishbone words. The global 32-bit-word address should eventually be:
+Wishbone words. The global 32-bit-word address map is:
 
 ```text
 global[29]      channel select
-global[28:25]   word inside BL8 line
-global[24:22]   bank
-global[21:7]    row
-global[6:0]     column[9:3]
+global[28:26]   bank
+global[25:11]   row
+global[10:4]    column[9:3]
+global[3:0]     word inside BL8 line
 ```
 
-The exact bit placement can be tuned for locality, but it must be documented
-and formally checked before hardware validation.
+This exposes 30 word-address bits: two channels times 8 banks times 32K rows
+times 128 BL8 column slots times 16 Wishbone words per BL8 line, or 4 GiB total
+across both channels. `rtl/ddr3_addr_decode.sv` implements this map and
+`formal/addr_decode_wrapper.sv` proves the split, recomposition, line alignment,
+and no-alias property for matching `{channel, line, word}` fields.
 
-The current `ddr3_wb_frontend` implements the same word-to-line split in
-parameterized form. With the current x8 bring-up setting, `LINE_BYTES=8`, so one
-BL8 line contains two 32-bit Wishbone words. The eventual full-channel setting
-is `LINE_BYTES=64`, where one BL8 line contains sixteen 32-bit Wishbone words.
+The low word-index bits intentionally match `ddr3_wb_frontend` and
+`ddr3_wb_channel`: consecutive 32-bit Wishbone addresses fill one 64-byte BL8
+line before the BL8 column address increments.
 
 ## Timing Contract
 
@@ -81,31 +84,33 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 
 ## Bring-Up Order
 
-1. Micron model smoke and command monitor self-check.
-2. Init-only RTL accepted by one Micron x8 model.
-3. Single-bank runtime commands against one Micron x8 model.
-4. One x8 BL8 write/read loopback against the Micron model using an ideal
+1. Full-capacity dual-channel address decoder. This exists now and is formally
+   checked against the documented 4 GiB word-address map.
+2. Micron model smoke and command monitor self-check.
+3. Init-only RTL accepted by one Micron x8 model.
+4. Single-bank runtime commands against one Micron x8 model.
+5. One x8 BL8 write/read loopback against the Micron model using an ideal
    testbench DQS/DQ agent. This exists now and validates command/data phasing in
    simulation only.
-5. One reusable bank machine with open-row tracking and local timing waits.
+6. One reusable bank machine with open-row tracking and local timing waits.
    This exists now and is formally wrapped by the command timing monitor.
-6. Global scheduler over eight bank machines and cross-bank timing. A first
+7. Global scheduler over eight bank machines and cross-bank timing. A first
    no-refresh slice exists now and is formally wrapped by the command timing
    monitor.
-7. Scheduler-owned request-driven refresh/precharge-all path. This exists now.
-8. Periodic refresh requester and idle deadline proof. This exists now.
-9. Focused active-traffic refresh-deadline proof. This exists now.
-10. One controller-side x8 BL8 byte-lane packetizer. This exists now.
-11. One full 64-bit-channel BL8 line packetizer composed from eight x8 lanes.
+8. Scheduler-owned request-driven refresh/precharge-all path. This exists now.
+9. Periodic refresh requester and idle deadline proof. This exists now.
+10. Focused active-traffic refresh-deadline proof. This exists now.
+11. One controller-side x8 BL8 byte-lane packetizer. This exists now.
+12. One full 64-bit-channel BL8 line packetizer composed from eight x8 lanes.
     This exists now and verifies 512-bit data plus 64 byte-mask placement before
     a board PHY is attached.
-12. One single-outstanding Wishbone-to-BL8 frontend. This exists now and proves
+13. One single-outstanding Wishbone-to-BL8 frontend. This exists now and proves
     protocol, address split, write data/mask placement, and read word
     selection before it is connected to the scheduler/data path.
-13. One Wishbone-to-full-channel bridge. This exists now and proves the first
+14. One Wishbone-to-full-channel bridge. This exists now and proves the first
     integration between the bus frontend, one BL8 line command, and the eight
     byte-lane data packetizers.
-14. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
-15. One 64-bit channel integrated through scheduler, frontend, and PHY.
-16. Two 64-bit channels.
-17. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+15. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
+16. One 64-bit channel integrated through scheduler, frontend, and PHY.
+17. Two 64-bit channels.
+18. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
