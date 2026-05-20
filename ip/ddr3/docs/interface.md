@@ -35,6 +35,13 @@ mask, and selects the requested 32-bit word from a backend read line. It is not
 yet the full controller-level `ddr3_ctrl`; downstream scheduler, merge, PHY,
 calibration, and status integration are still separate work.
 
+`rtl/ddr3_wb_channel.sv` is the first integrated bus/data slice. It composes
+the Wishbone frontend with `ddr3_channel_line`, emits one scheduler-facing BL8
+line command `{write, line_addr}`, starts the full-channel data packetizer when
+that command is accepted, and returns completed read lines to the frontend for
+32-bit word selection. It still does not own a DDR3 command scheduler, row
+machine selection, PHY timing, calibration, or partial-write read-modify-write.
+
 ## DDR3 Command Pins
 
 Controller or PHY boundary must eventually drive:
@@ -77,7 +84,9 @@ validated.
 response. `rtl/ddr3_channel_line.sv` composes eight of those lanes into the
 full 64-bit-channel packet boundary: one 512-bit BL8 line plus 64 byte-mask
 bits, with per-lane PHY handshakes still visible for the future Xilinx 7-series
-DQS/DQ bridge.
+DQS/DQ bridge. `rtl/ddr3_wb_channel.sv` currently drives that packet boundary
+from Wishbone requests and exposes the line command that the future scheduler
+must pair with ACT/RD/WR/PRE timing.
 
 ## Debug/Status
 

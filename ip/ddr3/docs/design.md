@@ -33,6 +33,7 @@ describes the target architecture, not an existing implementation.
 | `ddr3_byte_lane` | Controller-side x8 BL8 data packetizer. This exists now and proves write data/mask ordering plus read capture ordering before a board-specific DQS/DQ PHY is added. |
 | `ddr3_channel_line` | Full 64-bit-channel BL8 line packetizer that composes eight x8 byte lanes into one 512-bit line plus 64 byte-mask bits. This exists now. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 word packing, byte-mask generation, and read word selection. This exists now as a single-outstanding frontend slice. |
+| `ddr3_wb_channel` | First bus/data integration slice tying the Wishbone frontend to the full-channel line packetizer and emitting one scheduler-facing BL8 line command. This exists now. |
 | `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
 
@@ -101,7 +102,10 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 12. One single-outstanding Wishbone-to-BL8 frontend. This exists now and proves
     protocol, address split, write data/mask placement, and read word
     selection before it is connected to the scheduler/data path.
-13. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
-14. One 64-bit channel integrated through scheduler, frontend, and PHY.
-15. Two 64-bit channels.
-16. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+13. One Wishbone-to-full-channel bridge. This exists now and proves the first
+    integration between the bus frontend, one BL8 line command, and the eight
+    byte-lane data packetizers.
+14. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
+15. One 64-bit channel integrated through scheduler, frontend, and PHY.
+16. Two 64-bit channels.
+17. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.

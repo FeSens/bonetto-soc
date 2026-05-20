@@ -1,4 +1,4 @@
-.PHONY: formal formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend sim sim-byte-lane sim-channel-line sim-wb-frontend sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
+.PHONY: formal formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel sim sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
@@ -8,6 +8,7 @@ SCHED_SMTBMC_DEPTH ?= 36
 REFRESH_SMTBMC_DEPTH ?= 80
 REFRESH_TRAFFIC_SMTBMC_DEPTH ?= 72
 CHANNEL_LINE_SMTBMC_DEPTH ?= 24
+WB_CHANNEL_SMTBMC_DEPTH ?= 36
 
 YOSYS        ?= yosys
 YOSYS_SMTBMC ?= yosys-smtbmc
@@ -18,7 +19,7 @@ VVP          ?= vvp
 # keep verification infrastructure live while the clean-sheet controller is
 # designed.
 
-formal: formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend
+formal: formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel
 
 formal-timing: $(BUILD)/timing_monitor.proof
 
@@ -41,6 +42,8 @@ formal-byte-lane: $(BUILD)/byte_lane.proof
 formal-channel-line: $(BUILD)/channel_line.proof
 
 formal-wb-frontend: $(BUILD)/wb_frontend.proof
+
+formal-wb-channel: $(BUILD)/wb_channel.proof
 
 $(BUILD):
 	mkdir -p $@
@@ -114,6 +117,12 @@ $(BUILD)/wb_frontend.smt2: rtl/ddr3_wb_frontend.sv ../../formal/vendor/fwb_slave
 	  prep -top ddr3_wb_frontend_wrapper; \
 	  write_smt2 -wires $@"
 
+$(BUILD)/wb_channel.smt2: rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_channel_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -formal -sv -DFORMAL rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_channel_wrapper.sv; \
+	  prep -top ddr3_wb_channel_wrapper; \
+	  write_smt2 -wires $@"
+
 $(BUILD)/timing_monitor.proof: $(BUILD)/timing_monitor.smt2
 	@echo "[ddr3] formal: DDR3 command timing monitor self-check, depth=$(SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SMTBMC_DEPTH) $<
@@ -169,7 +178,12 @@ $(BUILD)/wb_frontend.proof: $(BUILD)/wb_frontend.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SMTBMC_DEPTH) $<
 	@touch $@
 
-sim: sim-byte-lane sim-channel-line sim-wb-frontend sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read
+$(BUILD)/wb_channel.proof: $(BUILD)/wb_channel.smt2
+	@echo "[ddr3] formal: DDR3 Wishbone-to-full-channel bridge, depth=$(WB_CHANNEL_SMTBMC_DEPTH), solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(WB_CHANNEL_SMTBMC_DEPTH) $<
+	@touch $@
+
+sim: sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read
 
 cocotb:
 	@echo "[ddr3] cocotb disabled until Wishbone/runtime controller RTL exists; run 'make sim' for Micron init coverage."
@@ -189,6 +203,10 @@ sim-channel-line: $(SIM_BUILD)/channel_line.vvp
 
 sim-wb-frontend: $(SIM_BUILD)/wb_frontend.vvp
 	@echo "[ddr3] sim: DDR3 Wishbone-to-BL8 frontend"
+	$(VVP) $<
+
+sim-wb-channel: $(SIM_BUILD)/wb_channel.vvp
+	@echo "[ddr3] sim: DDR3 Wishbone-to-full-channel bridge"
 	$(VVP) $<
 
 sim-micron-init: $(SIM_BUILD)/micron_init_script.vvp
@@ -267,6 +285,11 @@ $(SIM_BUILD)/wb_frontend.vvp: rtl/ddr3_wb_frontend.sv sim/tb_wb_frontend.sv | $(
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_wb_frontend \
 	  -o $@ rtl/ddr3_wb_frontend.sv sim/tb_wb_frontend.sv
+
+$(SIM_BUILD)/wb_channel.vvp: rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv sim/tb_wb_channel.sv | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl \
+	  -s tb_wb_channel \
+	  -o $@ rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv sim/tb_wb_channel.sv
 
 $(SIM_BUILD)/micron_init_script.vvp: sim/tb_micron_init_script.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I sim/vendor \

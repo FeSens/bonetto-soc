@@ -27,16 +27,19 @@ The active RTL slices are deliberately small and scheduler-facing:
 - `ddr3_wb_frontend.sv`: single-outstanding Wishbone-to-BL8 frontend that
   splits word addresses into line address and word index, places write data and
   byte masks into a BL8 line, and selects read words from backend response
-  lines.
+  lines;
+- `ddr3_wb_channel.sv`: first integration slice connecting the Wishbone
+  frontend to the full-channel BL8 line packetizer and exposing a
+  scheduler-facing line command.
 
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with the byte-lane packetizer feeding an ideal
 testbench DQS/DQ agent. The bank machine, scheduler, and refresh requester are
 the first scheduler-owned blocks, and the refresh requester now has idle plus
-focused active-traffic deadline proofs. The data boundary has both one x8 lane
-and one full 64-bit-channel line packetizer. There is still no pin-level
-controller-owned DQS/DQ PHY, integrated controller, calibration, dual-channel
-wrapper, or hardware-validated DDR3 path.
+focused active-traffic deadline proofs. The data boundary has one x8 lane, one
+full 64-bit-channel line packetizer, and a first Wishbone-to-channel bridge.
+There is still no pin-level controller-owned DQS/DQ PHY, integrated
+controller, calibration, dual-channel wrapper, or hardware-validated DDR3 path.
 
 Rules for adding new RTL:
 
@@ -51,5 +54,5 @@ Recommended first RTL slices:
 - typed mode-register field helpers,
 - a real controller-owned PHY bridge from the byte-lane packet stream to DQS/DQ
   timing against one Micron x8 model,
-- a backend merge/read-modify-write path connecting the Wishbone frontend to
-  scheduler requests and byte-lane packets.
+- a backend merge/read-modify-write path connecting the Wishbone channel bridge
+  to scheduler requests and byte-lane packets.
