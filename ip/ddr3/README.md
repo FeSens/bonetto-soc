@@ -7,9 +7,10 @@ small and verification-first until the new design has a proven command core,
 Micron-model simulation, and hardware evidence at each speed step.
 
 The active board-level hardware baseline now has four YPCB-00338 pre-PHY
-gates, two timing-clean route-only DQ/DQS probes, and one explicitly marked
-timing-failed PHY-clock experiment. The
-line-controller loopback keeps the BRAM-only JTAG/Wishbone proof alive and
+gates, two timing-clean full-bus route-only DQ/DQS probes, experimental
+SERDES route probes, and one explicitly marked timing-failed PHY-clock
+experiment. The line-controller
+loopback keeps the BRAM-only JTAG/Wishbone proof alive and
 routes traffic through the clean dual-channel line controller. The line-to-lane
 loopback inserts the reusable `ddr3_line_to_lanes` RTL between the line
 controller and internal lane memories. The command-probe image drives the board
@@ -20,10 +21,38 @@ and IOBUF/IOBUFDS shell can route at the 400 MHz DDR3-800 bit-clock target with
 the DDR3 devices held in reset. The burst route probe puts one
 `ddr3_x8_burst_io_sequencer` per physical byte lane in front of that shell, using
 the sequencer's route-only fast-accept branch so the full board pinout is timed
-with local BL8 write-launch traffic. The D88 PHY-clock bridge
-experiment is retained only as evidence that wide soft line/lane timing fabric
-does not belong in that bit-clock domain. External DDR3 storage is still not
-validated.
+with local BL8 write-launch traffic. The SERDES probe instantiates the
+board-local OSERDESE2/ISERDESE2/IDELAYE2 x8 shell with a 200 MHz IDELAY
+reference clock, IDELAYCTRL, a shared `DDR3_SERDES_PROBE` IODELAY group, and
+LiteDRAM/UberDDR3-style SERDES clocking and tri-state parameters. The tight CH0
+lane-0 bidirectional DDR3-800 diagnostic preserves 9 OSERDESE2, 9 ISERDESE2,
+and 9 IDELAYE2 cells but stalls with fixed router2 overuse 18. The same netlist
+routes and generates a bitstream with router1 at the 400 MHz route target, with
+post-route `clk_idelay_ref` reported at 791.14 MHz and `clk_sys` at 1557.63
+MHz. The full CH0 and CH1 SERDES probes also route independently with router1,
+each preserving 81 OSERDESE2, 81 ISERDESE2, and 81 IDELAYE2 cells. CH0 reports
+post-route `clk_idelay_ref` at 713.78 MHz and CH1 reports 781.86 MHz, both with
+`clk_sys` at 1557.63 MHz against the 400 MHz target. The complete CH0+CH1
+target now routes and generates a bitstream with router1 while preserving
+162 OSERDESE2, 162 ISERDESE2, 162 IDELAYE2, and 6 IDELAYCTRL cells; post-route
+timing reports `clk_idelay_ref` at 683.53 MHz and `clk_sys` at 1557.63 MHz. The
+same complete target still stalls with router2 at overuse 324, so router
+selection is currently part of the evidence. The same tight lane routes and
+generates bitstreams when split into TX-only
+OSERDESE2/IOBUF/IOBUFDS or RX-only IDELAYE2/ISERDESE2/IOBUF/IOBUFDS
+diagnostics, both at the 400 MHz route target. The tight no-IDELAY
+bidirectional diagnostic also routes and generates a bitstream with 9
+OSERDESE2, 9 ISERDESE2, 0 IDELAYE2, and post-route `clk_sys` at 1557.63 MHz
+against the 400 MHz target. Those diagnostics show the primitive topology is
+usable, but router2 cannot currently finish the combined bidirectional SERDES
+plus IDELAYE2 topology: lane0 stalls at overuse 18 and the full dual-channel
+target stalls at overuse 324. A split-buffer experiment using separate
+`OBUFT`/`IBUF` primitives is not a valid workaround in this openXC7/nextpnr
+flow: nextpnr rejects shared top-level DDR3 pads before route, so the canonical
+`IOBUF`/`IOBUFDS` representation remains the usable model. The D88 PHY-clock
+bridge experiment is retained only as evidence that wide soft line/lane timing
+fabric does not belong in that
+bit-clock domain. External DDR3 storage is still not validated.
 
 ## Status
 
@@ -33,7 +62,7 @@ validated.
 | Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, line-to-x8-burst adapter proof, x8 lane PHY timing-core proof, fast-domain x8 burst I/O sequencer proof, x8 burst clock-bridge proof, line-to-fast-burst PHY-shell proof, line-to-lane PHY bridge proof, controller-to-PHY line clock bridge proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
 | Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, line-to-x8-burst adapter unit test, x8 lane PHY timing-core unit test, fast-domain x8 burst I/O sequencer unit test, x8 burst clock-bridge dual-clock unit test, line-to-fast-burst PHY shell unit test, line-to-lane PHY bridge unit test, controller-to-PHY line clock bridge dual-clock unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
-| Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, command-probe, command plus line-to-lane loopback, route-only full-pin DQ/DQS I/O-shell timing proof, and route-only full-pin x8 burst/DQ/DQS timing proof; D88 PHY-clock bridge is debug evidence only and its program target is refused by default because it misses the 400 MHz bit-clock target; not external DDR3 storage |
+| Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, command-probe, command plus line-to-lane loopback, route-only full-pin DQ/DQS I/O-shell timing proof, route-only full-pin x8 burst/DQ/DQS timing proof, and route-only full dual-channel SERDES/IDELAY timing proof through router1; D88 PHY-clock bridge is debug evidence only and its program target is refused by default because it misses the 400 MHz bit-clock target; not external DDR3 storage |
 
 ## Live Gates
 
@@ -61,6 +90,13 @@ make -C boards/ypcb-00338 program-ddr3-ctrl-line-cmdlaneloop-ddr800
 make -C boards/ypcb-00338 validate-ddr3-ctrl-line-cmdlaneloop
 make -C boards/ypcb-00338 ddr3-dq-dqs-iobuf-ddr800-bitstream
 make -C boards/ypcb-00338 ddr3-dq-dqs-burst-ddr800-bitstream
+make -C boards/ypcb-00338 ddr3-dq-dqs-serdes-lane0-tight-txonly-ddr800-bitstream
+make -C boards/ypcb-00338 ddr3-dq-dqs-serdes-lane0-tight-rxonly-ddr800-bitstream
+make -C boards/ypcb-00338 ddr3-dq-dqs-serdes-lane0-tight-nodelay-ddr800-bitstream
+make -C boards/ypcb-00338 ddr3-dq-dqs-serdes-lane0-tight-router1-ddr800-bitstream
+make -C boards/ypcb-00338 ddr3-dq-dqs-serdes-ch0-router1-ddr800-bitstream
+make -C boards/ypcb-00338 ddr3-dq-dqs-serdes-ch1-router1-ddr800-bitstream
+make -C boards/ypcb-00338 ddr3-dq-dqs-serdes-router1-ddr800-bitstream
 ```
 
 Debug-only artifact:
@@ -276,6 +312,24 @@ What these mean today:
   seed-1 route met the 400 MHz `clk_dq` target without `--timing-allow-fail`;
   nextpnr reported 448.43 MHz. DDR3 reset still stays asserted and CKE low, so
   this proves route shape for local BL8 DQ/DQS launch, not external storage.
+- `ddr3-dq-dqs-serdes-lane0-tight-txonly-ddr800-bitstream` and
+  `ddr3-dq-dqs-serdes-lane0-tight-rxonly-ddr800-bitstream` are focused
+  diagnostics for the future SERDES PHY shell. Both generated bitstreams at the
+  400 MHz route target on 2026-05-20. The combined tight bidirectional lane0
+  target stalls with fixed router2 overuse 18, but the same netlist routes with
+  router1 and generates a bitstream, so the open issue is router2 handling of
+  the shared bidirectional DQ/DQS IOB topology when TX, RX, and IDELAYE2 are all
+  live.
+- `ddr3-dq-dqs-serdes-ch0-router1-ddr800-bitstream`,
+  `ddr3-dq-dqs-serdes-ch1-router1-ddr800-bitstream`, and
+  `ddr3-dq-dqs-serdes-router1-ddr800-bitstream` are route-only DDR3-800 SERDES
+  scale gates. On 2026-05-20, CH0 and CH1 each generated bitstreams with
+  81 OSERDESE2, 81 ISERDESE2, and 81 IDELAYE2 cells. The full CH0+CH1 target
+  generated a bitstream with 162 OSERDESE2, 162 ISERDESE2, 162 IDELAYE2, and
+  6 IDELAYCTRL cells; post-route timing reported `clk_idelay_ref` at 683.53 MHz
+  and `clk_sys` at 1557.63 MHz against the 400 MHz route target. This remains a
+  route/timing proof only: DDR3 reset stays asserted, CKE stays low, and no
+  external read/write storage is validated.
 
 ## Directory Map
 
@@ -298,8 +352,12 @@ What these mean today:
 | `rtl/ddr3_line_lane_phy.sv` | Integration bridge from complete channel BL8 lines through all x8 lane PHY timing cores, exposing abstract per-lane DQ/DQS/DM timing signals for the future board primitive wrapper. |
 | `rtl/ddr3_line_phy_clock_bridge.sv` | Single-outstanding controller/PHY clock bridge for complete BL8 line payloads and transfer-start/read-return handshakes; useful boundary, not a full DDR bit-clock PHY. |
 | `../../boards/ypcb-00338/rtl/ddr3_board_io.sv` | Board-local 7-series clock, command, high-Z, and DQ/DQS primitive wrappers for staged hardware bring-up. |
+| `../../boards/ypcb-00338/rtl/ddr3_serdes_io.sv` | Board-local 7-series x8 OSERDESE2/ISERDESE2/IDELAYE2 pin shell for route-probing the future DQ/DQS PHY boundary. |
 | `../../boards/ypcb-00338/rtl/top_ddr3_dq_dqs_iobuf_probe.sv` | Route-only full-pin DDR3-800 DQ/DQS ODDR/IDDR/IOBUF probe with DDR3 reset held active. |
 | `../../boards/ypcb-00338/rtl/top_ddr3_dq_dqs_burst_probe.sv` | Route-only full-pin DDR3-800 probe with one x8 burst sequencer per byte lane driving the DQ/DQS shell while DDR3 reset stays active. |
+| `../../boards/ypcb-00338/rtl/top_ddr3_dq_dqs_serdes_probe.sv` | Experimental route-only DDR3-800 SERDES primitive probe for full-top and full dual-channel route diagnostics. The bidirectional dual-channel target preserves 162 OSERDESE2, 162 ISERDESE2, and 162 IDELAYE2 cells; router2 stalls with overuse 324, while router1 routes and generates a timing-clean bitstream. |
+| `../../boards/ypcb-00338/rtl/top_ddr3_dq_dqs_serdes_lane_probe.sv` | Tighter CH0 lane-0 SERDES diagnostic that exposes only the CH0 command pins plus one x8 DQ/DQS lane. Bidirectional TX+RX preserves 9 OSERDESE2, 9 ISERDESE2, and 9 IDELAYE2 cells; router2 stalls with overuse 18, router1 routes and generates a bitstream, and TX-only/RX-only split diagnostics each route and generate bitstreams at 400 MHz. |
+| `../../boards/ypcb-00338/constraints/ddr3_ch0_lane0_scalar_dqs.xdc` | Scalar DQS overlay for the one-lane SERDES diagnostic, needed because a `[0:0]` SystemVerilog port is emitted as scalar `ddr3_dqs_p`/`ddr3_dqs_n`. |
 | `rtl/ddr3_wb_frontend.sv` | Single-outstanding Wishbone-to-BL8 frontend for 32-bit word packing, byte masks, and read word selection; retained for focused frontend proof coverage. |
 | `rtl/ddr3_wb_line_channel.sv` | Line-level Wishbone bridge that presents a complete write line before scheduler command acceptance and acknowledges reads only after a returned line; optional no-DM mode performs read-modify-write before full-line writes. |
 | `rtl/ddr3_wb_channel.sv` | Integration slice tying the line-level Wishbone bridge to the full-channel line packetizer and exposing one BL8 line command. |

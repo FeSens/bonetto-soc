@@ -33,6 +33,39 @@ IOBUF/IOBUFDS shell; the second adds one local x8 burst sequencer per physical
 byte lane. Both hold the DDR3 devices in reset with CKE low, so they are timing
 and pin-route evidence only.
 
+`top_ddr3_dq_dqs_serdes_probe` is the first route-only 7-series
+OSERDESE2/ISERDESE2/IDELAYE2 x8-lane shell. It is intentionally experimental:
+it now carries a 200 MHz IDELAY reference clock, IDELAYCTRL, a shared
+`DDR3_SERDES_PROBE` IODELAY group, and LiteDRAM/UberDDR3-style SERDES clocking
+and tri-state parameters. The tight CH0 lane-0 bidirectional target still
+preserves 9 OSERDESE2, 9 ISERDESE2, and 9 IDELAYE2 cells but router2 stalls
+with fixed overuse 18. The same netlist routes and generates a bitstream with
+router1 at the 400 MHz route target, with post-route `clk_idelay_ref` reported
+at 791.14 MHz and `clk_sys` at 1557.63 MHz. The full CH0 and CH1 SERDES probes
+also route independently with router1, each preserving 81 OSERDESE2,
+81 ISERDESE2, and 81 IDELAYE2 cells. CH0 reports post-route `clk_idelay_ref` at
+713.78 MHz and CH1 reports 781.86 MHz, both with `clk_sys` at 1557.63 MHz
+against the 400 MHz target. Most importantly, the complete CH0+CH1 target now
+routes and generates a bitstream with router1 while preserving 162 OSERDESE2,
+162 ISERDESE2, 162 IDELAYE2, and 6 IDELAYCTRL cells; post-route timing reports
+`clk_idelay_ref` at 683.53 MHz and `clk_sys` at 1557.63 MHz. The same tight
+lane also routes and generates bitstreams when split into TX-only
+OSERDESE2/IOBUF/IOBUFDS or RX-only
+IDELAYE2/ISERDESE2/IOBUF/IOBUFDS diagnostics, both at the 400 MHz DDR3-800
+route target. A third diagnostic,
+`ddr3-dq-dqs-serdes-lane0-tight-nodelay-ddr800-bitstream`, keeps the same
+bidirectional OSERDESE2/ISERDESE2/IOBUF/IOBUFDS lane but removes IDELAYE2; it
+routes and generates a bitstream with 9 OSERDESE2, 9 ISERDESE2, and 0 IDELAYE2,
+with `clk_sys` reported at 1557.63 MHz against the 400 MHz route target. Those
+diagnostics show the primitive topology is usable, but router2 cannot currently
+finish the combined bidirectional SERDES plus IDELAYE2 topology: lane0 stalls
+at overuse 18 and the full dual-channel target stalls at overuse 324.
+A split-buffer experiment using separate `OBUFT`/`IBUF` primitives is not a
+valid workaround in this openXC7/nextpnr flow: nextpnr rejects shared top-level
+DDR3 pads before route, so the canonical `IOBUF`/`IOBUFDS` representation
+remains the usable model. Router selection is therefore part of the current
+route evidence. This probe is not a hardware memory validator.
+
 ## Historical DDR3 Configuration
 
 The previous DDR3 controller/PHY RTL has been reset. The notes below are kept

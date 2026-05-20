@@ -74,6 +74,7 @@ module top_ddr3_init_probe (
         .o_clk_sys(clk_sys),
         .o_clk_ddr(clk_ddr),
         .o_clk_dq(clk_dq),
+        .o_clk_idelay_ref(),
         .o_locked(pll_locked)
     );
 

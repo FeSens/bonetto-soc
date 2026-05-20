@@ -12,12 +12,14 @@ module ddr3_800_clocking (
     output wire o_clk_sys,
     output wire o_clk_ddr,
     output wire o_clk_dq,
+    output wire o_clk_idelay_ref,
     output wire o_locked
 );
     wire clkfb;
     wire clk_sys_raw;
     wire clk_ddr_raw;
     wire clk_dq_raw;
+    wire clk_idelay_ref_raw;
 
     PLLE2_ADV #(
         .CLKIN1_PERIOD(20.0),
@@ -27,6 +29,7 @@ module ddr3_800_clocking (
         .CLKOUT1_DIVIDE(2),
         .CLKOUT2_DIVIDE(2),
         .CLKOUT2_PHASE(90.0),
+        .CLKOUT3_DIVIDE(4),
         .COMPENSATION("INTERNAL"),
         .STARTUP_WAIT("FALSE")
     ) u_pll (
@@ -40,7 +43,7 @@ module ddr3_800_clocking (
         .CLKOUT0(clk_sys_raw),
         .CLKOUT1(clk_ddr_raw),
         .CLKOUT2(clk_dq_raw),
-        .CLKOUT3(),
+        .CLKOUT3(clk_idelay_ref_raw),
         .CLKOUT4(),
         .CLKOUT5(),
         .LOCKED(o_locked),
@@ -56,6 +59,30 @@ module ddr3_800_clocking (
     BUFG u_bufg_sys (.I(clk_sys_raw), .O(o_clk_sys));
     BUFG u_bufg_ddr (.I(clk_ddr_raw), .O(o_clk_ddr));
     BUFG u_bufg_dq  (.I(clk_dq_raw),  .O(o_clk_dq));
+    BUFG u_bufg_idelay_ref (.I(clk_idelay_ref_raw), .O(o_clk_idelay_ref));
+endmodule
+
+module ddr3_idelayctrl_7series (
+    input  wire i_clk_ref,
+    input  wire i_rst,
+    output wire o_ready
+);
+    reg [5:0] rst_ctr = 6'h3f;
+
+    always @(posedge i_clk_ref) begin
+        if (i_rst) begin
+            rst_ctr <= 6'h3f;
+        end else if (rst_ctr != 6'd0) begin
+            rst_ctr <= rst_ctr - 6'd1;
+        end
+    end
+
+    (* IODELAY_GROUP = "DDR3_SERDES_PROBE" *)
+    IDELAYCTRL u_idelayctrl (
+        .RDY(o_ready),
+        .REFCLK(i_clk_ref),
+        .RST(i_rst || (rst_ctr != 6'd0))
+    );
 endmodule
 
 module ddr3_ck_out_7series (

@@ -179,6 +179,16 @@ DDR3_DQ_DQS_BURST_PROBE_RTL := \
     rtl/ddr3_board_io.sv \
     ../../ip/ddr3/rtl/ddr3_x8_burst_io_sequencer.sv
 
+DDR3_DQ_DQS_SERDES_PROBE_RTL := \
+    rtl/top_ddr3_dq_dqs_serdes_probe.sv \
+    rtl/ddr3_board_io.sv \
+    rtl/ddr3_serdes_io.sv
+
+DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL := \
+    rtl/top_ddr3_dq_dqs_serdes_lane_probe.sv \
+    rtl/ddr3_board_io.sv \
+    rtl/ddr3_serdes_io.sv
+
 BUILD  := build
 CHIPDB := $(BUILD)/chipdb
 
@@ -207,6 +217,18 @@ DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 .PHONY: ddr3-ctrl-line-phyclkloop-ddr800-json ddr3-ctrl-line-phyclkloop-ddr800-bitstream program-ddr3-ctrl-line-phyclkloop-ddr800 validate-ddr3-ctrl-line-phyclkloop
 .PHONY: ddr3-dq-dqs-iobuf-ddr800-json ddr3-dq-dqs-iobuf-ddr800-bitstream
 .PHONY: ddr3-dq-dqs-burst-ddr800-json ddr3-dq-dqs-burst-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-lane0-ddr800-json ddr3-dq-dqs-serdes-lane0-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-lane0-tight-ddr800-json ddr3-dq-dqs-serdes-lane0-tight-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-lane0-tight-router1-ddr800-json ddr3-dq-dqs-serdes-lane0-tight-router1-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-lane0-tight-nodelay-ddr800-json ddr3-dq-dqs-serdes-lane0-tight-nodelay-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-lane0-tight-txonly-ddr800-json ddr3-dq-dqs-serdes-lane0-tight-txonly-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-lane0-tight-rxonly-ddr800-json ddr3-dq-dqs-serdes-lane0-tight-rxonly-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-ch0-ddr800-json ddr3-dq-dqs-serdes-ch0-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-ch0-router1-ddr800-json ddr3-dq-dqs-serdes-ch0-router1-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-ch1-ddr800-json ddr3-dq-dqs-serdes-ch1-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-ch1-router1-ddr800-json ddr3-dq-dqs-serdes-ch1-router1-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-ddr800-json ddr3-dq-dqs-serdes-ddr800-bitstream
+.PHONY: ddr3-dq-dqs-serdes-router1-ddr800-json ddr3-dq-dqs-serdes-router1-ddr800-bitstream
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -427,6 +449,262 @@ ddr3-dq-dqs-burst-ddr800-bitstream:
 	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_burst_ddr800_seed1_route.log" \
 	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_burst_ddr800.bit
 
+ddr3-dq-dqs-serdes-lane0-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_ACTIVE_LANES=1" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_ddr800.json
+
+ddr3-dq-dqs-serdes-lane0-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_ACTIVE_LANES=1" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_serdes_lane0_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_ddr800.bit
+
+ddr3-dq-dqs-serdes-lane0-tight-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_ddr800.json
+
+ddr3-dq-dqs-serdes-lane0-tight-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_serdes_lane0_tight_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_ddr800.bit
+
+ddr3-dq-dqs-serdes-lane0-tight-router1-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_router1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_router1_ddr800.json
+
+ddr3-dq-dqs-serdes-lane0-tight-router1-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_router1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--router router1 --seed 1 --log build/ddr3_dq_dqs_serdes_lane0_tight_router1_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_router1_ddr800.bit
+
+ddr3-dq-dqs-serdes-lane0-tight-nodelay-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_nodelay_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_USE_IDELAY=0" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_nodelay_ddr800.json
+
+ddr3-dq-dqs-serdes-lane0-tight-nodelay-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_nodelay_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_USE_IDELAY=0" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_serdes_lane0_tight_nodelay_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_nodelay_ddr800.bit
+
+ddr3-dq-dqs-serdes-lane0-tight-txonly-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_txonly_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_ENABLE_RX=0" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_txonly_ddr800.json
+
+ddr3-dq-dqs-serdes-lane0-tight-txonly-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_txonly_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_ENABLE_RX=0" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_serdes_lane0_tight_txonly_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_txonly_ddr800.bit
+
+ddr3-dq-dqs-serdes-lane0-tight-rxonly-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_rxonly_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_ENABLE_TX=0" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_rxonly_ddr800.json
+
+ddr3-dq-dqs-serdes-lane0-tight-rxonly-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_rxonly_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_lane_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch0_lane0_scalar_dqs.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_ENABLE_TX=0" \
+	  DDR3_ACTIVE_DQ_MAX=7 \
+	  DDR3_ACTIVE_DQS_MAX=0 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_serdes_lane0_tight_rxonly_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_lane0_tight_rxonly_ddr800.bit
+
+ddr3-dq-dqs-serdes-ch0-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch0_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_FIRST_LANE=0 -DDDR3_SERDES_ACTIVE_LANES=9" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch0_ddr800.json
+
+ddr3-dq-dqs-serdes-ch0-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch0_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_FIRST_LANE=0 -DDDR3_SERDES_ACTIVE_LANES=9" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_serdes_ch0_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch0_ddr800.bit
+
+ddr3-dq-dqs-serdes-ch0-router1-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch0_router1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_FIRST_LANE=0 -DDDR3_SERDES_ACTIVE_LANES=9" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch0_router1_ddr800.json
+
+ddr3-dq-dqs-serdes-ch0-router1-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch0_router1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_FIRST_LANE=0 -DDDR3_SERDES_ACTIVE_LANES=9" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--router router1 --seed 1 --log build/ddr3_dq_dqs_serdes_ch0_router1_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch0_router1_ddr800.bit
+
+ddr3-dq-dqs-serdes-ch1-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_FIRST_LANE=9 -DDDR3_SERDES_ACTIVE_LANES=9" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch1_ddr800.json
+
+ddr3-dq-dqs-serdes-ch1-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_FIRST_LANE=9 -DDDR3_SERDES_ACTIVE_LANES=9" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_serdes_ch1_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch1_ddr800.bit
+
+ddr3-dq-dqs-serdes-ch1-router1-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch1_router1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_FIRST_LANE=9 -DDDR3_SERDES_ACTIVE_LANES=9" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch1_router1_ddr800.json
+
+ddr3-dq-dqs-serdes-ch1-router1-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch1_router1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_DEFINES="-DDDR3_SERDES_FIRST_LANE=9 -DDDR3_SERDES_ACTIVE_LANES=9" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--router router1 --seed 1 --log build/ddr3_dq_dqs_serdes_ch1_router1_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ch1_router1_ddr800.bit
+
+ddr3-dq-dqs-serdes-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ddr800.json
+
+ddr3-dq-dqs-serdes-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --log build/ddr3_dq_dqs_serdes_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_ddr800.bit
+
+ddr3-dq-dqs-serdes-router1-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_router1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_router1_ddr800.json
+
+ddr3-dq-dqs-serdes-router1-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_router1_ddr800 \
+	  TOP=top_ddr3_dq_dqs_serdes_probe \
+	  RTL="$(DDR3_DQ_DQS_SERDES_PROBE_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--router router1 --seed 1 --log build/ddr3_dq_dqs_serdes_router1_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_dq_dqs_serdes_router1_ddr800.bit
+
 DDR3_DISABLED_TARGETS := \
     full-ch0-json \
     full-ch0-ddr800-bitstream \
@@ -467,7 +745,7 @@ $(CHIPDB)/$(DBPART).bin: | $(CHIPDB)
 	rm -f $(BUILD)/$(DBPART).bba
 
 $(XDC): $(XDC_FILES) Makefile | $(BUILD)
-	perl -ne 'next if /ddr3_dq\[(\d+)\]/ && $$1 > $(DDR3_ACTIVE_DQ_MAX); next if /ddr3_dqs_[pn]\[(\d+)\]/ && $$1 > $(DDR3_ACTIVE_DQS_MAX); print' $(XDC_FILES) > $@
+	perl -ne 'next if /ddr3_dq\[(\d+)\]/ && $$1 > $(DDR3_ACTIVE_DQ_MAX); next if /ddr3_dqs_(?:p|n)\[(\d+)\]/ && $$1 > $(DDR3_ACTIVE_DQS_MAX); print' $(XDC_FILES) > $@
 
 $(BUILD)/$(PROJECT).fasm: $(BUILD)/$(PROJECT).json $(CHIPDB)/$(DBPART).bin $(XDC) Makefile
 	nextpnr-xilinx $(NEXTPNR_ARGS) --chipdb $(CHIPDB)/$(DBPART).bin --xdc $(XDC) --json $(BUILD)/$(PROJECT).json --freq $(NEXTPNR_FREQ) --fasm $@
@@ -716,6 +994,14 @@ help:
 	@echo "  make validate-ddr3-ctrl-line-phyclkloop          debug-only immediate readback through PHY-clock probe"
 	@echo "  make ddr3-dq-dqs-iobuf-ddr800-bitstream         route-only tiny DQ/DQS I/O-shell probe"
 	@echo "  make ddr3-dq-dqs-burst-ddr800-bitstream         route-only x8 burst sequencer plus DQ/DQS shell"
+	@echo "  make ddr3-dq-dqs-serdes-lane0-tight-ddr800-bitstream         route-only lane0 bidirectional SERDES probe"
+	@echo "  make ddr3-dq-dqs-serdes-lane0-tight-router1-ddr800-bitstream route-only lane0 bidirectional SERDES via router1"
+	@echo "  make ddr3-dq-dqs-serdes-lane0-tight-nodelay-ddr800-bitstream route-only lane0 bidirectional SERDES without IDELAY"
+	@echo "  make ddr3-dq-dqs-serdes-lane0-tight-txonly-ddr800-bitstream  route-only lane0 OSERDES/IOBUF split probe"
+	@echo "  make ddr3-dq-dqs-serdes-lane0-tight-rxonly-ddr800-bitstream  route-only lane0 IDELAY/ISERDES split probe"
+	@echo "  make ddr3-dq-dqs-serdes-ch0-router1-ddr800-bitstream         route-only CH0 SERDES via router1"
+	@echo "  make ddr3-dq-dqs-serdes-ch1-router1-ddr800-bitstream         route-only CH1 SERDES via router1"
+	@echo "  make ddr3-dq-dqs-serdes-router1-ddr800-bitstream             route-only CH0+CH1 SERDES via router1"
 	@echo "  make bram-echo       interactive BRAM echo terminal through XVC/JTAG-WB"
 	@echo "  make bram-transform  interactive transformed-read terminal"
 	@echo "  make memtest         program active proof + describe LEDs"
