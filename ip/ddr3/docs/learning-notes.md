@@ -97,7 +97,10 @@ Required future simulation stages:
    pin phasing and active-high DM masked-write merge expected from the future
    RTL bridge.
 12. Full channel: eight x8 models for 64-bit data, then optional ECC lane.
-13. Dual channel: two independent full-channel model stacks.
+13. Dual channel: two independent full-channel model stacks. A first
+    dual-channel full-width `ddr3_ctrl` loopback now exists in simulation using
+    sixteen Micron x8 models and the reusable x8 timing agents; the
+    controller-owned PHY remains pending.
 
 ## Architecture Direction
 

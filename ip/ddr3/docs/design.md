@@ -137,7 +137,9 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
     scheduler acceptance and RD/WR data-transfer start are separate events.
 17. One init-gated dual-channel controller shell. This exists now and is
     validated by a focused pre-init gate proof plus a post-init write/read
-    scheduler integration simulation.
+    scheduler integration simulation. A Micron regression also runs the shell
+    through sixteen x8 models, one full 64-bit write/read loopback per channel,
+    using the simulation-only x8 timing agents.
 18. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing. A
     reusable simulation-only x8 timing agent exists now to keep Micron DQS/DQ/DM
     phasing and active-high DM merge behavior in regression while this RTL is

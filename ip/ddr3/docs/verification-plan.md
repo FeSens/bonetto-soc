@@ -74,13 +74,15 @@ Current coverage:
   coincides with the expected RD/WR command. The controller shell unit bench
   waits for both init sequencers, then runs a channel-0 write and channel-1
   read through scheduler-issued DDR3 WR/RD commands and the full-channel packet
-  data path. The protocol benches fail if the model reports timing or protocol
-  errors or warnings.
+  data path. The controller-level Micron bench then wires both channels through
+  sixteen x8 models and performs one full-width write/read loopback per channel.
+  The protocol benches fail if the model reports timing or protocol errors or
+  warnings.
 
 Current non-coverage:
 
-- no pin-level controller-owned DQS/DQ PHY, calibration, Micron-model runtime
-  loopback through `ddr3_ctrl`, or full memory data path exists yet;
+- no pin-level controller-owned DQS/DQ PHY, calibration, or hardware memory
+  data path exists yet;
 - no PHY, board DQS/DQ, leveling, or hardware DDR3 path is validated by these
   gates.
 
@@ -128,6 +130,7 @@ Use the real Micron model for protocol validation:
 | Wishbone dual-channel unit | address decoder + two Wishbone channel bridges | channel-0 write and channel-1 read dispatch to independent command/data ports |
 | Channel scheduler unit | scheduler adapter + refresh requester + scheduler | line requests produce matching RD/WR command issue and transfer-start pulses |
 | Controller shell unit | init + dual-channel Wishbone dispatch + two scheduler adapters + packetized line ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR |
+| Controller Micron dual-channel | init + dual-channel Wishbone dispatch + two scheduler adapters + sixteen x8 timing agents/models | channel-0 and channel-1 full-width write/read loopbacks pass without Micron model errors or warnings |
 | Runtime x8 | controller + one x8 model | controller-owned DQS/DQ write/read patterns pass |
 | Full channel | controller + eight x8 models | every 64 data bits and byte lane pass |
 | Dual channel | two full-channel stacks | both channels pass independent and interleaved traffic |

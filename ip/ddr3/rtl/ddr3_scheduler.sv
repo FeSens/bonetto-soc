@@ -86,6 +86,7 @@ module ddr3_scheduler #(
 
     reg issue_valid;
     reg [BANK_BITS-1:0] issue_bank;
+    reg [BANKS-1:0] suppress_issued_bank;
     reg [1:0] refresh_state;
 
     localparam [1:0]
@@ -205,6 +206,7 @@ module ddr3_scheduler #(
         for (k = 0; k < BANKS; k = k + 1) begin
             if (!issue_valid &&
                 bank_cmd_valid[k] &&
+                !suppress_issued_bank[k] &&
                 ({bank_cs_n[k], bank_ras_n[k], bank_cas_n[k], bank_we_n[k]} != CMD_NOP) &&
                 ({bank_cs_n[k], bank_ras_n[k], bank_cas_n[k], bank_we_n[k]} != CMD_DES) &&
                 global_ready({bank_cs_n[k], bank_ras_n[k], bank_cas_n[k], bank_we_n[k]})) begin
@@ -235,6 +237,7 @@ module ddr3_scheduler #(
             t_wtr_wait <= 8'd0;
             t_rfc_wait <= 8'd0;
             act_window <= {T_FAW{1'b0}};
+            suppress_issued_bank <= {BANKS{1'b0}};
             refresh_state <= REF_IDLE;
             o_refresh_ack <= 1'b0;
             o_cmd_valid <= 1'b1;
@@ -249,6 +252,7 @@ module ddr3_scheduler #(
             t_ccd_wait <= dec_wait(t_ccd_wait);
             t_wtr_wait <= dec_wait(t_wtr_wait);
             act_window <= {act_window[T_FAW-2:0], 1'b0};
+            suppress_issued_bank <= {BANKS{1'b0}};
             o_refresh_ack <= 1'b0;
 
             o_cmd_valid <= 1'b1;
@@ -301,6 +305,7 @@ module ddr3_scheduler #(
                 o_we_n  <= bank_we_n[issue_bank];
                 o_ba    <= bank_ba[issue_bank];
                 o_addr  <= bank_addr[issue_bank];
+                suppress_issued_bank[issue_bank] <= 1'b1;
 
                 if ({bank_cs_n[issue_bank], bank_ras_n[issue_bank],
                      bank_cas_n[issue_bank], bank_we_n[issue_bank]} == CMD_ACT) begin
