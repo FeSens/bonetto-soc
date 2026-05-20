@@ -15,6 +15,13 @@ and command/address pins from per-channel init/refresh sequencers, and exposes
 status over USER1 JTAG. DQ/DQS are intentionally high-Z in this image, so it is an
 init/clock/constraint probe only, not a memory read/write validator.
 
+The next fresh DDR3 hardware gate is `top_ddr3_ctrl_loopback`. It keeps the
+full CH0 + CH1 DDR3 pinout constrained but holds the external DDR3 devices in
+reset and validates JTAG/Wishbone writes and reads through the clean
+dual-channel DDR3 controller, scheduler, and BL8 line packetizer using an
+internal loopback PHY. This target runs that fabric path at 50 MHz because it
+is a controller sanity image, not a DDR3 bus timing image.
+
 ## Historical DDR3 Configuration
 
 The previous DDR3 controller/PHY RTL has been reset. The notes below are kept
@@ -50,7 +57,8 @@ to synthesize or program stale RTL:
 DDR3 RTL is reset; use jtag-bram-bitstream until a fresh DDR3 image exists.
 ```
 
-Use the explicit init-probe targets for the current fresh DDR3 hardware step:
+Use the explicit init-probe targets for the current fresh DDR3 pin/clock/init
+hardware step:
 
 ```sh
 make -C boards/ypcb-00338 ddr3-init-ddr800-bitstream
@@ -63,10 +71,30 @@ That validator requires version `0xB07E0D80`, PLL lock, live generated clocks,
 both channel init sequencers done, and no late refresh. It deliberately does
 not validate the full DDR3 memory path.
 
+Use the controller-loopback targets for the current fresh DDR3 controller
+fabric proof:
+
+```sh
+make -C boards/ypcb-00338 ddr3-ctrl-loopback-ddr800-bitstream
+make -C boards/ypcb-00338 program-ddr3-ctrl-loopback-ddr800
+make -C boards/ypcb-00338 xvc
+make -C boards/ypcb-00338 validate-ddr3-ctrl-loopback
+```
+
+That validator requires version `0xB07E0D81`, loopback init done, PLL lock,
+BRAM sanity, deterministic dual-channel write/read patterns, same-line partial
+writes, randomized dual-channel write/read patterns, and nonzero loopback
+counters on both channels. It deliberately does not validate external DDR3
+storage because DQ/DQS remain disconnected from the controller.
+
 `ddr3-init-ddr800-bitstream` routes with nextpnr's single global `--freq 400`
 check and `--timing-allow-fail`. Read the route log per clock: the DDR launch
 clocks must pass 400 MHz, while the board input/status and 100 MHz control
 domains are not intended to meet a 400 MHz constraint.
+
+`ddr3-ctrl-loopback-ddr800-bitstream` routes the controller fabric at
+`--freq 50`; its route log must pass that target. Do not use this target as
+evidence for DDR3-800 external timing.
 
 For pin work, use the public board reference archive rather than deriving pins
 from the current reduced top:
@@ -135,8 +163,10 @@ make validate-jtag-bram BOARD=ypcb-00338
 
 The BRAM validator runs direct JTAG/Wishbone accesses through XVC and requires
 readback from both BRAM banks. `validate-ddr3-init` checks only the fresh
-DDR3-800 init probe status. Full DDR3 memory validation remains blocked until a
-real DQ/DQS PHY is wired to the clean controller.
+DDR3-800 init probe status. `validate-ddr3-ctrl-loopback` checks live
+JTAG/Wishbone writes and reads through the clean dual-channel controller and an
+internal loopback PHY. Full DDR3 memory validation remains blocked until a real
+DQ/DQS PHY is wired to the clean controller.
 
 ## Status Registers
 
@@ -170,6 +200,19 @@ Key DDR3 init-probe registers:
 | `0x18` | board reference clock liveness |
 | `0x20`..`0x21` | CH0/CH1 refresh counters |
 | `0xFE` | DDR3 init-probe version, `0xB07E0D80` |
+
+Key DDR3 controller-loopback registers:
+
+| Register | Meaning |
+|---|---|
+| `0x00` | Controller-loopback status flags, magic `0xB07E`; bits 15 and 11 mean loopback/init done |
+| `0x01` | packed CH1/CH0 init states plus refresh flags and heartbeat bits |
+| `0x03` | total loopback read/write transaction count |
+| `0x10`..`0x13` | JTAG-WB status, address echo, data echo, and read data |
+| `0x20`..`0x21` | CH0/CH1 loopback write counts |
+| `0x22`..`0x23` | CH0/CH1 loopback read counts |
+| `0x24`..`0x25` | CH0/CH1 last loopback line address |
+| `0xFE` | DDR3 controller-loopback version, `0xB07E0D81` |
 
 ## LEDs
 
