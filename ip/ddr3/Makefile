@@ -1,4 +1,4 @@
-.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-x8-lane-phy formal-line-lane-phy formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line sim sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-x8-lane-phy sim-line-lane-phy sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel cocotb clean
+.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-x8-lane-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line sim sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-x8-lane-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
@@ -13,6 +13,7 @@ X8_LANE_PHY_SMTBMC_DEPTH ?= 10
 LINE_LANE_PHY_WRITE_SMTBMC_DEPTH ?= 26
 LINE_LANE_PHY_READ_SMTBMC_DEPTH ?= 30
 LINE_LANE_PHY_SOLVER ?= yices
+LINE_PHY_CLOCK_BRIDGE_SMTBMC_DEPTH ?= 36
 WB_CHANNEL_SMTBMC_DEPTH ?= 36
 WB_LINE_RMW_SMTBMC_DEPTH ?= 18
 WB_DUAL_CHANNEL_SMTBMC_DEPTH ?= 36
@@ -28,7 +29,7 @@ VVP          ?= vvp
 # keep verification infrastructure live while the clean-sheet controller is
 # designed.
 
-formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-x8-lane-phy formal-line-lane-phy formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line
+formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-x8-lane-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line
 
 formal-addr-decode: $(BUILD)/addr_decode.proof
 
@@ -57,6 +58,8 @@ formal-line-to-lanes: $(BUILD)/line_to_lanes.proof
 formal-x8-lane-phy: $(BUILD)/x8_lane_phy.proof
 
 formal-line-lane-phy: $(BUILD)/line_lane_phy_write.proof $(BUILD)/line_lane_phy_read.proof
+
+formal-line-phy-clock-bridge: $(BUILD)/line_phy_clock_bridge.proof
 
 formal-wb-frontend: $(BUILD)/wb_frontend.proof
 
@@ -170,6 +173,12 @@ $(BUILD)/line_lane_phy_read.smt2: rtl/ddr3_line_to_lanes.sv rtl/ddr3_x8_lane_phy
 	$(YOSYS) -q -p "\
 	  read_verilog -formal -sv -DFORMAL rtl/ddr3_line_to_lanes.sv rtl/ddr3_x8_lane_phy.sv rtl/ddr3_line_lane_phy.sv formal/line_lane_phy_wrapper.sv; \
 	  prep -top ddr3_line_lane_phy_read_wrapper; \
+	  write_smt2 -wires $@"
+
+$(BUILD)/line_phy_clock_bridge.smt2: rtl/ddr3_line_phy_clock_bridge.sv formal/line_phy_clock_bridge_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -formal -sv -DFORMAL rtl/ddr3_line_phy_clock_bridge.sv formal/line_phy_clock_bridge_wrapper.sv; \
+	  prep -top ddr3_line_phy_clock_bridge_wrapper; \
 	  write_smt2 -wires $@"
 
 $(BUILD)/wb_frontend.smt2: rtl/ddr3_wb_frontend.sv ../../formal/vendor/fwb_slave.v formal/wb_frontend_wrapper.sv | $(BUILD)
@@ -301,6 +310,11 @@ $(BUILD)/line_lane_phy_read.proof: $(BUILD)/line_lane_phy_read.smt2
 	$(YOSYS_SMTBMC) --presat -s $(LINE_LANE_PHY_SOLVER) -t $(LINE_LANE_PHY_READ_SMTBMC_DEPTH) $<
 	@touch $@
 
+$(BUILD)/line_phy_clock_bridge.proof: $(BUILD)/line_phy_clock_bridge.smt2
+	@echo "[ddr3] formal: DDR3 controller-to-PHY line clock bridge protocol, depth=$(LINE_PHY_CLOCK_BRIDGE_SMTBMC_DEPTH), solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(LINE_PHY_CLOCK_BRIDGE_SMTBMC_DEPTH) $<
+	@touch $@
+
 $(BUILD)/wb_frontend.proof: $(BUILD)/wb_frontend.smt2
 	@echo "[ddr3] formal: DDR3 Wishbone-to-BL8 frontend, depth=$(SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SMTBMC_DEPTH) $<
@@ -346,7 +360,7 @@ $(BUILD)/ctrl_line.proof: $(BUILD)/ctrl_line.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(CTRL_SMTBMC_DEPTH) $<
 	@touch $@
 
-sim: sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-x8-lane-phy sim-line-lane-phy sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel
+sim: sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-x8-lane-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel
 
 cocotb:
 	@echo "[ddr3] cocotb disabled until Wishbone/runtime controller RTL exists; run 'make sim' for Micron init coverage."
@@ -378,6 +392,10 @@ sim-x8-lane-phy: $(SIM_BUILD)/x8_lane_phy.vvp
 
 sim-line-lane-phy: $(SIM_BUILD)/line_lane_phy.vvp
 	@echo "[ddr3] sim: DDR3 line-to-lane PHY timing bridge"
+	$(VVP) $<
+
+sim-line-phy-clock-bridge: $(SIM_BUILD)/line_phy_clock_bridge.vvp
+	@echo "[ddr3] sim: DDR3 controller-to-PHY clock bridge"
 	$(VVP) $<
 
 sim-wb-frontend: $(SIM_BUILD)/wb_frontend.vvp
@@ -544,6 +562,11 @@ $(SIM_BUILD)/line_lane_phy.vvp: rtl/ddr3_line_to_lanes.sv rtl/ddr3_x8_lane_phy.s
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_line_lane_phy \
 	  -o $@ rtl/ddr3_line_to_lanes.sv rtl/ddr3_x8_lane_phy.sv rtl/ddr3_line_lane_phy.sv sim/tb_line_lane_phy.sv
+
+$(SIM_BUILD)/line_phy_clock_bridge.vvp: rtl/ddr3_line_phy_clock_bridge.sv sim/tb_line_phy_clock_bridge.sv | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl \
+	  -s tb_line_phy_clock_bridge \
+	  -o $@ rtl/ddr3_line_phy_clock_bridge.sv sim/tb_line_phy_clock_bridge.sv
 
 $(SIM_BUILD)/addr_decode.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv sim/tb_addr_decode.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \

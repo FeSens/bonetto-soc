@@ -22,6 +22,8 @@ module top_ddr3_ctrl_line_loopback #(
     parameter integer PHY_HAS_BYTE_MASK = 1,
     parameter integer USE_LINE_TO_LANES = 0,
     parameter integer USE_LINE_LANE_PHY = 0,
+    parameter integer USE_PHY_CLOCK_BRIDGE = 0,
+    parameter integer USE_PINPAIR_TIMING_PROBE = 0,
     parameter [31:0] GATE_VERSION = 32'hB07E_0D82,
     parameter [23:0] DEFAULT_MAGIC = 24'hD3AD82
 ) (
@@ -407,23 +409,108 @@ module top_ddr3_ctrl_line_loopback #(
             wire [PHY_LANES*8-1:0] line_lane_dq_in_rise;
             wire [PHY_LANES*8-1:0] line_lane_dq_in_fall;
             wire [CHANNELS-1:0] pinpair_loop_error;
+            wire [CHANNELS-1:0] ll_wr_line_valid;
+            wire [CHANNELS-1:0] ll_wr_line_ready;
+            wire [CHANNELS*LINE_DATA_W-1:0] ll_wr_line_data;
+            wire [CHANNELS*LINE_BYTES-1:0] ll_wr_line_mask;
+            wire [CHANNELS-1:0] ll_start_write;
+            wire [CHANNELS-1:0] ll_start_read;
+            wire [CHANNELS-1:0] ll_rd_line_ready;
+            wire [CHANNELS-1:0] ll_rd_line_valid;
+            wire [CHANNELS*LINE_DATA_W-1:0] ll_rd_line_data;
+            wire [CHANNELS-1:0] ll_rd_line_err;
+            wire [CHANNELS-1:0] phy_clk_bridge_ctrl_error;
+            wire [CHANNELS-1:0] phy_clk_bridge_phy_error;
+            wire [CHANNELS-1:0] phy_clk_bridge_ctrl_busy;
+            wire [CHANNELS-1:0] phy_clk_bridge_phy_busy;
+            wire line_lane_clk =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? clk_dq : ctrl_clk;
+            wire line_lane_rst =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? cmd_pin_rst : ctrl_rst;
+            wire [CHANNELS-1:0] pinpair_cmd_valid =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_cmd_valid
+                                            : ddr_cmd_valid_w;
+            wire [CHANNELS-1:0] pinpair_cs_n =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_cs_n : ddr_cs_n_w;
+            wire [CHANNELS-1:0] pinpair_ras_n =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_ras_n : ddr_ras_n_w;
+            wire [CHANNELS-1:0] pinpair_cas_n =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_cas_n : ddr_cas_n_w;
+            wire [CHANNELS-1:0] pinpair_we_n =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_we_n : ddr_we_n_w;
+            wire [CHANNELS*BANK_BITS-1:0] pinpair_ba =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_ba : ddr_ba_w;
+            wire [CHANNELS*ADDR_BITS-1:0] pinpair_addr =
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_addr : ddr_addr_w;
+
+            if (USE_PHY_CLOCK_BRIDGE) begin : gen_phy_clk_bridge
+                ddr3_line_phy_clock_bridge #(
+                    .CHANNELS(CHANNELS),
+                    .LINE_DATA_W(LINE_DATA_W),
+                    .LINE_BYTES(LINE_BYTES)
+                ) u_phy_clk_bridge (
+                    .i_ctrl_clk(ctrl_clk),
+                    .i_ctrl_rst(ctrl_rst),
+                    .i_phy_clk(clk_dq),
+                    .i_phy_rst(cmd_pin_rst),
+                    .i_ctrl_wr_line_valid(phy_wr_line_valid),
+                    .o_ctrl_wr_line_ready(phy_wr_line_ready),
+                    .i_ctrl_wr_line_data(phy_wr_line_data),
+                    .i_ctrl_wr_line_mask(phy_wr_line_mask),
+                    .i_ctrl_start_write(phy_start_write),
+                    .i_ctrl_start_read(phy_start_read),
+                    .i_ctrl_rd_line_ready(phy_rd_line_ready),
+                    .o_ctrl_rd_line_valid(phy_rd_line_valid),
+                    .o_ctrl_rd_line_data(phy_rd_line_data),
+                    .o_ctrl_rd_line_err(phy_rd_line_err),
+                    .o_ctrl_error(phy_clk_bridge_ctrl_error),
+                    .o_ctrl_busy(phy_clk_bridge_ctrl_busy),
+                    .o_phy_wr_line_valid(ll_wr_line_valid),
+                    .i_phy_wr_line_ready(ll_wr_line_ready),
+                    .o_phy_wr_line_data(ll_wr_line_data),
+                    .o_phy_wr_line_mask(ll_wr_line_mask),
+                    .o_phy_start_write(ll_start_write),
+                    .o_phy_start_read(ll_start_read),
+                    .o_phy_rd_line_ready(ll_rd_line_ready),
+                    .i_phy_rd_line_valid(ll_rd_line_valid),
+                    .i_phy_rd_line_data(ll_rd_line_data),
+                    .i_phy_rd_line_err(ll_rd_line_err),
+                    .o_phy_error(phy_clk_bridge_phy_error),
+                    .o_phy_busy(phy_clk_bridge_phy_busy)
+                );
+            end else begin : gen_same_clk_phy
+                assign ll_wr_line_valid = phy_wr_line_valid;
+                assign phy_wr_line_ready = ll_wr_line_ready;
+                assign ll_wr_line_data = phy_wr_line_data;
+                assign ll_wr_line_mask = phy_wr_line_mask;
+                assign ll_start_write = phy_start_write;
+                assign ll_start_read = phy_start_read;
+                assign ll_rd_line_ready = phy_rd_line_ready;
+                assign phy_rd_line_valid = ll_rd_line_valid;
+                assign phy_rd_line_data = ll_rd_line_data;
+                assign phy_rd_line_err = ll_rd_line_err;
+                assign phy_clk_bridge_ctrl_error = {CHANNELS{1'b0}};
+                assign phy_clk_bridge_phy_error = {CHANNELS{1'b0}};
+                assign phy_clk_bridge_ctrl_busy = {CHANNELS{1'b0}};
+                assign phy_clk_bridge_phy_busy = {CHANNELS{1'b0}};
+            end
 
             ddr3_line_lane_phy #(
                 .CHANNELS(CHANNELS),
                 .LANES(LANES)
             ) u_line_lane_phy (
-                .i_clk(ctrl_clk),
-                .i_rst(ctrl_rst),
-                .i_wr_line_valid(phy_wr_line_valid),
-                .o_wr_line_ready(phy_wr_line_ready),
-                .i_wr_line_data(phy_wr_line_data),
-                .i_wr_line_mask(phy_wr_line_mask),
-                .i_start_write(phy_start_write),
-                .i_start_read(phy_start_read),
-                .i_rd_line_ready(phy_rd_line_ready),
-                .o_rd_line_valid(phy_rd_line_valid),
-                .o_rd_line_data(phy_rd_line_data),
-                .o_rd_line_err(phy_rd_line_err),
+                .i_clk(line_lane_clk),
+                .i_rst(line_lane_rst),
+                .i_wr_line_valid(ll_wr_line_valid),
+                .o_wr_line_ready(ll_wr_line_ready),
+                .i_wr_line_data(ll_wr_line_data),
+                .i_wr_line_mask(ll_wr_line_mask),
+                .i_start_write(ll_start_write),
+                .i_start_read(ll_start_read),
+                .i_rd_line_ready(ll_rd_line_ready),
+                .o_rd_line_valid(ll_rd_line_valid),
+                .o_rd_line_data(ll_rd_line_data),
+                .o_rd_line_err(ll_rd_line_err),
                 .o_channel_busy(line_lane_channel_busy),
                 .o_channel_error(line_lane_channel_error),
                 .o_lane_busy(line_lane_lane_busy),
@@ -448,45 +535,82 @@ module top_ddr3_ctrl_line_loopback #(
                     |line_lane_lane_error[ch*LANES +: LANES];
             end
 
-            ddr3_pinpair_loopback_phy #(
-                .CHANNELS(CHANNELS),
-                .LANES(LANES)
-            ) u_pinpair_loop (
-                .i_clk(ctrl_clk),
-                .i_rst(ctrl_rst),
-                .i_cmd_valid(ddr_cmd_valid_w),
-                .i_cs_n(ddr_cs_n_w),
-                .i_ras_n(ddr_ras_n_w),
-                .i_cas_n(ddr_cas_n_w),
-                .i_we_n(ddr_we_n_w),
-                .i_ba(ddr_ba_w),
-                .i_addr(ddr_addr_w),
-                .i_dq_oe(line_lane_dq_oe),
-                .i_dm_oe(line_lane_dm_oe),
-                .i_dqs_oe(line_lane_dqs_oe),
-                .i_dq_rise(line_lane_dq_rise),
-                .i_dq_fall(line_lane_dq_fall),
-                .i_dm_rise(line_lane_dm_rise),
-                .i_dm_fall(line_lane_dm_fall),
-                .i_dqs_rise(line_lane_dqs_rise),
-                .i_dqs_fall(line_lane_dqs_fall),
-                .i_rd_capturing(line_lane_rd_capturing),
-                .o_rd_sample_valid(line_lane_rd_sample_valid),
-                .o_dq_rise(line_lane_dq_in_rise),
-                .o_dq_fall(line_lane_dq_in_fall),
-                .o_error(pinpair_loop_error),
-                .o_wr_count(loop_wr_count),
-                .o_rd_count(loop_rd_count),
-                .o_last_line_addr(loop_last_line_addr)
-            );
+            if (USE_PINPAIR_TIMING_PROBE) begin : gen_pinpair_timing_probe
+                ddr3_pinpair_timing_probe_phy #(
+                    .CHANNELS(CHANNELS),
+                    .LANES(LANES)
+                ) u_pinpair_probe (
+                    .i_clk(line_lane_clk),
+                    .i_rst(line_lane_rst),
+                    .i_cmd_valid(pinpair_cmd_valid),
+                    .i_cs_n(pinpair_cs_n),
+                    .i_ras_n(pinpair_ras_n),
+                    .i_cas_n(pinpair_cas_n),
+                    .i_we_n(pinpair_we_n),
+                    .i_ba(pinpair_ba),
+                    .i_addr(pinpair_addr),
+                    .i_dq_oe(line_lane_dq_oe),
+                    .i_dm_oe(line_lane_dm_oe),
+                    .i_dqs_oe(line_lane_dqs_oe),
+                    .i_dq_rise(line_lane_dq_rise),
+                    .i_dq_fall(line_lane_dq_fall),
+                    .i_dm_rise(line_lane_dm_rise),
+                    .i_dm_fall(line_lane_dm_fall),
+                    .i_dqs_rise(line_lane_dqs_rise),
+                    .i_dqs_fall(line_lane_dqs_fall),
+                    .i_rd_capturing(line_lane_rd_capturing),
+                    .o_rd_sample_valid(line_lane_rd_sample_valid),
+                    .o_dq_rise(line_lane_dq_in_rise),
+                    .o_dq_fall(line_lane_dq_in_fall),
+                    .o_error(pinpair_loop_error),
+                    .o_wr_count(loop_wr_count),
+                    .o_rd_count(loop_rd_count),
+                    .o_last_line_addr(loop_last_line_addr)
+                );
+            end else begin : gen_pinpair_loopback
+                ddr3_pinpair_loopback_phy #(
+                    .CHANNELS(CHANNELS),
+                    .LANES(LANES)
+                ) u_pinpair_loop (
+                    .i_clk(line_lane_clk),
+                    .i_rst(line_lane_rst),
+                    .i_cmd_valid(pinpair_cmd_valid),
+                    .i_cs_n(pinpair_cs_n),
+                    .i_ras_n(pinpair_ras_n),
+                    .i_cas_n(pinpair_cas_n),
+                    .i_we_n(pinpair_we_n),
+                    .i_ba(pinpair_ba),
+                    .i_addr(pinpair_addr),
+                    .i_dq_oe(line_lane_dq_oe),
+                    .i_dm_oe(line_lane_dm_oe),
+                    .i_dqs_oe(line_lane_dqs_oe),
+                    .i_dq_rise(line_lane_dq_rise),
+                    .i_dq_fall(line_lane_dq_fall),
+                    .i_dm_rise(line_lane_dm_rise),
+                    .i_dm_fall(line_lane_dm_fall),
+                    .i_dqs_rise(line_lane_dqs_rise),
+                    .i_dqs_fall(line_lane_dqs_fall),
+                    .i_rd_capturing(line_lane_rd_capturing),
+                    .o_rd_sample_valid(line_lane_rd_sample_valid),
+                    .o_dq_rise(line_lane_dq_in_rise),
+                    .o_dq_fall(line_lane_dq_in_fall),
+                    .o_error(pinpair_loop_error),
+                    .o_wr_count(loop_wr_count),
+                    .o_rd_count(loop_rd_count),
+                    .o_last_line_addr(loop_last_line_addr)
+                );
+            end
 
             assign phy_loop_error =
                 pinpair_loop_error |
                 line_lane_channel_error |
-                line_lane_lane_error_any;
+                line_lane_lane_error_any |
+                phy_clk_bridge_ctrl_error |
+                phy_clk_bridge_phy_error;
 
             wire _line_lane_unused =
-                &{1'b0, line_lane_channel_busy, line_lane_lane_busy, 1'b0};
+                &{1'b0, line_lane_channel_busy, line_lane_lane_busy,
+                  phy_clk_bridge_ctrl_busy, phy_clk_bridge_phy_busy, 1'b0};
         end else if (USE_LINE_TO_LANES) begin : gen_lane_loopback
             wire [PHY_LANES-1:0] lane_wr_valid;
             wire [PHY_LANES-1:0] lane_wr_ready;
@@ -817,7 +941,8 @@ module top_ddr3_ctrl_line_loopback #(
             8'h01: status_word = state_bits;
             8'h02: status_word = {8'h00, heartbeat};
             8'h03: status_word = loop_total;
-            8'h04: status_word = {16'hAB04, 12'd0,
+            8'h04: status_word = {16'hAB04, 11'd0,
+                                   (USE_PINPAIR_TIMING_PROBE != 0),
                                    (USE_LINE_LANE_PHY != 0),
                                    (USE_LINE_TO_LANES != 0),
                                    (PHY_HAS_BYTE_MASK != 0),

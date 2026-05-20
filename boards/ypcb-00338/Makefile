@@ -144,6 +144,32 @@ DDR3_CTRL_LINE_PHYTIMINGLOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_x8_lane_phy.sv \
     ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv
 
+DDR3_CTRL_LINE_PHYCLKLOOP_RTL := \
+    rtl/top_ddr3_ctrl_line_phyclkloop.sv \
+    rtl/top_ddr3_ctrl_line_loopback.sv \
+    rtl/ddr3_board_io.sv \
+    rtl/ddr3_pinpair_timing_probe.sv \
+    rtl/ddr3_pinpair_loopback_phy.sv \
+    rtl/ddr3_line_loopback_phy.sv \
+    rtl/ddr3_ctrl_loopback_phy.sv \
+    rtl/clk_liveness.v \
+    ../../ip/wb-memory/rtl/wb_memory.v \
+    ../../ip/jtag-uart/rtl/jtag_uart.v \
+    ../../ip/jtag-uart/rtl/jtag_wb_master.v \
+    ../../ip/ddr3/rtl/ddr3_addr_decode.sv \
+    ../../ip/ddr3/rtl/ddr3_init_seq.sv \
+    ../../ip/ddr3/rtl/ddr3_refresh.sv \
+    ../../ip/ddr3/rtl/ddr3_bank.sv \
+    ../../ip/ddr3/rtl/ddr3_scheduler.sv \
+    ../../ip/ddr3/rtl/ddr3_channel_sched.sv \
+    ../../ip/ddr3/rtl/ddr3_wb_line_channel.sv \
+    ../../ip/ddr3/rtl/ddr3_wb_dual_channel_line.sv \
+    ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
+    ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
+    ../../ip/ddr3/rtl/ddr3_x8_lane_phy.sv \
+    ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv \
+    ../../ip/ddr3/rtl/ddr3_line_phy_clock_bridge.sv
+
 BUILD  := build
 CHIPDB := $(BUILD)/chipdb
 
@@ -153,6 +179,7 @@ XDC_FILES := constraints/ypcb003381p1_active.xdc
 XDC       := $(BUILD)/$(PROJECT).xdc
 DDR3_ACTIVE_DQ_MAX  ?= 39
 DDR3_ACTIVE_DQS_MAX ?= 4
+ALLOW_TIMING_FAILED_DDR3_EXPERIMENT ?= 0
 
 # Shared-header include dirs are wired into read_verilog inside the
 # yosys script (yosys's CLI has no -I flag — includes go via `read_verilog -I`).
@@ -168,6 +195,7 @@ DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 
 .PHONY: bitstream program detect memtest xvc validate-jtag-bram bram-echo bram-transform ddr3-init-ddr800-json ddr3-init-ddr800-bitstream program-ddr3-init-ddr800 validate-ddr3-init ddr3-ctrl-loopback-ddr800-json ddr3-ctrl-loopback-ddr800-bitstream program-ddr3-ctrl-loopback-ddr800 validate-ddr3-ctrl-loopback ddr3-ctrl-line-loopback-ddr800-json ddr3-ctrl-line-loopback-ddr800-bitstream program-ddr3-ctrl-line-loopback-ddr800 validate-ddr3-ctrl-line-loopback ddr3-ctrl-line-cmdprobe-ddr800-json ddr3-ctrl-line-cmdprobe-ddr800-bitstream program-ddr3-ctrl-line-cmdprobe-ddr800 validate-ddr3-ctrl-line-cmdprobe ddr3-ctrl-line-laneloop-ddr800-json ddr3-ctrl-line-laneloop-ddr800-bitstream program-ddr3-ctrl-line-laneloop-ddr800 validate-ddr3-ctrl-line-laneloop ddr3-ctrl-line-cmdlaneloop-ddr800-json ddr3-ctrl-line-cmdlaneloop-ddr800-bitstream program-ddr3-ctrl-line-cmdlaneloop-ddr800 validate-ddr3-ctrl-line-cmdlaneloop validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch jtag-bram-bitstream program-jtag-bram ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-serdescmd-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-lateflat-json full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat-bitstream program-full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat full-2ch-ddr1600-serdescmd-jtagdirect-bitstream full-2ch-ddr1600-serdescmd-ddronly-json full-2ch-ddr1600-serdescmd-ddronly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
 .PHONY: ddr3-ctrl-line-phytimingloop-ddr800-json ddr3-ctrl-line-phytimingloop-ddr800-bitstream program-ddr3-ctrl-line-phytimingloop-ddr800 validate-ddr3-ctrl-line-phytimingloop
+.PHONY: ddr3-ctrl-line-phyclkloop-ddr800-json ddr3-ctrl-line-phyclkloop-ddr800-bitstream program-ddr3-ctrl-line-phyclkloop-ddr800 validate-ddr3-ctrl-line-phyclkloop
 .DEFAULT_GOAL := bitstream
 
 bitstream: $(BUILD)/$(PROJECT).bit
@@ -327,6 +355,26 @@ ddr3-ctrl-line-phytimingloop-ddr800-bitstream:
 	  NEXTPNR_FREQ=400 \
 	  NEXTPNR_ARGS="--seed 1 --timing-allow-fail --log build/ddr3_ctrl_line_phytimingloop_ddr800_seed1_route.log" \
 	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_phytimingloop_ddr800.bit
+
+ddr3-ctrl-line-phyclkloop-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_ctrl_line_phyclkloop_ddr800 \
+	  TOP=top_ddr3_ctrl_line_phyclkloop \
+	  RTL="$(DDR3_CTRL_LINE_PHYCLKLOOP_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_phyclkloop_ddr800.json
+
+ddr3-ctrl-line-phyclkloop-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_ctrl_line_phyclkloop_ddr800 \
+	  TOP=top_ddr3_ctrl_line_phyclkloop \
+	  RTL="$(DDR3_CTRL_LINE_PHYCLKLOOP_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=400 \
+	  NEXTPNR_ARGS="--seed 1 --timing-allow-fail --log build/ddr3_ctrl_line_phyclkloop_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_phyclkloop_ddr800.bit
 
 DDR3_DISABLED_TARGETS := \
     full-ch0-json \
@@ -509,6 +557,24 @@ program-ddr3-ctrl-line-phytimingloop-ddr800: ddr3-ctrl-line-phytimingloop-ddr800
 	echo "unplug+replug of the USB cable from the Mac is required."; \
 	exit 1
 
+program-ddr3-ctrl-line-phyclkloop-ddr800: $(FIRMWARE)
+	@if [ "$(ALLOW_TIMING_FAILED_DDR3_EXPERIMENT)" != "1" ]; then \
+	  echo "refusing to program DDR3 PHY-clock loopback: this target is a timing-failed experiment"; \
+	  echo "last known route reached clk_dq around 107 MHz against the DDR3-800 400 MHz target"; \
+	  echo "set ALLOW_TIMING_FAILED_DDR3_EXPERIMENT=1 only for explicit debug, not validation"; \
+	  exit 1; \
+	fi
+	$(MAKE) ddr3-ctrl-line-phyclkloop-ddr800-bitstream
+	@for i in $(RETRIES); do \
+	  echo ">> program DDR3-800 PHY-clock loopback attempt $$i"; \
+	  $(OFL_BASE) $(FREQ_PROGRAM) --index-chain 0 $(BUILD)/bonetto_soc_ypcb00338_ddr3_ctrl_line_phyclkloop_ddr800.bit && exit 0; \
+	  sleep 2; \
+	done; \
+	echo "program failed after 10 attempts -- if all attempts after #1"; \
+	echo "showed 'Unable to read constant', the cable is wedged. Physical"; \
+	echo "unplug+replug of the USB cable from the Mac is required."; \
+	exit 1
+
 memtest: program
 	@echo ">> active image is the BRAM-only JTAG/Wishbone proof:"
 	@echo "   led[0]=heartbeat  led[1]=last JTAG-WB ack  led[2]=last JTAG-WB err"
@@ -539,6 +605,9 @@ validate-ddr3-ctrl-line-cmdlaneloop:
 
 validate-ddr3-ctrl-line-phytimingloop:
 	cd ../.. && python3 tools/ddr3_ctrl_loopback_validate.py --tck-ns 2000 --expected-version 0xB07E0D87 --gate-name DDR3_CTRL_LINE_PHYTIMINGLOOP
+
+validate-ddr3-ctrl-line-phyclkloop:
+	cd ../.. && python3 tools/ddr3_ctrl_phyclk_validate.py --tck-ns 2000 --expected-version 0xB07E0D88 --gate-name DDR3_CTRL_LINE_PHYCLKLOOP
 
 bram-echo:
 	cd ../.. && python3 tools/jtag_bram_echo.py
@@ -591,6 +660,9 @@ help:
 	@echo "  make ddr3-ctrl-line-phytimingloop-ddr800-bitstream  route command plus abstract PHY-timing loopback"
 	@echo "  make program-ddr3-ctrl-line-phytimingloop-ddr800    program abstract PHY-timing loopback"
 	@echo "  make validate-ddr3-ctrl-line-phytimingloop          validate JTAG/WB through PHY-timing loopback"
+	@echo "  make ddr3-ctrl-line-phyclkloop-ddr800-bitstream  route timing-failed PHY-clock experiment"
+	@echo "  make program-ddr3-ctrl-line-phyclkloop-ddr800    refused unless ALLOW_TIMING_FAILED_DDR3_EXPERIMENT=1"
+	@echo "  make validate-ddr3-ctrl-line-phyclkloop          debug-only immediate readback through PHY-clock probe"
 	@echo "  make bram-echo       interactive BRAM echo terminal through XVC/JTAG-WB"
 	@echo "  make bram-transform  interactive transformed-read terminal"
 	@echo "  make memtest         program active proof + describe LEDs"
