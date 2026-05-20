@@ -1,9 +1,9 @@
 // One DDR3 bank machine.
 //
 // This is the first reusable scheduler-owned RTL slice. It tracks the open row
-// for one bank, accepts one request at a time, and emits only commands that are
-// locally legal for that bank. Cross-bank arbitration and refresh live above
-// this module.
+// for one bank, accepts one request at a time, and presents only commands that
+// are locally legal for that bank. The scheduler above this module decides when
+// the presented command is accepted on the shared command bus.
 
 `default_nettype none
 `include "ddr3_params.vh"
@@ -30,6 +30,8 @@ module ddr3_bank #(
     input wire                 i_req_write,
     input wire [ROW_BITS-1:0]  i_req_row,
     input wire [ADDR_BITS-1:0] i_req_col,
+
+    input wire                 i_cmd_ready,
 
     output reg                 o_rsp_valid,
     output reg                 o_rsp_write,
@@ -171,9 +173,11 @@ module ddr3_bank #(
 
                 ST_PRE: begin
                     set_cmd(`DDR3_CMD_PRE, BANK, {ADDR_BITS{1'b0}});
-                    bank_open <= 1'b0;
-                    t_rp_wait <= load_wait(T_RP);
-                    o_state   <= ST_WAIT_ACT;
+                    if (i_cmd_ready) begin
+                        bank_open <= 1'b0;
+                        t_rp_wait <= load_wait(T_RP);
+                        o_state   <= ST_WAIT_ACT;
+                    end
                 end
 
                 ST_WAIT_ACT: begin
@@ -183,12 +187,14 @@ module ddr3_bank #(
 
                 ST_ACT: begin
                     set_cmd(`DDR3_CMD_ACT, BANK, {{(ADDR_BITS-ROW_BITS){1'b0}}, pending_row});
-                    bank_open    <= 1'b1;
-                    open_row     <= pending_row;
-                    t_rcd_wait   <= load_wait(T_RCD);
-                    t_ras_wait   <= load_wait(T_RAS);
-                    t_rc_wait    <= load_wait(T_RC);
-                    o_state      <= ST_WAIT_RCD;
+                    if (i_cmd_ready) begin
+                        bank_open    <= 1'b1;
+                        open_row     <= pending_row;
+                        t_rcd_wait   <= load_wait(T_RCD);
+                        t_ras_wait   <= load_wait(T_RAS);
+                        t_rc_wait    <= load_wait(T_RC);
+                        o_state      <= ST_WAIT_RCD;
+                    end
                 end
 
                 ST_WAIT_RCD: begin
@@ -203,21 +209,25 @@ module ddr3_bank #(
 
                 ST_READ: begin
                     set_cmd(`DDR3_CMD_RD, BANK, pending_col);
-                    t_rtp_wait <= load_wait(T_RTP);
-                    t_ccd_wait <= load_wait(T_CCD);
-                    o_rsp_valid <= 1'b1;
-                    o_rsp_write <= 1'b0;
-                    o_state <= ST_IDLE;
+                    if (i_cmd_ready) begin
+                        t_rtp_wait <= load_wait(T_RTP);
+                        t_ccd_wait <= load_wait(T_CCD);
+                        o_rsp_valid <= 1'b1;
+                        o_rsp_write <= 1'b0;
+                        o_state <= ST_IDLE;
+                    end
                 end
 
                 ST_WRITE: begin
                     set_cmd(`DDR3_CMD_WR, BANK, pending_col);
-                    t_wr_wait  <= load_wait(T_WR);
-                    t_wtr_wait <= load_wait(T_WTR);
-                    t_ccd_wait <= load_wait(T_CCD);
-                    o_rsp_valid <= 1'b1;
-                    o_rsp_write <= 1'b1;
-                    o_state <= ST_IDLE;
+                    if (i_cmd_ready) begin
+                        t_wr_wait  <= load_wait(T_WR);
+                        t_wtr_wait <= load_wait(T_WTR);
+                        t_ccd_wait <= load_wait(T_CCD);
+                        o_rsp_valid <= 1'b1;
+                        o_rsp_write <= 1'b1;
+                        o_state <= ST_IDLE;
+                    end
                 end
 
                 default: begin

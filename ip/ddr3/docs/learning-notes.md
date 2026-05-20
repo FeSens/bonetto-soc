@@ -93,8 +93,11 @@ Build the new controller as small modules:
 
 - `ddr3_init_seq`: JEDEC initialization only;
 - `ddr3_bank`: one-bank row state and local timing. This exists now for one
-  request at a time and is formally checked with the command timing monitor;
-- `ddr3_scheduler`: cross-bank command selection, refresh, and turnaround;
+  request at a time, supports command backpressure from the scheduler, and is
+  formally checked with the command timing monitor;
+- `ddr3_scheduler`: cross-bank command selection and turnaround. The first
+  no-refresh slice exists now for ACT/PRE/RD/WR arbitration across the bank
+  machines; refresh ownership is the next scheduler slice;
 - `ddr3_wb_frontend`: Wishbone request packing and BL8 word selection;
 - `ddr3_phy_*`: board-specific PHY and calibration, isolated from scheduling.
 

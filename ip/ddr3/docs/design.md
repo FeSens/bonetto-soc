@@ -27,8 +27,8 @@ describes the target architecture, not an existing implementation.
 | `ddr3_init_seq` | JEDEC reset, CKE, MRS, ZQCL, first refresh, and DLL-lock release wait. |
 | `ddr3_single_read_seq` | Temporary command-only ACT/READ/PRE/REF slice for Micron and formal timing bring-up. |
 | `ddr3_single_write_read_seq` | Temporary ACT/WRITE/READ/PRE/REF slice for Micron x8 loopback and turnaround timing bring-up. |
-| `ddr3_bank` | One bank's open-row state and local timing waits. This exists now for one request at a time. |
-| `ddr3_scheduler` | Cross-bank arbitration, refresh, tRRD/tFAW/tCCD/tWTR, command issue. |
+| `ddr3_bank` | One bank's open-row state and local timing waits. This exists now for one request at a time and supports command backpressure from the scheduler. |
+| `ddr3_scheduler` | Cross-bank arbitration and tRRD/tFAW/tCCD/tWTR command issue. A first slice exists now; refresh insertion still needs ownership. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 packing, byte-enable merge. |
 | `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
@@ -80,8 +80,11 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
    simulation only.
 5. One reusable bank machine with open-row tracking and local timing waits.
    This exists now and is formally wrapped by the command timing monitor.
-6. Global scheduler over eight bank machines, refresh, and cross-bank timing.
-7. One controller-owned x8 byte lane with real DQS/DQ write/read logic.
-8. One 64-bit channel.
-9. Two 64-bit channels.
-10. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+6. Global scheduler over eight bank machines and cross-bank timing. A first
+   no-refresh slice exists now and is formally wrapped by the command timing
+   monitor.
+7. Scheduler-owned refresh/precharge-all path.
+8. One controller-owned x8 byte lane with real DQS/DQ write/read logic.
+9. One 64-bit channel.
+10. Two 64-bit channels.
+11. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.

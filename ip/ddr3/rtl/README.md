@@ -11,14 +11,17 @@ The active RTL slices are deliberately small and scheduler-facing:
 - `ddr3_single_write_read_seq.sv`: one conservative single-bank ACT, WRITE,
   READ, PRE, REF command sequence after init;
 - `ddr3_bank.sv`: one reusable bank machine with open-row tracking and local
-  timing waits for ACT, PRE, READ, and WRITE.
+  timing waits for ACT, PRE, READ, and WRITE;
+- `ddr3_scheduler.sv`: first global scheduler slice, instantiating one bank
+  machine per bank and gating the shared command bus for tRRD, tFAW, tCCD, and
+  write-to-read timing.
 
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with an ideal testbench DQS/DQ agent. The bank
-machine is the first scheduler-owned block, but there is still no global
-scheduler, controller-owned data capture, real write datapath, Wishbone
-frontend, PHY, calibration, dual-channel wrapper, or hardware-validated DDR3
-path.
+machine and scheduler are the first scheduler-owned blocks, but there is still
+no refresh insertion, controller-owned data capture, real write datapath,
+Wishbone frontend, PHY, calibration, dual-channel wrapper, or
+hardware-validated DDR3 path.
 
 Rules for adding new RTL:
 
@@ -31,7 +34,7 @@ Rules for adding new RTL:
 Recommended first RTL slices:
 
 - typed mode-register field helpers,
+- refresh/precharge-all ownership in the scheduler,
 - a real controller-owned read/write byte-lane data slice against one Micron x8
   model,
-- a global scheduler that instantiates one bank machine per bank and arbitrates
-  refresh plus cross-bank timing.
+- a Wishbone frontend that maps 32-bit accesses onto BL8 lines.
