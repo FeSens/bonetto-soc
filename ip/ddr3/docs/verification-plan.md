@@ -46,7 +46,10 @@ Current coverage:
   line-to-x8-burst adapter proof covers the next hardware-facing split from
   complete dual-channel BL8 lines to sixteen independent preloaded 64-bit x8
   bursts, including lane backpressure stability and read-burst reassembly. The
-  x8 lane PHY timing-core proof checks the next DQ/DQS-facing boundary:
+  x8-data to x9-physical adapter proof makes the board width policy explicit:
+  controller-visible lanes 0..7 pass unchanged, lane 8 writes deterministic
+  zero-filled ECC/spare data, and lane 8 is ignored on reads. The x8 lane PHY
+  timing-core proof checks the next DQ/DQS-facing boundary:
   stable accepted write beats, output-enable invariants, rise/fall write pair
   ordering, and read sample-to-lane-byte ordering under read backpressure. The
   line-to-lane PHY bridge proof composes those contracts for a focused one-lane
@@ -86,8 +89,8 @@ Current coverage:
   one channel while preserving `global[28:4]` as that channel's BL8 line
   address. The line-level dual-channel dispatch proof checks the same global
   routing contract while exposing complete 512-bit write/read lines directly to
-  the PHY boundary. The BL8 line scheduler-adapter proof connects one channel command
-  port to the refresh requester plus scheduler and checks that request
+  the PHY boundary. The BL8 line scheduler-adapter proof connects one channel
+  command port to the refresh requester plus scheduler and checks that request
   acceptance is separate from the RD/WR transfer-start pulse, that the transfer
   starts only for the matching pending request, and that issued command bank and
   column fields match the accepted line address. The controller shell proof
@@ -105,9 +108,10 @@ Current coverage:
   the byte-lane packetizer. It also runs a unit bench for the full-channel line
   packetizer with independent per-lane stalls, the line-to-x8-lane byte-stream
   adapter, the line-to-x8-burst preloaded-payload adapter with independent lane
-  stalls, plus a unit bench for the x8 lane PHY timing core that preloads a
-  full BL8 write, checks four DDR rise/fall launch pairs, samples four read
-  pairs, and verifies eight returned lane bytes. The fast-domain x8 burst I/O
+  stalls, the x8-data to x9-physical adapter with explicit zero-filled
+  ECC/spare lane policy, plus a unit bench for the x8 lane PHY timing core that
+  preloads a full BL8 write, checks four DDR rise/fall launch pairs, samples
+  four read pairs, and verifies eight returned lane bytes. The fast-domain x8 burst I/O
   sequencer unit bench checks the
   smaller preloaded-payload interface that should feed the board I/O shell
   instead of moving wide lane arbitration into `clk_dq`. The x8 SERDES-domain
@@ -250,6 +254,12 @@ slow fabric, but presents each physical x8 lane as one preloaded 64-bit BL8
 burst plus 8 mask bits. That is the contract intended to feed the small
 fast-domain `ddr3_x8_burst_io_sequencer` blocks near the 7-series DQ/DQS shell.
 
+`rtl/ddr3_x8_to_x9_line_adapter.sv` is the explicit width policy between the
+x64 controller data path and the x72 physical YPCB-00338 channel. It passes
+lanes 0..7 through unchanged, drives lane 8 with deterministic zero-filled
+ECC/spare data, and ignores lane 8 on reads. The spare lane is not
+Wishbone-visible capacity until a real ECC encoder/checker is added.
+
 `rtl/ddr3_x8_lane_phy.sv` is the first synthesizable DQ/DQS-facing lane timing
 core after `ddr3_line_to_lanes`. It owns BL8 write preload, write-launch
 latency, DQ/DM/DQS output enables, four rise/fall write pairs, read-capture
@@ -288,15 +298,15 @@ boundary. It is still not a calibrated board PHY or an external memory data
 path.
 
 `../../boards/ypcb-00338/rtl/top_ddr3_ctrl_line_serdes.sv` is the first
-board-level route target that connects that line-to-SERDES boundary to all
-physical x9 DQ/DQS lanes on both DDR3 channels. The 2026-05-20 seed-1 router1
-run generated a bitstream while preserving 162 OSERDESE2, 162 ISERDESE2,
-162 IDELAYE2, 144 DQ IOBUF, 18 DQS IOBUFDS, and 6 IDELAYCTRL cells. Post-route
-max-frequency reporting showed `SYS_CLK` at 58.09 MHz, `clk_sys` at 103.70 MHz,
-`clk_idelay_ref` at 792.39 MHz, and `clk_dq`/`clk_ddr` at 1557.63 MHz. This is
-route evidence only: DDR3 reset remains asserted, CKE remains low, and the x9
-physical-line path still needs an explicit data/ECC mapping decision before it
-can become an external storage validation image.
+board-level route target that connects the explicit x8-data to x9-physical
+adapter plus that line-to-SERDES boundary to all physical x9 DQ/DQS lanes on
+both DDR3 channels. The 2026-05-20 seed-1 router1 run generated a bitstream
+while preserving 162 OSERDESE2, 162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF,
+18 DQS IOBUFDS, and 6 IDELAYCTRL cells. Post-route max-frequency reporting
+showed `SYS_CLK` at 71.28 MHz, `clk_sys` at 155.26 MHz, `clk_idelay_ref` at
+759.88 MHz, and `clk_dq`/`clk_ddr` at 1557.63 MHz. This is route evidence only:
+DDR3 reset remains asserted, CKE remains low, and the current ninth-lane policy
+is zero-filled ECC/spare rather than real ECC.
 
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler
@@ -325,6 +335,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
 | Line-to-x8-lane adapter | Two complete 512-bit channel lines serialize into sixteen x8 lane streams, and read beats from all lanes reassemble into complete channel lines. First proof exists; skewed-lane stall simulation exists. |
 | Line-to-x8-burst adapter | Two complete 512-bit channel lines split into sixteen preloaded 64-bit x8 BL8 bursts, and returned lane bursts reassemble into complete channel lines. First proof exists with `yices`; skewed-lane stall simulation exists. |
+| X8 data to x9 physical adapter | Eight x8 controller lanes pass unchanged into a nine-lane physical channel; lane 8 is deterministic zero-filled ECC/spare data and ignored on reads. First proof and unit simulation exist. |
 | X8 lane PHY timing core | One BL8 x8 write stream becomes four DDR rise/fall pin-data pairs with DQ/DM/DQS output enables, and four sampled read pairs become eight lane read beats. First bounded proof and unit simulation exist. |
 | X8 fast burst I/O sequencer | One preloaded 64-bit x8 BL8 payload emits four ordered DDR rise/fall DQ pairs with DQS strobes, and four sampled read pairs reassemble into one 64-bit payload. First bounded proof and unit simulation exist. |
 | X8 SERDES burst lane adapter | One preloaded 64-bit x8 BL8 payload becomes one divided-clock SERDES word with DQS/DQ output-enable windows, and one sampled SERDES word returns as one read payload. First bounded proof and unit simulation exist. |
@@ -362,6 +373,7 @@ Use the real Micron model for protocol validation:
 | Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
 | Line-to-x8-lane unit | two complete channel line ports + sixteen x8 lane streams | dual-channel line serialization, mask mapping, lane-last markers, skewed lane stalls, and read-line reassembly pass |
 | Line-to-x8-burst unit | two complete channel line ports + sixteen preloaded x8 burst ports | dual-channel line-to-burst mapping, 8-bit mask mapping, skewed lane stalls, and read-line reassembly pass |
+| X8 data to x9 physical unit | two x64 data channels + two x72 physical channels | lanes 0..7 pass data and masks unchanged, lane 8 writes deterministic spare data, lane 8 is ignored on reads, and handshakes pass through |
 | X8 lane PHY unit | one lane stream + synthesizable timing core | BL8 write preload, four DDR write rise/fall pairs, DQ/DM/DQS output enables, four sampled read pairs, and eight returned lane bytes pass |
 | X8 fast burst I/O unit | one preloaded x8 burst + fast-domain sequencer | 64-bit write payload launches as four DDR pairs, four sampled read pairs return as one 64-bit payload, and ready/valid state returns idle |
 | X8 SERDES burst lane unit | one preloaded x8 burst + SERDES-domain adapter | 64-bit write payload appears as one SERDES word with preamble/data/postamble output enables, one sampled SERDES read word returns, and ready/valid state returns idle |

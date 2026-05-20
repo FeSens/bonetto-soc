@@ -71,7 +71,9 @@ module top_ddr3_ctrl_line_loopback #(
     endfunction
 
     localparam integer CHANNELS = 2;
-    localparam integer LANES = (USE_LINE_SERDES_PHY != 0) ? 9 : 8;
+    localparam integer LANES = 8;
+    localparam integer PHY_BYTE_LANES =
+        (USE_LINE_SERDES_PHY != 0) ? 9 : LANES;
     localparam integer WB_DATA_W = 32;
     localparam integer JWB_ADDR_W = 15;
     localparam integer GLOBAL_WORD_ADDR_W = 30;
@@ -80,9 +82,13 @@ module top_ddr3_ctrl_line_loopback #(
     localparam integer BANK_BITS = `DDR3_BANK_BITS;
     localparam integer LINE_ADDR_W =
         `DDR3_BANK_BITS + `DDR3_ROW_BITS + (`DDR3_COL_BITS - 3);
-    localparam integer PHY_LANES = CHANNELS * LANES;
+    localparam integer PHY_LANES = CHANNELS * PHY_BYTE_LANES;
     localparam integer LINE_BYTES = LANES * 8;
     localparam integer LINE_DATA_W = LINE_BYTES * 8;
+    localparam integer PHY_LINE_BYTES = PHY_BYTE_LANES * 8;
+    localparam integer PHY_LINE_DATA_W = PHY_LINE_BYTES * 8;
+    localparam [7:0] STATUS_DATA_LANES = LANES;
+    localparam [7:0] STATUS_PHY_BYTE_LANES = PHY_BYTE_LANES;
 
     reg [13:0] por_ctr = 14'h3fff;
     always @(posedge SYS_CLK) begin
@@ -425,26 +431,58 @@ module top_ddr3_ctrl_line_loopback #(
         if (USE_LINE_SERDES_PHY) begin : gen_line_serdes_phy
             wire [CHANNELS-1:0] line_serdes_error;
             wire [CHANNELS-1:0] line_serdes_busy;
+            wire [CHANNELS-1:0] serdes_wr_line_valid;
+            wire [CHANNELS-1:0] serdes_wr_line_ready;
+            wire [CHANNELS-1:0] serdes_wr_line_loaded;
+            wire [CHANNELS*PHY_LINE_DATA_W-1:0] serdes_wr_line_data;
+            wire [CHANNELS*PHY_LINE_BYTES-1:0] serdes_wr_line_mask;
+            wire [CHANNELS-1:0] serdes_rd_line_ready;
+            wire [CHANNELS-1:0] serdes_rd_line_valid;
+            wire [CHANNELS*PHY_LINE_DATA_W-1:0] serdes_rd_line_data;
+            wire [CHANNELS-1:0] serdes_rd_line_err;
+
+            ddr3_x8_to_x9_line_adapter #(
+                .CHANNELS(CHANNELS)
+            ) u_x8_to_x9_line_adapter (
+                .i_ctrl_wr_line_valid(phy_wr_line_valid),
+                .o_ctrl_wr_line_ready(phy_wr_line_ready),
+                .o_ctrl_wr_line_loaded(phy_wr_line_loaded),
+                .i_ctrl_wr_line_data(phy_wr_line_data),
+                .i_ctrl_wr_line_mask(phy_wr_line_mask),
+                .i_ctrl_rd_line_ready(phy_rd_line_ready),
+                .o_ctrl_rd_line_valid(phy_rd_line_valid),
+                .o_ctrl_rd_line_data(phy_rd_line_data),
+                .o_ctrl_rd_line_err(phy_rd_line_err),
+                .o_phy_wr_line_valid(serdes_wr_line_valid),
+                .i_phy_wr_line_ready(serdes_wr_line_ready),
+                .i_phy_wr_line_loaded(serdes_wr_line_loaded),
+                .o_phy_wr_line_data(serdes_wr_line_data),
+                .o_phy_wr_line_mask(serdes_wr_line_mask),
+                .o_phy_rd_line_ready(serdes_rd_line_ready),
+                .i_phy_rd_line_valid(serdes_rd_line_valid),
+                .i_phy_rd_line_data(serdes_rd_line_data),
+                .i_phy_rd_line_err(serdes_rd_line_err)
+            );
 
             ddr3_line_serdes_phy #(
                 .CHANNELS(CHANNELS),
-                .LANES(LANES)
+                .LANES(PHY_BYTE_LANES)
             ) u_line_serdes_phy (
                 .i_ctrl_clk(ctrl_clk),
                 .i_ctrl_rst(ctrl_rst),
                 .i_phy_clk(clk_sys),
                 .i_phy_rst(line_serdes_rst),
-                .i_wr_line_valid(phy_wr_line_valid),
-                .o_wr_line_ready(phy_wr_line_ready),
-                .o_wr_line_loaded(phy_wr_line_loaded),
-                .i_wr_line_data(phy_wr_line_data),
-                .i_wr_line_mask(phy_wr_line_mask),
+                .i_wr_line_valid(serdes_wr_line_valid),
+                .o_wr_line_ready(serdes_wr_line_ready),
+                .o_wr_line_loaded(serdes_wr_line_loaded),
+                .i_wr_line_data(serdes_wr_line_data),
+                .i_wr_line_mask(serdes_wr_line_mask),
                 .i_start_write(phy_start_write),
                 .i_start_read(phy_start_read),
-                .i_rd_line_ready(phy_rd_line_ready),
-                .o_rd_line_valid(phy_rd_line_valid),
-                .o_rd_line_data(phy_rd_line_data),
-                .o_rd_line_err(phy_rd_line_err),
+                .i_rd_line_ready(serdes_rd_line_ready),
+                .o_rd_line_valid(serdes_rd_line_valid),
+                .o_rd_line_data(serdes_rd_line_data),
+                .o_rd_line_err(serdes_rd_line_err),
                 .o_error(line_serdes_error),
                 .o_busy(line_serdes_busy),
                 .o_serdes_dq_bits(line_serdes_dq_bits),
@@ -920,8 +958,10 @@ module top_ddr3_ctrl_line_loopback #(
         if (USE_LINE_SERDES_PHY) begin : gen_line_serdes_pins
             for (serdes_lane = 0; serdes_lane < PHY_LANES;
                  serdes_lane = serdes_lane + 1) begin : gen_serdes_lane
-                localparam integer SERDES_CH = serdes_lane / LANES;
-                localparam integer SERDES_BYTE = serdes_lane % LANES;
+                localparam integer SERDES_CH =
+                    serdes_lane / PHY_BYTE_LANES;
+                localparam integer SERDES_BYTE =
+                    serdes_lane % PHY_BYTE_LANES;
 
                 if (SERDES_CH == 0) begin : gen_ch0_serdes
                     ddr3_x8_serdes_io_7series u_serdes_io (
@@ -1108,6 +1148,8 @@ module top_ddr3_ctrl_line_loopback #(
                                    (DRIVE_DDR3_COMMANDS != 0)};
             8'h05: status_word = {16'hAB05, 15'd0,
                                    line_serdes_rx_mix_ctrl};
+            8'h06: status_word = {16'hAB06, STATUS_DATA_LANES,
+                                   STATUS_PHY_BYTE_LANES};
             8'h08: status_word = loop_rd_count[0 +: 32] + loop_rd_count[32 +: 32];
             8'h10: status_word = {16'hAB10, 12'd0,
                                    jwb_busy, jwb_last_ack,

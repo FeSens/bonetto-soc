@@ -197,6 +197,7 @@ DDR3_CTRL_LINE_SERDES_RTL := \
     ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv \
     ../../ip/ddr3/rtl/ddr3_line_phy_clock_bridge.sv \
     ../../ip/ddr3/rtl/ddr3_line_to_bursts.sv \
+    ../../ip/ddr3/rtl/ddr3_x8_to_x9_line_adapter.sv \
     ../../ip/ddr3/rtl/ddr3_x8_burst_clock_bridge.sv \
     ../../ip/ddr3/rtl/ddr3_x8_serdes_burst_lane.sv \
     ../../ip/ddr3/rtl/ddr3_line_serdes_phy.sv

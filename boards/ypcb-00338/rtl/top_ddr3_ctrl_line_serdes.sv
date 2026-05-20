@@ -2,9 +2,10 @@
 //
 // This is the first board top that connects the line-level controller/PHY
 // boundary to the 7-series OSERDESE2/ISERDESE2/IDELAYE2 DQ/DQS shell across
-// all x9 lanes on both channels. The DDR3 devices remain held in reset with
-// CKE low, so this target is route evidence for the SERDES boundary, not an
-// external-memory validation image.
+// all x9 lanes on both channels. The controller remains an x64 data path; the
+// ninth physical lane is explicitly zero-filled as a reserved ECC/spare lane.
+// The DDR3 devices remain held in reset with CKE low, so this target is route
+// evidence for the SERDES boundary, not an external-memory validation image.
 
 `default_nettype none
 

@@ -36,6 +36,10 @@ The active RTL slices are deliberately small and scheduler-facing:
 - `ddr3_line_to_bursts.sv`: two-channel bridge from complete controller lines
   to sixteen independent preloaded 64-bit x8 BL8 lane bursts, keeping wide line
   assembly in slow fabric before the fast DQ/DQS sequencers;
+- `ddr3_x8_to_x9_line_adapter.sv`: explicit board-width adapter that keeps the
+  controller and Wishbone path at eight x8 data lanes per channel while mapping
+  the ninth physical x8 lane to deterministic zero-filled ECC/spare data until
+  a real ECC encoder/checker is added;
 - `ddr3_x8_lane_phy.sv`: synthesizable x8 lane timing core that buffers one BL8
   write burst, launches registered DDR rise/fall DQ/DM/DQS pairs, captures
   read sample pairs, and reassembles ordered lane bytes;
@@ -96,10 +100,11 @@ testbench DQS/DQ agent. The bank machine, scheduler, refresh requester, and
 single-channel scheduler adapter are the first scheduler-owned blocks, and the
 refresh requester now has idle plus focused active-traffic deadline proofs. The
 data boundary has one x8 lane packetizer, one full 64-bit-channel line
-packetizer, a line-to-x8-lane adapter, a line-to-x8-burst adapter, one x8 lane
-PHY timing core, one fast-domain x8 burst sequencer, one x8 SERDES-domain burst
-lane adapter, one x8 burst clock bridge, one line-to-fast-burst PHY shell, one
-line-to-SERDES PHY shell, one line-to-lane PHY timing bridge, a
+packetizer, a line-to-x8-lane adapter, a line-to-x8-burst adapter, an explicit
+x8-data to x9-physical spare-lane adapter, one x8 lane PHY timing core, one
+fast-domain x8 burst sequencer, one x8 SERDES-domain burst lane adapter, one
+x8 burst clock bridge, one line-to-fast-burst PHY shell, one line-to-SERDES PHY
+shell, one line-to-lane PHY timing bridge, a
 line-backed Wishbone-to-channel bridge, and a pre-PHY controller shell tying
 those pieces to the dual-channel command path. The full-capacity address map is
 explicit and formally checked. The board has route-proven DQ/DQS primitive,
@@ -126,8 +131,11 @@ Recommended first RTL slices:
   hardware validated.
 
 Current board route note: `top_ddr3_ctrl_line_serdes` connects
-`ddr3_ctrl_line` through `ddr3_line_serdes_phy` to all x9 CH0+CH1 7-series
-SERDES/IDELAY DQ/DQS lanes and generated a router1 bitstream on 2026-05-20.
-That is a physical-boundary proof only; DDR3 reset is held active, CKE is low,
-and the x9 data/ECC policy still needs to be made explicit before real storage
-validation.
+`ddr3_ctrl_line` through an explicit x8-data to x9-physical adapter and
+`ddr3_line_serdes_phy` to all x9 CH0+CH1 7-series SERDES/IDELAY DQ/DQS lanes.
+The ninth lane is currently a zero-filled ECC/spare lane, not Wishbone-visible
+capacity. The route-only image generated a router1 bitstream on 2026-05-20 with
+post-route max frequencies of `SYS_CLK` 71.28 MHz, `clk_sys` 155.26 MHz,
+`clk_idelay_ref` 759.88 MHz, and `clk_dq`/`clk_ddr` 1557.63 MHz. That is a
+physical-boundary proof only; DDR3 reset is held active, CKE is low, and a real
+ECC policy still needs to be implemented before storage validation.
