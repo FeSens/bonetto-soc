@@ -124,9 +124,9 @@ module ddr3_wb_frontend_wrapper (
         input [WORD_INDEX_W-1:0] word_index;
         integer i;
         begin
-            expected_wr_mask = {LINE_BYTES{1'b0}};
+            expected_wr_mask = {LINE_BYTES{1'b1}};
             for (i = 0; i < (WB_DATA_W / 8); i = i + 1)
-                expected_wr_mask[(word_index * (WB_DATA_W / 8)) + i] = sel[i];
+                expected_wr_mask[(word_index * (WB_DATA_W / 8)) + i] = ~sel[i];
         end
     endfunction
 

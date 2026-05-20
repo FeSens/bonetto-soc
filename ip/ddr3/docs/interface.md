@@ -48,10 +48,12 @@ column address `{column[9:3], 3'b000}`.
 `rtl/ddr3_wb_frontend.sv` is the first live slice of this contract. It accepts
 one 32-bit Wishbone request at a time, stalls while that request is outstanding,
 splits the word address into `{line address, word index}`, packs write data into
-the selected word slot inside a BL8 line, shifts `i_wb_sel` into a line byte
-mask, and selects the requested 32-bit word from a backend read line. It is not
-the full controller-level `ddr3_ctrl`; downstream scheduler, merge, PHY,
-calibration, and status integration live above or beside this frontend.
+the selected word slot inside a BL8 line, inverts `i_wb_sel` into DDR3 DM
+polarity for the line byte mask, and selects the requested 32-bit word from a
+backend read line. In that mask, `1` means suppress the byte and `0` means
+write the byte. It is not the full controller-level `ddr3_ctrl`; downstream
+scheduler, merge, PHY, calibration, and status integration live above or
+beside this frontend.
 
 `rtl/ddr3_wb_channel.sv` is the first integrated bus/data slice. It composes
 the Wishbone frontend with `ddr3_channel_line`, emits one scheduler-facing BL8
@@ -115,7 +117,7 @@ Keep the PHY boundary packetized around BL8:
 | Direction | Signal | Width | Meaning |
 |---|---|---:|---|
 | controller to PHY | write payload | 512 | One 64-bit BL8 channel line. |
-| controller to PHY | write mask | 64 | Byte mask for one BL8 line. |
+| controller to PHY | write mask | 64 | DDR3 DM byte mask for one BL8 line; `1` suppresses a byte. |
 | controller to PHY | write valid | 1 | Payload accepted by PHY side. |
 | controller to PHY | read capture | 1 | Request a read capture. |
 | PHY to controller | read payload | 512 | One captured BL8 line. |

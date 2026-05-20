@@ -110,7 +110,7 @@ module tb_wb_frontend;
             $display("[wb-frontend] write data placement mismatch got=%h", req_wr_data);
             $fatal(1);
         end
-        if (req_wr_mask !== 8'b1011_0000) begin
+        if (req_wr_mask !== 8'b0100_1111) begin
             $display("[wb-frontend] write mask placement mismatch got=%b", req_wr_mask);
             $fatal(1);
         end

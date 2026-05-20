@@ -1,7 +1,8 @@
 // Wishbone-to-BL8 line frontend for the clean-sheet DDR3 controller.
 //
 // This slice accepts one 32-bit Wishbone request at a time and translates it
-// into one aligned BL8 line request for the scheduler/data path. Full-channel
+// into one aligned BL8 line request for the scheduler/data path. The write mask
+// is DDR3 DM polarity: 1 masks/suppresses a byte, 0 writes it. Full-channel
 // DDR3 will use LINE_BYTES=64; the default LINE_BYTES=8 matches the current
 // single x8 byte-lane bring-up slice.
 
@@ -74,9 +75,9 @@ module ddr3_wb_frontend #(
         input [WORD_INDEX_W-1:0] word_index;
         integer i;
         begin
-            place_word_mask = {LINE_BYTES{1'b0}};
+            place_word_mask = {LINE_BYTES{1'b1}};
             for (i = 0; i < WB_BYTES; i = i + 1)
-                place_word_mask[(word_index * WB_BYTES) + i] = sel[i];
+                place_word_mask[(word_index * WB_BYTES) + i] = ~sel[i];
         end
     endfunction
 
@@ -99,7 +100,7 @@ module ddr3_wb_frontend #(
             o_req_line_addr  <= {LINE_ADDR_W{1'b0}};
             o_req_word_index <= {WORD_INDEX_W{1'b0}};
             o_req_wr_data    <= {LINE_DATA_W{1'b0}};
-            o_req_wr_mask    <= {LINE_BYTES{1'b0}};
+            o_req_wr_mask    <= {LINE_BYTES{1'b1}};
         end else begin
             o_wb_ack <= 1'b0;
             o_wb_err <= 1'b0;

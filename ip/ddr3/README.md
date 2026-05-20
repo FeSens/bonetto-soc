@@ -59,15 +59,15 @@ What these mean today:
   single-outstanding request adapter, stable backend request fields under
   backpressure, abort handling, write acknowledgement on backend acceptance, and
   read data/error return from the selected 32-bit word inside a BL8 line. Its
-  unit simulation checks address decode, byte-enable mask placement, write data
-  placement, and read word selection.
+  unit simulation checks address decode, active-high DDR3 DM mask placement
+  from Wishbone byte enables, write data placement, and read word selection.
 - The Wishbone-to-channel bridge proof connects the frontend to the full
   eight-lane line packetizer. It checks that a Wishbone request emits the
   expected BL8 line command, holds that command stable under backpressure, maps
-  the selected 32-bit write word and byte enables into the 512-bit/64-mask
-  channel line, and returns the selected read word from a completed channel
-  line. Its unit simulation exercises one full-width write and one full-width
-  read through all eight lanes.
+  the selected 32-bit write word and inverted byte enables into the
+  active-high 512-bit/64-mask channel line, and returns the selected read word
+  from a completed channel line. Its unit simulation exercises one full-width
+  write and one full-width read through all eight lanes.
 - The dual-channel dispatch proof composes two full-channel bridges behind the
   global word-address decoder. It checks that channel bit 29 routes each
   accepted Wishbone request to exactly one channel and preserves the lower

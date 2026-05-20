@@ -100,7 +100,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer. First proof exists. |
 | Channel scheduler adapter | One BL8 line command is accepted by the scheduler, then starts data only when the matching RD/WR command issues. First proof exists. |
 | Controller shell | Wishbone is gated until both init sequencers finish, then requests flow through two scheduler adapters. First gate proof and scheduler-connected unit simulation exist. |
-| Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation exists; downstream merge or mask-preserving PHY write is still pending. |
+| Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation now uses active-high DDR3 DM polarity; downstream merge or mask-preserving PHY write is still pending. |
 | Dual channel decode | Channel select bit routes to exactly one channel and preserves local address. First proof exists through `ddr3_wb_dual_channel`. |
 
 The command timing monitor in `formal/ddr3_cmd_timing_monitor.sv` is the first

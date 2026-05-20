@@ -178,10 +178,10 @@ module ddr3_wb_channel_wrapper (
         begin
             byte_index = (lane * 8) + beat;
             word_byte = byte_index - (f_write_word_index * (WB_DATA_W / 8));
-            expected_write_mask = 1'b0;
+            expected_write_mask = 1'b1;
             if ((byte_index >= (f_write_word_index * (WB_DATA_W / 8))) &&
                 (byte_index < ((f_write_word_index + 1'b1) * (WB_DATA_W / 8))))
-                expected_write_mask = f_write_sel[word_byte];
+                expected_write_mask = ~f_write_sel[word_byte];
         end
     endfunction
 

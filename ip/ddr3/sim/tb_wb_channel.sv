@@ -131,10 +131,10 @@ module tb_wb_channel;
         integer byte_index;
         begin
             byte_index = (lane_i * 8) + beat_i;
-            expected_write_mask = 1'b0;
-            if (byte_index == 52) expected_write_mask = 1'b1;
-            if (byte_index == 53) expected_write_mask = 1'b1;
-            if (byte_index == 55) expected_write_mask = 1'b1;
+            expected_write_mask = 1'b1;
+            if (byte_index == 52) expected_write_mask = 1'b0;
+            if (byte_index == 53) expected_write_mask = 1'b0;
+            if (byte_index == 55) expected_write_mask = 1'b0;
         end
     endfunction
 
