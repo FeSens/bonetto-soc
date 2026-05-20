@@ -1,4 +1,4 @@
-.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-line-to-bursts formal-x8-lane-phy formal-x8-burst-io-sequencer formal-x8-burst-clock-bridge formal-line-burst-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line sim sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-line-to-bursts sim-x8-lane-phy sim-x8-burst-io-sequencer sim-x8-burst-clock-bridge sim-line-burst-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel cocotb clean
+.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-line-to-bursts formal-x8-lane-phy formal-x8-burst-io-sequencer formal-x8-serdes-burst-lane formal-x8-burst-clock-bridge formal-line-burst-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line sim sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-line-to-bursts sim-x8-lane-phy sim-x8-burst-io-sequencer sim-x8-serdes-burst-lane sim-x8-burst-clock-bridge sim-line-burst-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
@@ -13,6 +13,7 @@ LINE_TO_BURSTS_SMTBMC_DEPTH ?= 12
 LINE_TO_BURSTS_SOLVER ?= yices
 X8_LANE_PHY_SMTBMC_DEPTH ?= 10
 X8_BURST_IO_SEQUENCER_SMTBMC_DEPTH ?= 14
+X8_SERDES_BURST_LANE_SMTBMC_DEPTH ?= 14
 X8_BURST_CLOCK_BRIDGE_SMTBMC_DEPTH ?= 32
 LINE_BURST_PHY_SMTBMC_DEPTH ?= 96
 LINE_LANE_PHY_WRITE_SMTBMC_DEPTH ?= 26
@@ -34,7 +35,7 @@ VVP          ?= vvp
 # keep verification infrastructure live while the clean-sheet controller is
 # designed.
 
-formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-line-to-bursts formal-x8-lane-phy formal-x8-burst-io-sequencer formal-x8-burst-clock-bridge formal-line-burst-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line
+formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-line-to-bursts formal-x8-lane-phy formal-x8-burst-io-sequencer formal-x8-serdes-burst-lane formal-x8-burst-clock-bridge formal-line-burst-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line
 
 formal-addr-decode: $(BUILD)/addr_decode.proof
 
@@ -65,6 +66,8 @@ formal-line-to-bursts: $(BUILD)/line_to_bursts.proof
 formal-x8-lane-phy: $(BUILD)/x8_lane_phy.proof
 
 formal-x8-burst-io-sequencer: $(BUILD)/x8_burst_io_sequencer.proof
+
+formal-x8-serdes-burst-lane: $(BUILD)/x8_serdes_burst_lane.proof
 
 formal-x8-burst-clock-bridge: $(BUILD)/x8_burst_clock_bridge.proof
 
@@ -186,6 +189,12 @@ $(BUILD)/x8_burst_io_sequencer.smt2: rtl/ddr3_x8_burst_io_sequencer.sv formal/x8
 	$(YOSYS) -q -p "\
 	  read_verilog -formal -sv -DFORMAL rtl/ddr3_x8_burst_io_sequencer.sv formal/x8_burst_io_sequencer_wrapper.sv; \
 	  prep -top ddr3_x8_burst_io_sequencer_wrapper; \
+	  write_smt2 -wires $@"
+
+$(BUILD)/x8_serdes_burst_lane.smt2: rtl/ddr3_x8_serdes_burst_lane.sv formal/x8_serdes_burst_lane_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -formal -sv -DFORMAL rtl/ddr3_x8_serdes_burst_lane.sv formal/x8_serdes_burst_lane_wrapper.sv; \
+	  prep -top ddr3_x8_serdes_burst_lane_wrapper; \
 	  write_smt2 -wires $@"
 
 $(BUILD)/x8_burst_clock_bridge.smt2: rtl/ddr3_x8_burst_clock_bridge.sv formal/x8_burst_clock_bridge_wrapper.sv | $(BUILD)
@@ -347,6 +356,11 @@ $(BUILD)/x8_burst_io_sequencer.proof: $(BUILD)/x8_burst_io_sequencer.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(X8_BURST_IO_SEQUENCER_SMTBMC_DEPTH) $<
 	@touch $@
 
+$(BUILD)/x8_serdes_burst_lane.proof: $(BUILD)/x8_serdes_burst_lane.smt2
+	@echo "[ddr3] formal: DDR3 x8 SERDES BL8 lane adapter, depth=$(X8_SERDES_BURST_LANE_SMTBMC_DEPTH), solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(X8_SERDES_BURST_LANE_SMTBMC_DEPTH) $<
+	@touch $@
+
 $(BUILD)/x8_burst_clock_bridge.proof: $(BUILD)/x8_burst_clock_bridge.smt2
 	@echo "[ddr3] formal: DDR3 x8 burst clock bridge, depth=$(X8_BURST_CLOCK_BRIDGE_SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(X8_BURST_CLOCK_BRIDGE_SMTBMC_DEPTH) $<
@@ -417,7 +431,7 @@ $(BUILD)/ctrl_line.proof: $(BUILD)/ctrl_line.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(CTRL_SMTBMC_DEPTH) $<
 	@touch $@
 
-sim: sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-line-to-bursts sim-x8-lane-phy sim-x8-burst-io-sequencer sim-x8-burst-clock-bridge sim-line-burst-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel
+sim: sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-line-to-bursts sim-x8-lane-phy sim-x8-burst-io-sequencer sim-x8-serdes-burst-lane sim-x8-burst-clock-bridge sim-line-burst-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel
 
 cocotb:
 	@echo "[ddr3] cocotb disabled until Wishbone/runtime controller RTL exists; run 'make sim' for Micron init coverage."
@@ -453,6 +467,10 @@ sim-x8-lane-phy: $(SIM_BUILD)/x8_lane_phy.vvp
 
 sim-x8-burst-io-sequencer: $(SIM_BUILD)/x8_burst_io_sequencer.vvp
 	@echo "[ddr3] sim: DDR3 x8 fast burst I/O sequencer"
+	$(VVP) $<
+
+sim-x8-serdes-burst-lane: $(SIM_BUILD)/x8_serdes_burst_lane.vvp
+	@echo "[ddr3] sim: DDR3 x8 SERDES BL8 lane adapter"
 	$(VVP) $<
 
 sim-x8-burst-clock-bridge: $(SIM_BUILD)/x8_burst_clock_bridge.vvp
@@ -640,6 +658,11 @@ $(SIM_BUILD)/x8_burst_io_sequencer.vvp: rtl/ddr3_x8_burst_io_sequencer.sv sim/tb
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_x8_burst_io_sequencer \
 	  -o $@ rtl/ddr3_x8_burst_io_sequencer.sv sim/tb_x8_burst_io_sequencer.sv
+
+$(SIM_BUILD)/x8_serdes_burst_lane.vvp: rtl/ddr3_x8_serdes_burst_lane.sv sim/tb_x8_serdes_burst_lane.sv | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl \
+	  -s tb_x8_serdes_burst_lane \
+	  -o $@ rtl/ddr3_x8_serdes_burst_lane.sv sim/tb_x8_serdes_burst_lane.sv
 
 $(SIM_BUILD)/x8_burst_clock_bridge.vvp: rtl/ddr3_x8_burst_clock_bridge.sv sim/tb_x8_burst_clock_bridge.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \

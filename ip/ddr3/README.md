@@ -58,9 +58,9 @@ bit-clock domain. External DDR3 storage is still not validated.
 
 | Area | State |
 |---|---|
-| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, line-to-x8-lane adapter, line-to-x8-burst adapter, x8 lane PHY timing core, fast-domain x8 burst I/O sequencer, x8 burst clock bridge, line-to-fast-burst PHY shell, line-to-lane PHY timing bridge, controller-to-PHY line clock bridge, board-local DQ/DQS ODDR/IDDR/IOBUF shell probe, single-outstanding line-level Wishbone bridge, line-backed Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no timing-clean calibrated read/write PHY yet |
-| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, line-to-x8-burst adapter proof, x8 lane PHY timing-core proof, fast-domain x8 burst I/O sequencer proof, x8 burst clock-bridge proof, line-to-fast-burst PHY-shell proof, line-to-lane PHY bridge proof, controller-to-PHY line clock bridge proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
-| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, line-to-x8-burst adapter unit test, x8 lane PHY timing-core unit test, fast-domain x8 burst I/O sequencer unit test, x8 burst clock-bridge dual-clock unit test, line-to-fast-burst PHY shell unit test, line-to-lane PHY bridge unit test, controller-to-PHY line clock bridge dual-clock unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
+| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, line-to-x8-lane adapter, line-to-x8-burst adapter, x8 lane PHY timing core, fast-domain x8 burst I/O sequencer, x8 SERDES-domain BL8 lane adapter, x8 burst clock bridge, line-to-fast-burst PHY shell, line-to-lane PHY timing bridge, controller-to-PHY line clock bridge, board-local DQ/DQS ODDR/IDDR/IOBUF shell probe, single-outstanding line-level Wishbone bridge, line-backed Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no timing-clean calibrated read/write PHY yet |
+| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, line-to-x8-burst adapter proof, x8 lane PHY timing-core proof, fast-domain x8 burst I/O sequencer proof, x8 SERDES-domain BL8 lane-adapter proof, x8 burst clock-bridge proof, line-to-fast-burst PHY-shell proof, line-to-lane PHY bridge proof, controller-to-PHY line clock bridge proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
+| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, line-to-x8-burst adapter unit test, x8 lane PHY timing-core unit test, fast-domain x8 burst I/O sequencer unit test, x8 SERDES-domain BL8 lane-adapter unit test, x8 burst clock-bridge dual-clock unit test, line-to-fast-burst PHY shell unit test, line-to-lane PHY bridge unit test, controller-to-PHY line clock bridge dual-clock unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, command-probe, command plus line-to-lane loopback, route-only full-pin DQ/DQS I/O-shell timing proof, route-only full-pin x8 burst/DQ/DQS timing proof, and route-only full dual-channel SERDES/IDELAY timing proof through router1; D88 PHY-clock bridge is debug evidence only and its program target is refused by default because it misses the 400 MHz bit-clock target; not external DDR3 storage |
 
@@ -73,6 +73,7 @@ make -C ip/ddr3 formal
 make -C ip/ddr3 sim
 make -C ip/ddr3 sim-line-to-bursts formal-line-to-bursts
 make -C ip/ddr3 sim-x8-burst-io-sequencer formal-x8-burst-io-sequencer
+make -C ip/ddr3 sim-x8-serdes-burst-lane formal-x8-serdes-burst-lane
 make -C ip/ddr3 sim-x8-burst-clock-bridge formal-x8-burst-clock-bridge
 make -C ip/ddr3 sim-line-burst-phy formal-line-burst-phy
 make validate-jtag-bram BOARD=ypcb-00338
@@ -159,6 +160,12 @@ What these mean today:
   sequencer only emits four local DDR rise/fall DQ pairs with DQS strobes and
   captures four sampled read pairs back into one 64-bit word. It deliberately
   omits Wishbone, line packing, RMW policy, lane arbitration, and calibration.
+- The x8 SERDES-domain BL8 lane-adapter proof and unit simulation cover the
+  next boundary between the controller burst contract and the board-local
+  OSERDES/ISERDES shell. It accepts one preloaded 64-bit x8 write burst, emits
+  one divided-clock SERDES data word plus DQS/DQ output-enable shape, captures
+  one returned 64-bit SERDES read word, and leaves IOBUF, IDELAY, calibration,
+  and read leveling to the YPCB-00338 wrapper.
 - The x8 burst clock-bridge proof and dual-clock unit simulation cover the
   narrow slow/fast transport intended to feed that sequencer. It crosses one
   preloaded 64-bit x8 burst plus 8 mask bits, write/read start pulses, and one
@@ -347,8 +354,10 @@ What these mean today:
 | `rtl/ddr3_byte_lane.sv` | Controller-side x8 BL8 byte-lane packetizer for ordered write/read data beats. |
 | `rtl/ddr3_channel_line.sv` | Full 64-bit-channel BL8 line packetizer composed from eight x8 byte lanes. |
 | `rtl/ddr3_line_to_lanes.sv` | Reusable line-to-x8-lane adapter for serializing complete channel BL8 lines into sixteen x8 lane streams and reassembling read lanes. |
+| `rtl/ddr3_line_to_bursts.sv` | Reusable line-to-x8-burst adapter for splitting complete channel BL8 lines into preloaded 64-bit x8 burst payloads and reassembling returned bursts. |
 | `rtl/ddr3_x8_lane_phy.sv` | Reusable synthesizable x8 lane PHY timing core that turns lane beats into DDR rise/fall pin data and read samples back into lane beats. |
 | `rtl/ddr3_x8_burst_io_sequencer.sv` | Small fast-domain x8 BL8 burst sequencer for preloaded write payload launch and sampled read-pair reassembly in front of the board I/O shell. |
+| `rtl/ddr3_x8_serdes_burst_lane.sv` | Pure RTL x8 SERDES-domain BL8 lane adapter that presents one 64-bit write/read burst word to the board OSERDES/ISERDES shell without instantiating Xilinx primitives. |
 | `rtl/ddr3_line_lane_phy.sv` | Integration bridge from complete channel BL8 lines through all x8 lane PHY timing cores, exposing abstract per-lane DQ/DQS/DM timing signals for the future board primitive wrapper. |
 | `rtl/ddr3_line_phy_clock_bridge.sv` | Single-outstanding controller/PHY clock bridge for complete BL8 line payloads and transfer-start/read-return handshakes; useful boundary, not a full DDR bit-clock PHY. |
 | `../../boards/ypcb-00338/rtl/ddr3_board_io.sv` | Board-local 7-series clock, command, high-Z, and DQ/DQS primitive wrappers for staged hardware bring-up. |
@@ -378,7 +387,9 @@ What these mean today:
 | `formal/byte_lane_wrapper.sv` | Formal harness for BL8 x8 byte-lane data/mask ordering and read capture. |
 | `formal/channel_line_wrapper.sv` | Formal harness for full-channel lane composition, byte-mask mapping, and read-line reassembly. |
 | `formal/line_to_lanes_wrapper.sv` | Formal harness for the reusable line-to-x8-lane adapter boundary. |
+| `formal/line_to_bursts_wrapper.sv` | Formal harness for the reusable line-to-x8-burst adapter boundary. |
 | `formal/x8_lane_phy_wrapper.sv` | Bounded formal harness for x8 lane PHY write-pair launch, read-pair capture, and output-enable invariants. |
+| `formal/x8_serdes_burst_lane_wrapper.sv` | Bounded formal harness for the x8 SERDES-domain BL8 lane-adapter data, output-enable, and read-valid contract. |
 | `formal/line_phy_clock_bridge_wrapper.sv` | Bounded formal harness for the controller-to-PHY line clock bridge request, transfer-start, and read-return protocol. |
 | `formal/wb_frontend_wrapper.sv` | Formal harness for Wishbone protocol, backend request stability, and BL8 word mapping. |
 | `formal/wb_line_channel_wrapper.sv` | Formal harness for the line-level Wishbone bridge contract. |
@@ -392,7 +403,9 @@ What these mean today:
 | `sim/tb_byte_lane.sv` | Unit bench for the byte-lane packetizer. |
 | `sim/tb_channel_line.sv` | Unit bench for the full-channel BL8 line packetizer with per-lane stalls. |
 | `sim/tb_line_to_lanes.sv` | Unit bench for dual-channel line-to-x8-lane serialization and read reassembly with skewed lane stalls. |
+| `sim/tb_line_to_bursts.sv` | Unit bench for dual-channel line-to-x8-burst preload and read reassembly with skewed lane stalls. |
 | `sim/tb_x8_lane_phy.sv` | Unit bench for x8 lane PHY BL8 write preload, DDR rise/fall launch, and read-pair reassembly. |
+| `sim/tb_x8_serdes_burst_lane.sv` | Unit bench for x8 SERDES-domain write preamble/data/postamble shape and one-word read capture. |
 | `sim/tb_line_phy_clock_bridge.sv` | Dual-clock unit bench for the controller-to-PHY line bridge. |
 | `sim/tb_wb_frontend.sv` | Unit bench for the Wishbone-to-BL8 frontend. |
 | `sim/tb_wb_line_channel.sv` | Unit bench for the line-level Wishbone bridge. |
