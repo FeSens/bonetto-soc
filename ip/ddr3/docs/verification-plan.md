@@ -178,6 +178,17 @@ bit-clock target. The shell includes DQ `ODDR`/`IDDR`/`IOBUF` and DQS
 `ODDR`/`IDDR`/`IOBUFDS`, but DDR3 reset remains asserted and CKE low, so this
 is a fast-I/O route proof, not memory storage validation.
 
+Hardware note: the YPCB-00338 route-only x8 burst/DQ/DQS probe adds one
+per-byte-lane `ddr3_x8_burst_io_sequencer` in front of that same full board
+DQ/DQS shell. The route target uses full active board constraints for both DDR3
+channels and the sequencer's `FAST_ROUTE_ACCEPT` branch, which is intentionally
+write-launch-only and route-only; the normal sequencer behavior remains covered
+by the focused simulation and formal targets. The 2026-05-20 seed-1 target
+`ddr3-dq-dqs-burst-ddr800-bitstream` completed without `--timing-allow-fail`;
+post-route reported `clk_dq` at 448.43 MHz, passing the 400 MHz DDR3-800
+bit-clock target. DDR3 reset remains asserted and CKE low, so this proves
+full-pin local BL8 launch route shape, not external DDR3 storage.
+
 The first post-init-probe RTL slice, `rtl/ddr3_wb_line_channel.sv`, is now wired
 under both `rtl/ddr3_wb_channel.sv` and
 `rtl/ddr3_wb_dual_channel_line.sv`. `rtl/ddr3_ctrl_line.sv` exposes that
@@ -201,7 +212,9 @@ introduced after the D88 timing experiment. It receives an already-preloaded
 64-bit x8 BL8 write payload and performs only the four local DDR pair launches,
 or captures four local read pairs and returns one 64-bit word. This is the RTL
 shape intended to sit near the 7-series DQ/DQS shell; wide controller-line
-assembly and lane arbitration stay in slow fabric.
+assembly and lane arbitration stay in slow fabric. Its normal mode is the
+simulation/formal subject; its `FAST_ROUTE_ACCEPT` mode is only a route-probe
+branch for checking full-board local launch timing.
 
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler

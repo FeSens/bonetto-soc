@@ -27,6 +27,12 @@ boundary is transfer-start pulses, DQ rise/fall launch, read sampling, and
 line reassembly. DQ/DQS remain high-Z in all of these gates, so none of them
 validate external DDR3 storage.
 
+`top_ddr3_dq_dqs_iobuf_probe` and `top_ddr3_dq_dqs_burst_probe` are route-only
+full-pin DDR3-800 DQ/DQS gates. The first proves the raw 7-series ODDR/IDDR plus
+IOBUF/IOBUFDS shell; the second adds one local x8 burst sequencer per physical
+byte lane. Both hold the DDR3 devices in reset with CKE low, so they are timing
+and pin-route evidence only.
+
 ## Historical DDR3 Configuration
 
 The previous DDR3 controller/PHY RTL has been reset. The notes below are kept
@@ -112,6 +118,12 @@ The 2026-05-20 seed-1 route generated a bitstream, but `SYS_CLK` fails the
 artificial 400 MHz check at 65.30 MHz and `clk_dq` estimates 381.97 MHz. Treat
 this as functional pre-pin PHY-timing loopback evidence, not DDR3-800 timing,
 data-eye, or storage signoff.
+
+`ddr3-dq-dqs-burst-ddr800-bitstream` routes the full CH0 + CH1 DQ/DQS pinout
+with one route-only x8 burst sequencer per physical byte lane. The 2026-05-20
+seed-1 route completed without `--timing-allow-fail`; nextpnr reported `clk_dq`
+at 448.43 MHz against the 400 MHz target. DDR3 reset remains asserted and CKE
+low, so this target still does not validate external memory storage.
 
 For pin work, use the public board reference archive rather than deriving pins
 from the current reduced top:
