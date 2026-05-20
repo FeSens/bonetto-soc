@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Validate the DDR3-800 init probe image over XVC/USER1 JTAG.
+"""Validate a DDR3-800 init/status image over XVC/USER1 JTAG.
 
 This is intentionally narrower than full DDR3 memory validation. It checks the
-full-pin init probe image version, PLL lock, generated clock liveness, both
-channel init-done bits, and refresh health. DQ/DQS data traffic is not tested
-by this image.
+selected image version, PLL lock, generated clock liveness, both channel
+init-done bits, and refresh health. DQ/DQS data traffic is not tested here.
 """
 
 import argparse
@@ -52,6 +51,7 @@ def validate(args):
         clk_ddr = read_status_reg(xvc, 0x16)
         clk_dq = read_status_reg(xvc, 0x17)
         clk_ref = read_status_reg(xvc, 0x18)
+        config = read_status_reg(xvc, 0x04)
         refresh0 = read_status_reg(xvc, 0x20)
         refresh1 = read_status_reg(xvc, 0x21)
 
@@ -72,10 +72,11 @@ def validate(args):
         print(f"clk_ddr=0x{clk_ddr:08x} alive={bit(clk_ddr, 15)}")
         print(f"clk_dq=0x{clk_dq:08x} alive={bit(clk_dq, 15)}")
         print(f"clk_ref=0x{clk_ref:08x} alive={bit(clk_ref, 15)}")
+        print(f"config=0x{config:08x}")
         print(f"refresh0=0x{refresh0:08x} refresh1=0x{refresh1:08x}")
 
-        require(version == PROBE_VERSION,
-                f"expected DDR3 init probe version 0x{PROBE_VERSION:08x}, "
+        require(version == args.expected_version,
+                f"expected {args.gate_name} version 0x{args.expected_version:08x}, "
                 f"got 0x{version:08x}")
         require((status >> 16) == 0xB07E,
                 f"status magic mismatch: 0x{status:08x}")
@@ -91,8 +92,17 @@ def validate(args):
                 f"refresh0 magic mismatch: 0x{refresh0:08x}")
         require((refresh1 >> 16) == 0xF0C1,
                 f"refresh1 magic mismatch: 0x{refresh1:08x}")
+        if args.require_ddr_wb_blocked:
+            require((config >> 16) == 0xAB04,
+                    f"config magic mismatch: 0x{config:08x}")
+            require(bit(config, 6) == 1,
+                    f"DDR Wishbone block bit is not set: 0x{config:08x}")
+            require(bit(config, 5) == 1,
+                    f"SERDES PHY bit is not set: 0x{config:08x}")
+            require(bit(config, 0) == 1,
+                    f"DDR command-drive bit is not set: 0x{config:08x}")
 
-        print("DDR3_INIT_VALIDATE_SUMMARY ok=1")
+        print(f"{args.gate_name}_VALIDATE_SUMMARY ok=1")
     finally:
         xvc.close()
 
@@ -102,6 +112,10 @@ def main():
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=3721)
     parser.add_argument("--tck-ns", type=int, default=2000)
+    parser.add_argument("--expected-version", type=lambda s: int(s, 0),
+                        default=PROBE_VERSION)
+    parser.add_argument("--gate-name", default="DDR3_INIT")
+    parser.add_argument("--require-ddr-wb-blocked", action="store_true")
     args = parser.parse_args()
     validate(args)
     return 0

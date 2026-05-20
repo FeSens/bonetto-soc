@@ -139,3 +139,14 @@ post-route max frequencies of `SYS_CLK` 71.28 MHz, `clk_sys` 155.26 MHz,
 `clk_idelay_ref` 759.88 MHz, and `clk_dq`/`clk_ddr` 1557.63 MHz. That is a
 physical-boundary proof only; DDR3 reset is held active, CKE is low, and a real
 ECC policy still needs to be implemented before storage validation.
+
+`top_ddr3_ctrl_line_serdes_init` is the next live init-only gate. It drives the
+real DDR3 reset/CKE/ODT/CK/address/command pins and instantiates the same full
+x9 SERDES/IDELAY DQ/DQS shell on both channels, but blocks DDR Wishbone
+accesses so uncalibrated external storage traffic cannot be launched. The
+2026-05-20 router1 DDR3-800 bitstream preserves 162 OSERDESE2, 162 ISERDESE2,
+162 IDELAYE2, 144 DQ IOBUF, 18 DQS IOBUFDS, and 6 IDELAYCTRL cells; post-route
+max frequencies are `SYS_CLK` 118.11 MHz, `clk_sys` 137.48 MHz,
+`clk_idelay_ref` 747.94 MHz, `clk_dq` 664.45 MHz, and `clk_ddr` 1557.63 MHz.
+Hardware programming/validation is still pending a DLC10 replug after the cable
+wedged on the first programming attempt.

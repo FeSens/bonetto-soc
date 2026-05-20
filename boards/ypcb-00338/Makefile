@@ -171,6 +171,7 @@ DDR3_CTRL_LINE_PHYCLKLOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_line_phy_clock_bridge.sv
 
 DDR3_CTRL_LINE_SERDES_RTL := \
+    rtl/top_ddr3_ctrl_line_serdes_init.sv \
     rtl/top_ddr3_ctrl_line_serdes.sv \
     rtl/top_ddr3_ctrl_line_loopback.sv \
     rtl/ddr3_board_io.sv \
@@ -248,6 +249,7 @@ DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 .PHONY: ddr3-ctrl-line-phytimingloop-ddr800-json ddr3-ctrl-line-phytimingloop-ddr800-bitstream program-ddr3-ctrl-line-phytimingloop-ddr800 validate-ddr3-ctrl-line-phytimingloop
 .PHONY: ddr3-ctrl-line-phyclkloop-ddr800-json ddr3-ctrl-line-phyclkloop-ddr800-bitstream program-ddr3-ctrl-line-phyclkloop-ddr800 validate-ddr3-ctrl-line-phyclkloop
 .PHONY: ddr3-ctrl-line-serdes-ddr800-json ddr3-ctrl-line-serdes-router1-ddr800-bitstream
+.PHONY: ddr3-ctrl-line-serdes-init-ddr800-json ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream program-ddr3-ctrl-line-serdes-init-ddr800 validate-ddr3-ctrl-line-serdes-init
 .PHONY: ddr3-dq-dqs-iobuf-ddr800-json ddr3-dq-dqs-iobuf-ddr800-bitstream
 .PHONY: ddr3-dq-dqs-burst-ddr800-json ddr3-dq-dqs-burst-ddr800-bitstream
 .PHONY: ddr3-dq-dqs-serdes-lane0-ddr800-json ddr3-dq-dqs-serdes-lane0-ddr800-bitstream
@@ -461,6 +463,26 @@ ddr3-ctrl-line-serdes-router1-ddr800-bitstream:
 	  NEXTPNR_FREQ=50 \
 	  NEXTPNR_ARGS="--router router1 --seed 1 --log build/ddr3_ctrl_line_serdes_router1_ddr800_seed1_route.log" \
 	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_router1_ddr800.bit
+
+ddr3-ctrl-line-serdes-init-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_init_ddr800 \
+	  TOP=top_ddr3_ctrl_line_serdes_init \
+	  RTL="$(DDR3_CTRL_LINE_SERDES_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_init_ddr800.json
+
+ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_init_router1_ddr800 \
+	  TOP=top_ddr3_ctrl_line_serdes_init \
+	  RTL="$(DDR3_CTRL_LINE_SERDES_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=50 \
+	  NEXTPNR_ARGS="--router router1 --seed 1 --log build/ddr3_ctrl_line_serdes_init_router1_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_init_router1_ddr800.bit
 
 ddr3-dq-dqs-iobuf-ddr800-json:
 	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_iobuf_ddr800 \
@@ -939,6 +961,17 @@ program-ddr3-ctrl-line-phytimingloop-ddr800: ddr3-ctrl-line-phytimingloop-ddr800
 	echo "unplug+replug of the USB cable from the Mac is required."; \
 	exit 1
 
+program-ddr3-ctrl-line-serdes-init-ddr800: ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream $(FIRMWARE)
+	@for i in $(RETRIES); do \
+	  echo ">> program DDR3-800 SERDES init-only attempt $$i"; \
+	  $(OFL_BASE) $(FREQ_PROGRAM) --index-chain 0 $(BUILD)/bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_init_router1_ddr800.bit && exit 0; \
+	  sleep 2; \
+	done; \
+	echo "program failed after 10 attempts -- if all attempts after #1"; \
+	echo "showed 'Unable to read constant', the cable is wedged. Physical"; \
+	echo "unplug+replug of the USB cable from the Mac is required."; \
+	exit 1
+
 program-ddr3-ctrl-line-phyclkloop-ddr800: $(FIRMWARE)
 	@if [ "$(ALLOW_TIMING_FAILED_DDR3_EXPERIMENT)" != "1" ]; then \
 	  echo "refusing to program DDR3 PHY-clock loopback: this target is a timing-failed experiment"; \
@@ -990,6 +1023,9 @@ validate-ddr3-ctrl-line-phytimingloop:
 
 validate-ddr3-ctrl-line-phyclkloop:
 	cd ../.. && python3 tools/ddr3_ctrl_phyclk_validate.py --tck-ns 2000 --expected-version 0xB07E0D88 --gate-name DDR3_CTRL_LINE_PHYCLKLOOP
+
+validate-ddr3-ctrl-line-serdes-init:
+	cd ../.. && python3 tools/ddr3_init_validate.py --tck-ns 2000 --expected-version 0xB07E0D89 --gate-name DDR3_CTRL_LINE_SERDES_INIT --require-ddr-wb-blocked
 
 bram-echo:
 	cd ../.. && python3 tools/jtag_bram_echo.py
@@ -1046,6 +1082,9 @@ help:
 	@echo "  make program-ddr3-ctrl-line-phyclkloop-ddr800    refused unless ALLOW_TIMING_FAILED_DDR3_EXPERIMENT=1"
 	@echo "  make validate-ddr3-ctrl-line-phyclkloop          debug-only immediate readback through PHY-clock probe"
 	@echo "  make ddr3-ctrl-line-serdes-router1-ddr800-bitstream  route-only controller-to-SERDES full x9 CH0+CH1 boundary"
+	@echo "  make ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream  route live DDR3 init plus full x9 SERDES shell"
+	@echo "  make program-ddr3-ctrl-line-serdes-init-ddr800          program live DDR3 init plus full x9 SERDES shell"
+	@echo "  make validate-ddr3-ctrl-line-serdes-init                validate init/status with DDR Wishbone blocked"
 	@echo "  make ddr3-dq-dqs-iobuf-ddr800-bitstream         route-only tiny DQ/DQS I/O-shell probe"
 	@echo "  make ddr3-dq-dqs-burst-ddr800-bitstream         route-only x8 burst sequencer plus DQ/DQS shell"
 	@echo "  make ddr3-dq-dqs-serdes-lane0-tight-ddr800-bitstream         route-only lane0 bidirectional SERDES probe"

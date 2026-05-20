@@ -19,6 +19,7 @@
 
 module top_ddr3_ctrl_line_loopback #(
     parameter integer DRIVE_DDR3_COMMANDS = 0,
+    parameter integer BLOCK_DDR_WISHBONE = 0,
     parameter integer PHY_HAS_BYTE_MASK = 1,
     parameter integer USE_LINE_TO_LANES = 0,
     parameter integer USE_LINE_LANE_PHY = 0,
@@ -292,10 +293,27 @@ module top_ddr3_ctrl_line_loopback #(
 
     wire ddr_cyc = jwb_cyc && ddr_sel;
     wire ddr_stb = jwb_stb && ddr_sel;
-    wire ddr_stall;
-    wire ddr_ack;
-    wire ddr_err;
-    wire [31:0] ddr_dat_r;
+    wire ddr_blocked = (BLOCK_DDR_WISHBONE != 0);
+    reg ddr_block_ack = 1'b0;
+    always @(posedge ctrl_clk) begin
+        if (ctrl_rst)
+            ddr_block_ack <= 1'b0;
+        else
+            ddr_block_ack <= ddr_blocked && ddr_cyc && ddr_stb &&
+                             !ddr_block_ack;
+    end
+
+    wire ddr_ctrl_cyc = ddr_cyc && !ddr_blocked;
+    wire ddr_ctrl_stb = ddr_stb && !ddr_blocked;
+    wire ddr_ctrl_stall;
+    wire ddr_ctrl_ack;
+    wire ddr_ctrl_err;
+    wire [31:0] ddr_ctrl_dat_r;
+    wire ddr_stall = ddr_blocked ? 1'b0 : ddr_ctrl_stall;
+    wire ddr_ack = ddr_blocked ? ddr_block_ack : ddr_ctrl_ack;
+    wire ddr_err = ddr_blocked ? ddr_block_ack : ddr_ctrl_err;
+    wire [31:0] ddr_dat_r =
+        ddr_blocked ? 32'hD15A_B1ED : ddr_ctrl_dat_r;
     wire [GLOBAL_WORD_ADDR_W-1:0] ddr_adr =
         {jwb_addr_hi_echo, jwb_adr[13:0]};
 
@@ -370,16 +388,16 @@ module top_ddr3_ctrl_line_loopback #(
         .i_clk(ctrl_clk),
         .i_rst(ctrl_rst),
         .i_init_start(1'b1),
-        .i_wb_cyc(ddr_cyc),
-        .i_wb_stb(ddr_stb),
+        .i_wb_cyc(ddr_ctrl_cyc),
+        .i_wb_stb(ddr_ctrl_stb),
         .i_wb_we(jwb_we),
         .i_wb_dat(jwb_dat_w),
         .i_wb_sel(jwb_sel),
         .i_wb_adr(ddr_adr),
-        .o_wb_stall(ddr_stall),
-        .o_wb_ack(ddr_ack),
-        .o_wb_err(ddr_err),
-        .o_wb_dat(ddr_dat_r),
+        .o_wb_stall(ddr_ctrl_stall),
+        .o_wb_ack(ddr_ctrl_ack),
+        .o_wb_err(ddr_ctrl_err),
+        .o_wb_dat(ddr_ctrl_dat_r),
         .o_init_done(init_done),
         .o_init_busy(init_busy),
         .o_init_state(init_state),
@@ -1139,7 +1157,8 @@ module top_ddr3_ctrl_line_loopback #(
             8'h01: status_word = state_bits;
             8'h02: status_word = {8'h00, heartbeat};
             8'h03: status_word = loop_total;
-            8'h04: status_word = {16'hAB04, 10'd0,
+            8'h04: status_word = {16'hAB04, 9'd0,
+                                   (BLOCK_DDR_WISHBONE != 0),
                                    (USE_LINE_SERDES_PHY != 0),
                                    (USE_PINPAIR_TIMING_PROBE != 0),
                                    (USE_LINE_LANE_PHY != 0),

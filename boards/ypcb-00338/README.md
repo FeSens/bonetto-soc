@@ -66,6 +66,13 @@ DDR3 pads before route, so the canonical `IOBUF`/`IOBUFDS` representation
 remains the usable model. Router selection is therefore part of the current
 route evidence. This probe is not a hardware memory validator.
 
+`top_ddr3_ctrl_line_serdes_init` is the first live DDR3 init-only gate that
+combines the clean dual-channel line controller, real DDR3 reset/CKE/command
+pins, and the full x9 CH0 + CH1 SERDES/IDELAY DQ/DQS shell. DDR Wishbone
+access is intentionally blocked in this image so JTAG cannot issue
+uncalibrated external storage reads or writes before read/write leveling
+exists.
+
 ## Historical DDR3 Configuration
 
 The previous DDR3 controller/PHY RTL has been reset. The notes below are kept
@@ -135,6 +142,22 @@ version `0xB07E0D86`. The command plus PHY-timing loopback target uses version
 `0xB07E0D87`; it has been routed, programmed, and validated over XVC on
 2026-05-20. None of these gates validates external DDR3 storage because DQ/DQS
 remain disconnected from the controller.
+
+Use the SERDES init-only targets for the first live command/init image with the
+full x9 DQ/DQS SERDES shell present:
+
+```sh
+make -C boards/ypcb-00338 ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream
+make -C boards/ypcb-00338 program-ddr3-ctrl-line-serdes-init-ddr800
+make -C boards/ypcb-00338 xvc
+make -C boards/ypcb-00338 validate-ddr3-ctrl-line-serdes-init
+```
+
+That validator requires version `0xB07E0D89`, live generated clocks, both
+channel init sequencers done, no late refresh, command pins enabled, the SERDES
+PHY flag set, and the DDR Wishbone block flag set. This gate is still not a
+DDR3 storage validator; it deliberately returns an error for DDR Wishbone
+accesses.
 
 `ddr3-init-ddr800-bitstream` routes with nextpnr's single global `--freq 400`
 check and `--timing-allow-fail`. Read the route log per clock: the DDR launch
@@ -272,12 +295,12 @@ Key DDR3 controller-loopback registers:
 | `0x00` | Controller-loopback status flags, magic `0xB07E`; bits 15 and 11 mean loopback/init done |
 | `0x01` | packed CH1/CH0 init states plus refresh flags and heartbeat bits |
 | `0x03` | total loopback read/write transaction count |
-| `0x04` | board gate flags: bit 3 means line-lane PHY timing path, bit 2 means line-to-lanes path, bit 1 means PHY byte-mask path, bit 0 means command pins driven |
+| `0x04` | board gate flags: bit 6 means DDR Wishbone blocked, bit 5 means full line SERDES PHY path, bit 4 means pin-pair timing probe, bit 3 means line-lane PHY timing path, bit 2 means line-to-lanes path, bit 1 means PHY byte-mask path, bit 0 means command pins driven |
 | `0x10`..`0x13` | JTAG-WB status, address echo, data echo, and read data |
 | `0x20`..`0x21` | CH0/CH1 loopback write counts |
 | `0x22`..`0x23` | CH0/CH1 loopback read counts |
 | `0x24`..`0x25` | CH0/CH1 last loopback line address |
-| `0xFE` | DDR3 controller-loopback version, `0xB07E0D81`; command-probe version, `0xB07E0D84`; command plus line-to-lane version, `0xB07E0D86`; command plus PHY-timing version, `0xB07E0D87` |
+| `0xFE` | DDR3 controller-loopback version, `0xB07E0D81`; command-probe version, `0xB07E0D84`; command plus line-to-lane version, `0xB07E0D86`; command plus PHY-timing version, `0xB07E0D87`; live SERDES init-only version, `0xB07E0D89` |
 
 ## LEDs
 
