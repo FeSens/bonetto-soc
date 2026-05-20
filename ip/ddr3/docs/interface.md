@@ -61,6 +61,11 @@ For the 32-bit Wishbone frontend, reads select one of sixteen words from the
 512-bit line. Partial writes perform read-modify-write until byte-mask writes
 are proven through the PHY.
 
+`rtl/ddr3_byte_lane.sv` implements the first x8 slice of this boundary: one
+64-bit BL8 byte lane with eight write mask bits and an ordered read-capture
+response. A full 64-bit channel will compose eight of these lanes behind a
+channel-level packet interface.
+
 ## Debug/Status
 
 Expose status registers through the board JTAG/Wishbone path before relying on

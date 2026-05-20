@@ -66,6 +66,28 @@ module tb_micron_single_write_read;
     reg dqs_drive_en = 1'b0;
     reg dqs_drive = 1'b0;
 
+    reg lane_start = 1'b0;
+    reg lane_write = 1'b0;
+    reg [63:0] lane_wr_data = WRITE_PATTERN;
+    reg [7:0] lane_wr_mask = 8'd0;
+    reg lane_phy_wr_ready = 1'b0;
+    reg lane_phy_rd_valid = 1'b0;
+    reg [7:0] lane_phy_rd_data = 8'd0;
+    wire lane_ready;
+    wire lane_busy;
+    wire lane_done;
+    wire lane_phy_wr_valid;
+    wire [7:0] lane_phy_wr_data;
+    wire lane_phy_wr_mask;
+    wire lane_phy_wr_last;
+    wire lane_phy_rd_ready;
+    wire lane_rd_valid;
+    wire [63:0] lane_rd_data;
+
+    reg write_prefetch_done = 1'b0;
+    reg read_lane_done = 1'b0;
+    reg [7:0] write_burst [0:7];
+    reg [7:0] write_masks;
     reg write_seen = 1'b0;
     reg capture_active = 1'b0;
     reg read_seen = 1'b0;
@@ -83,13 +105,6 @@ module tb_micron_single_write_read;
     pulldown p_dqsn[0:0] (dqs_n);
 
     always #(TCK_PS / 2) ck <= ~ck;
-
-    function [7:0] pattern_byte;
-        input integer index;
-        begin
-            pattern_byte = WRITE_PATTERN[index * 8 +: 8];
-        end
-    endfunction
 
     ddr3_init_seq #(
         .RESET_LOW_CYCLES(16),
@@ -127,6 +142,28 @@ module tb_micron_single_write_read;
         .o_we_n(run_we_n),
         .o_ba(run_ba),
         .o_addr(run_addr)
+    );
+
+    ddr3_byte_lane u_lane (
+        .i_clk(ck),
+        .i_rst(rst),
+        .i_start(lane_start),
+        .o_ready(lane_ready),
+        .i_write(lane_write),
+        .i_wr_data(lane_wr_data),
+        .i_wr_mask(lane_wr_mask),
+        .o_busy(lane_busy),
+        .o_done(lane_done),
+        .o_phy_wr_valid(lane_phy_wr_valid),
+        .i_phy_wr_ready(lane_phy_wr_ready),
+        .o_phy_wr_data(lane_phy_wr_data),
+        .o_phy_wr_mask(lane_phy_wr_mask),
+        .o_phy_wr_last(lane_phy_wr_last),
+        .o_phy_rd_ready(lane_phy_rd_ready),
+        .i_phy_rd_valid(lane_phy_rd_valid),
+        .i_phy_rd_data(lane_phy_rd_data),
+        .o_rd_valid(lane_rd_valid),
+        .o_rd_data(lane_rd_data)
     );
 
     ddr3 #(
@@ -187,11 +224,16 @@ module tb_micron_single_write_read;
     task automatic drive_write_burst;
         integer i;
         begin
+            if (!write_prefetch_done) begin
+                $display("[micron-single-write-read] byte-lane write payload was not ready");
+                $fatal(1);
+            end
+
             repeat (`DDR3_800_CWL_CYCLES) @(posedge ck);
 
-            dq_drive = pattern_byte(0);
+            dq_drive = write_burst[0];
             dq_drive_en = 1'b1;
-            dm_drive = 1'b0;
+            dm_drive = write_masks[0];
             dm_drive_en = 1'b1;
             dqs_drive = 1'b0;
             dqs_drive_en = 1'b1;
@@ -201,7 +243,8 @@ module tb_micron_single_write_read;
                 dqs_drive = ~dqs_drive;
                 #200;
                 if (i < 7) begin
-                    dq_drive = pattern_byte(i + 1);
+                    dq_drive = write_burst[i + 1];
+                    dm_drive = write_masks[i + 1];
                 end
                 #(TCK_PS / 2 - 200);
             end
@@ -233,8 +276,88 @@ module tb_micron_single_write_read;
             end
 
             capture_active = 1'b0;
+            feed_lane_read_burst(read_pattern);
         end
     endtask
+
+    task automatic prefetch_lane_write_burst;
+        integer i;
+        begin
+            wait (!rst);
+            wait (lane_ready);
+            @(negedge ck);
+            lane_write = 1'b1;
+            lane_wr_data = WRITE_PATTERN;
+            lane_wr_mask = 8'd0;
+            lane_start = 1'b1;
+            @(negedge ck);
+            lane_start = 1'b0;
+
+            i = 0;
+            while (i < 8) begin
+                @(negedge ck);
+                lane_phy_wr_ready = 1'b1;
+                if (lane_phy_wr_valid) begin
+                    write_burst[i] = lane_phy_wr_data;
+                    write_masks[i] = lane_phy_wr_mask;
+                    if (lane_phy_wr_last !== (i == 7)) begin
+                        $display("[micron-single-write-read] byte-lane write last mismatch beat=%0d last=%0b",
+                                 i, lane_phy_wr_last);
+                        $fatal(1);
+                    end
+                    i = i + 1;
+                end
+            end
+
+            @(negedge ck);
+            lane_phy_wr_ready = 1'b0;
+            wait (lane_done);
+            write_prefetch_done = 1'b1;
+        end
+    endtask
+
+    task automatic feed_lane_read_burst;
+        input [63:0] data;
+        integer i;
+        begin
+            wait (lane_ready);
+            @(negedge ck);
+            lane_write = 1'b0;
+            lane_start = 1'b1;
+            @(negedge ck);
+            lane_start = 1'b0;
+
+            for (i = 0; i < 8; i = i + 1) begin
+                @(negedge ck);
+                if (!lane_phy_rd_ready) begin
+                    $display("[micron-single-write-read] byte-lane read side not ready at beat=%0d",
+                             i);
+                    $fatal(1);
+                end
+                lane_phy_rd_data = pattern_from_line(data, i);
+                lane_phy_rd_valid = 1'b1;
+            end
+
+            @(negedge ck);
+            lane_phy_rd_valid = 1'b0;
+            lane_phy_rd_data = 8'd0;
+            wait (lane_rd_valid);
+            if (lane_rd_data !== data) begin
+                $display("[micron-single-write-read] byte-lane read mismatch: expected=%h got=%h",
+                         data, lane_rd_data);
+                $fatal(1);
+            end
+            read_lane_done = 1'b1;
+        end
+    endtask
+
+    function [7:0] pattern_from_line;
+        input [63:0] data;
+        input integer index;
+        begin
+            pattern_from_line = data[index * 8 +: 8];
+        end
+    endfunction
 
     initial begin
         #1;
@@ -246,6 +369,9 @@ module tb_micron_single_write_read;
         seed_inputs = 1'b0;
         repeat (4) @(posedge ck);
         rst = 1'b0;
+        fork
+            prefetch_lane_write_burst();
+        join_none
 
         wait (run_done);
         repeat (`DDR3_800_TRFC_CYCLES) @(posedge ck);
@@ -259,14 +385,23 @@ module tb_micron_single_write_read;
                      read_seen, read_count, read_pattern);
             $fatal(1);
         end
+        if (!read_lane_done) begin
+            $display("[micron-single-write-read] byte-lane read path did not complete");
+            $fatal(1);
+        end
         if (read_pattern !== WRITE_PATTERN) begin
             $display("[micron-single-write-read] data mismatch: expected=%h got=%h",
                      WRITE_PATTERN, read_pattern);
             $fatal(1);
         end
+        if (lane_rd_data !== WRITE_PATTERN) begin
+            $display("[micron-single-write-read] byte-lane loopback mismatch: expected=%h got=%h",
+                     WRITE_PATTERN, lane_rd_data);
+            $fatal(1);
+        end
 
-        $display("[micron-single-write-read] init state=%0d runtime state=%0d pattern=%h",
-                 init_state, run_state, read_pattern);
+        $display("[micron-single-write-read] init state=%0d runtime state=%0d pattern=%h byte_lane=%h",
+                 init_state, run_state, read_pattern, lane_rd_data);
         $finish;
     end
 

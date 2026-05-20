@@ -13,9 +13,9 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 
 | Area | State |
 |---|---|
-| Controller RTL | DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, and periodic refresh requester; no controller-owned PHY |
-| Formal | Live command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, and bounded active-traffic refresh proof |
-| Simulation | Live Micron DDR3 model smoke, reference init, RTL init, RTL single-read command, and x8 write/read loopback targets |
+| Controller RTL | DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, and controller-side x8 BL8 byte-lane packetizer; no controller-owned PHY |
+| Formal | Live command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, and byte-lane packet proof |
+| Simulation | Live Micron DDR3 model smoke, byte-lane unit test, reference init, RTL init, RTL single-read command, and x8 write/read loopback target using the byte-lane packetizer |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
 
@@ -45,6 +45,11 @@ What these mean today:
   periodic tREFI requester to the scheduler in both an idle path and a focused
   two-bank active-traffic path, enabling the monitor's refresh-deadline check
   while requests may still be in flight when the refresh window opens.
+- The byte-lane proof and unit simulation cover the controller-side BL8 x8
+  packet boundary: writes emit eight ordered data/mask beats, and reads capture
+  eight ordered data beats into one 64-bit line. The Micron write/read loopback
+  now uses this packetizer for the BL8 payload before the ideal testbench DQS/DQ
+  agent drives or samples the model pins.
 - `sim` compiles the vendored Micron DDR3 model, runs a smoke bench, and runs a
   DDR3-800 reset/MRS/ZQ/REF reference script plus the RTL init sequencer against
   the model. It also runs the RTL init sequencer followed by one single-bank
@@ -66,6 +71,7 @@ What these mean today:
 | `rtl/ddr3_bank.sv` | Reusable one-bank open-row and local timing machine. |
 | `rtl/ddr3_scheduler.sv` | First global command scheduler slice for cross-bank timing gates and request-driven refresh. |
 | `rtl/ddr3_refresh.sv` | Periodic tREFI refresh requester that feeds the scheduler. |
+| `rtl/ddr3_byte_lane.sv` | Controller-side x8 BL8 byte-lane packetizer for ordered write/read data beats. |
 | `formal/ddr3_cmd_timing_monitor.sv` | Reusable JEDEC command/timing assertion block. |
 | `formal/timing_monitor_wrapper.sv` | Self-check harness for the timing monitor. |
 | `formal/init_seq_wrapper.sv` | Formal harness for init sequencer ordering and waits. |
@@ -75,11 +81,13 @@ What these mean today:
 | `formal/scheduler_wrapper.sv` | Formal harness for the scheduler timing/refresh slice. |
 | `formal/refresh_wrapper.sv` | Formal harness for periodic idle refresh through the scheduler and timing monitor. |
 | `formal/refresh_traffic_wrapper.sv` | Formal harness for periodic refresh with bounded in-flight scheduler traffic. |
+| `formal/byte_lane_wrapper.sv` | Formal harness for BL8 x8 byte-lane data/mask ordering and read capture. |
 | `sim/vendor/` | Vendored Micron DDR3 model and parameters. |
+| `sim/tb_byte_lane.sv` | Unit bench for the byte-lane packetizer. |
 | `sim/tb_micron_model_smoke.sv` | Minimal Micron model compile/run smoke bench. |
 | `sim/tb_micron_init_script.sv` | Handwritten DDR3-800 reset/MRS/ZQ/REF script against the Micron model. |
 | `sim/tb_micron_init_seq.sv` | RTL init sequencer bench against the Micron model. |
 | `sim/tb_micron_single_read.sv` | RTL init plus single-bank READ command bench against the Micron model. |
-| `sim/tb_micron_single_write_read.sv` | RTL init plus single-bank WRITE/READ x8 loopback bench with an ideal testbench DQS/DQ agent. |
+| `sim/tb_micron_single_write_read.sv` | RTL init plus single-bank WRITE/READ x8 loopback bench using the byte-lane packetizer and an ideal testbench DQS/DQ agent. |
 | `docs/verification-plan.md` | Required formal and simulation ladder for new RTL. |
 | `docs/learning-notes.md` | Reference lessons from LiteDRAM and UberDDR3. |

@@ -1,4 +1,4 @@
-.PHONY: formal formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic sim sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
+.PHONY: formal formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane sim sim-byte-lane sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
@@ -17,7 +17,7 @@ VVP          ?= vvp
 # keep verification infrastructure live while the clean-sheet controller is
 # designed.
 
-formal: formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic
+formal: formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane
 
 formal-timing: $(BUILD)/timing_monitor.proof
 
@@ -34,6 +34,8 @@ formal-scheduler: $(BUILD)/scheduler.proof
 formal-refresh: $(BUILD)/refresh.proof
 
 formal-refresh-traffic: $(BUILD)/refresh_traffic.proof
+
+formal-byte-lane: $(BUILD)/byte_lane.proof
 
 $(BUILD):
 	mkdir -p $@
@@ -89,6 +91,12 @@ $(BUILD)/refresh_traffic.smt2: rtl/ddr3_params.vh rtl/ddr3_refresh.sv rtl/ddr3_b
 	  prep -top ddr3_refresh_traffic_wrapper; \
 	  write_smt2 -wires $@"
 
+$(BUILD)/byte_lane.smt2: rtl/ddr3_byte_lane.sv formal/byte_lane_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -formal -sv -DFORMAL rtl/ddr3_byte_lane.sv formal/byte_lane_wrapper.sv; \
+	  prep -top ddr3_byte_lane_wrapper; \
+	  write_smt2 -wires $@"
+
 $(BUILD)/timing_monitor.proof: $(BUILD)/timing_monitor.smt2
 	@echo "[ddr3] formal: DDR3 command timing monitor self-check, depth=$(SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SMTBMC_DEPTH) $<
@@ -129,7 +137,12 @@ $(BUILD)/refresh_traffic.proof: $(BUILD)/refresh_traffic.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(REFRESH_TRAFFIC_SMTBMC_DEPTH) $<
 	@touch $@
 
-sim: sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read
+$(BUILD)/byte_lane.proof: $(BUILD)/byte_lane.smt2
+	@echo "[ddr3] formal: DDR3 x8 byte-lane BL8 packetizer, depth=$(SMTBMC_DEPTH), solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SMTBMC_DEPTH) $<
+	@touch $@
+
+sim: sim-byte-lane sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read
 
 cocotb:
 	@echo "[ddr3] cocotb disabled until Wishbone/runtime controller RTL exists; run 'make sim' for Micron init coverage."
@@ -138,6 +151,10 @@ sim-micron-smoke: $(SIM_BUILD)/micron_model_smoke.vvp
 	@echo "[ddr3] sim: Micron DDR3 model smoke"
 	mkdir -p $(SIM_BUILD)/micron_model_data
 	$(VVP) $< +model_data+$(SIM_BUILD)/micron_model_data
+
+sim-byte-lane: $(SIM_BUILD)/byte_lane.vvp
+	@echo "[ddr3] sim: DDR3 x8 byte-lane packetizer"
+	$(VVP) $<
 
 sim-micron-init: $(SIM_BUILD)/micron_init_script.vvp
 	@echo "[ddr3] sim: Micron DDR3-800 initialization script"
@@ -201,6 +218,11 @@ $(SIM_BUILD)/micron_model_smoke.vvp: sim/tb_micron_model_smoke.sv sim/vendor/ddr
 	  -s tb_micron_model_smoke \
 	  -o $@ sim/tb_micron_model_smoke.sv sim/vendor/ddr3.v
 
+$(SIM_BUILD)/byte_lane.vvp: rtl/ddr3_byte_lane.sv sim/tb_byte_lane.sv | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl \
+	  -s tb_byte_lane \
+	  -o $@ rtl/ddr3_byte_lane.sv sim/tb_byte_lane.sv
+
 $(SIM_BUILD)/micron_init_script.vvp: sim/tb_micron_init_script.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I sim/vendor \
 	  -Dden2048Mb -Dsg125 -Dx8 \
@@ -219,11 +241,11 @@ $(SIM_BUILD)/micron_single_read.vvp: rtl/ddr3_params.vh rtl/ddr3_init_seq.sv rtl
 	  -s tb_micron_single_read \
 	  -o $@ rtl/ddr3_init_seq.sv rtl/ddr3_single_read_seq.sv sim/tb_micron_single_read.sv sim/vendor/ddr3.v
 
-$(SIM_BUILD)/micron_single_write_read.vvp: rtl/ddr3_params.vh rtl/ddr3_init_seq.sv rtl/ddr3_single_write_read_seq.sv sim/tb_micron_single_write_read.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
+$(SIM_BUILD)/micron_single_write_read.vvp: rtl/ddr3_params.vh rtl/ddr3_init_seq.sv rtl/ddr3_single_write_read_seq.sv rtl/ddr3_byte_lane.sv sim/tb_micron_single_write_read.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl -I sim/vendor \
 	  -Dden2048Mb -Dsg125 -Dx8 \
 	  -s tb_micron_single_write_read \
-	  -o $@ rtl/ddr3_init_seq.sv rtl/ddr3_single_write_read_seq.sv sim/tb_micron_single_write_read.sv sim/vendor/ddr3.v
+	  -o $@ rtl/ddr3_init_seq.sv rtl/ddr3_single_write_read_seq.sv rtl/ddr3_byte_lane.sv sim/tb_micron_single_write_read.sv sim/vendor/ddr3.v
 
 clean:
 	rm -rf $(BUILD) $(SIM_BUILD) sim/sim_build sim/sim_build_* sim/build_micron
