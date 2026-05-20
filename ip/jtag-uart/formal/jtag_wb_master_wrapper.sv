@@ -34,7 +34,7 @@ module jtag_wb_master_wrapper (
     wire [DW-1:0]       data_echo, rd_data;
     wire [8:0]          cal_load_lane;
     wire [4:0]          cal_tap;
-    wire                phase_req, phase_inc;
+    wire                cal_channel, phase_req, phase_inc;
 
     jtag_wb_master #(
         .WB_ADDR_W      (AW),
@@ -64,6 +64,7 @@ module jtag_wb_master_wrapper (
         .o_halt_others (halt_others),
         .o_cal_load_lane (cal_load_lane),
         .o_cal_tap       (cal_tap),
+        .o_cal_channel   (cal_channel),
         .o_phase_req     (phase_req),
         .o_phase_inc     (phase_inc)
     );

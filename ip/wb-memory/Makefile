@@ -2,7 +2,7 @@
 # / `make sim-wb-memory`.
 #
 # Formal: yosys + yosys-smtbmc directly (no `sby` wrapper). Equivalent
-# to an sby `prove` task with bitwuzla/yices/z3 — whichever is on PATH.
+# to an sby `prove` task with the selected solver on PATH.
 # We avoid `pkgs.symbiyosys` because its closure pulls in ghdl-mcode
 # which fails to build on aarch64-darwin.
 

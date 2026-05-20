@@ -9,8 +9,8 @@ depth 30
 multiclock off
 
 [engines]
-bmc:   smtbmc bitwuzla
-cover: smtbmc bitwuzla
+bmc:   smtbmc z3
+cover: smtbmc z3
 
 [script]
 read -formal jtag_wb_master.v

@@ -41,6 +41,11 @@ module wb_memory #(
 
     wire accept = i_wb_cyc && i_wb_stb && !o_wb_stall;
 
+    initial begin
+        o_wb_ack = 1'b0;
+        o_wb_dat = {WB_DATA_W{1'b0}};
+    end
+
     // Byte-enabled write path: one always block per byte lane → infers BRAM.
     genvar gi;
     generate

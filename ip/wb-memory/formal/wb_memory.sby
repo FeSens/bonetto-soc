@@ -9,13 +9,13 @@ depth 20
 multiclock off
 
 [engines]
-prove: smtbmc bitwuzla
-cover: smtbmc bitwuzla
+prove: smtbmc z3
+cover: smtbmc z3
 
 [script]
-read -formal -define FORMAL wb_memory.v
-read -formal -define FORMAL fwb_slave.v
-read -formal -define FORMAL wrapper.sv
+read -formal -D FORMAL wb_memory.v
+read -formal -D FORMAL fwb_slave.v
+read -formal -D FORMAL wrapper.sv
 prep -top wb_memory_wrapper
 
 [files]

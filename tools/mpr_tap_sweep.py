@@ -7,7 +7,8 @@ This uses the board-top debug commands added in bitstream iter 0x0012:
   * enable MR3 MPR mode
   * set a lane's DQS input IDELAY tap
   * issue one MPR read
-  * read back the wide PHY capture debug window
+  * read back either the compact fixed-lane capture register or the legacy
+    wide PHY capture debug window
 
 The script intentionally bypasses normal DDR3 memory traffic, so it remains
 useful when read-leveling has failed and the Wishbone DDR3 path is not valid.
@@ -30,6 +31,7 @@ from tools.jtag_uart_read import (  # noqa: E402
     jwb_mpr_disable,
     jwb_mpr_enable,
     jwb_mpr_read,
+    jwb_select_rddbg,
     jwb_set_idelay,
     read_status_reg,
     select_user1,
@@ -69,6 +71,40 @@ def capture_words(xvc, n_words):
     return [dbg_read(xvc, 0x20 + i) for i in range(n_words)]
 
 
+def decode_lane_word(value):
+    samples = []
+    for sample in range(8):
+        byte = 0
+        for bit in range(8):
+            byte |= ((value >> (bit * 8 + sample)) & 1) << bit
+        samples.append(byte)
+    return samples
+
+
+def capture_compact_lane(xvc, requested_lane=None, requested_channel=None):
+    status = dbg_read(xvc, 0x6D)
+    if (status >> 16) != 0xAB6D:
+        raise RuntimeError(f"compact MPR debug register missing: 0x{status:08x}")
+    if ((status >> 8) & 1) == 0:
+        raise RuntimeError(f"compact MPR debug has no valid capture: 0x{status:08x}")
+    actual_channel = (status >> 7) & 1
+    actual_lane = status & 0x7
+    if requested_channel is not None and actual_channel != requested_channel:
+        raise RuntimeError(
+            f"compact MPR debug captured channel {actual_channel}, "
+            f"expected channel {requested_channel}: 0x{status:08x}"
+        )
+    if requested_lane is not None and actual_lane != requested_lane:
+        raise RuntimeError(
+            f"compact MPR debug bitstream is fixed to lane {actual_lane}, "
+            f"requested lane {requested_lane}; rebuild with "
+            f"-DDDR3_DEBUG_MPR_FIXED_LANE={requested_lane}"
+        )
+    lo = dbg_read(xvc, 0x6E)
+    hi = dbg_read(xvc, 0x6F)
+    return decode_lane_word(lo | (hi << 32))
+
+
 def decode_lane_samples(words, n_lanes):
     val = 0
     for idx, word in enumerate(words):
@@ -102,6 +138,9 @@ def main():
     ap.add_argument("--n-lanes", type=int, default=8)
     ap.add_argument("--n-words", type=int, default=16)
     ap.add_argument("--mpr-addr", type=lambda s: int(s, 0), default=0x1000)
+    ap.add_argument("--channel", type=int, choices=[0, 1], default=0)
+    ap.add_argument("--wide-debug", action="store_true",
+                    help="Use legacy 0x20-0x3f wide PHY debug words")
     args = ap.parse_args()
 
     lanes = parse_range(args.lanes)
@@ -122,24 +161,33 @@ def main():
     best = {}
     try:
         jwb_cmd(xvc, JWB_CMD_HALT)
-        jwb_mpr_enable(xvc)
+        jwb_mpr_enable(xvc, args.channel)
         for _ in range(4):
             read_status_reg(xvc, 0x00)
 
         for lane in lanes:
             print(f"\n=== MPR sweep lane {lane} ===")
+            jwb_select_rddbg(xvc, lane, args.channel)
             best_tap = None
             best_score = -1
             best_samples = None
             for tap in taps:
-                jwb_set_idelay(xvc, lane, tap)
+                jwb_select_rddbg(xvc, lane, args.channel)
+                jwb_set_idelay(xvc, lane, tap, args.channel)
                 for _ in range(3):
                     read_status_reg(xvc, 0x00)
-                jwb_mpr_read(xvc, args.mpr_addr)
+                jwb_mpr_read(xvc, args.mpr_addr, args.channel)
                 wait_mpr_idle(xvc)
                 time.sleep(0.001)
-                words = capture_words(xvc, args.n_words)
-                samples = decode_lane_samples(words, args.n_lanes)[lane]
+                if args.wide_debug:
+                    words = capture_words(xvc, args.n_words)
+                    samples = decode_lane_samples(words, args.n_lanes)[lane]
+                else:
+                    samples = capture_compact_lane(
+                        xvc,
+                        requested_lane=lane,
+                        requested_channel=args.channel,
+                    )
                 tap_score = score(samples)
                 if tap_score > best_score:
                     best_tap = tap
@@ -155,7 +203,7 @@ def main():
 
     finally:
         try:
-            jwb_mpr_disable(xvc)
+            jwb_mpr_disable(xvc, args.channel)
             jwb_cmd(xvc, JWB_CMD_RESUME)
         finally:
             xvc.close()

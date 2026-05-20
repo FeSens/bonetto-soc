@@ -126,13 +126,27 @@ module jtag_uart #(
     always @(*) bscan_tdo = jtag_sr[0];
 
     // --- UPDATE event sync to i_clk -----------------------------------------
-    reg update_sync1 = 1'b0, update_sync2 = 1'b0, update_sync3 = 1'b0;
-    always @(posedge i_clk) begin
-        update_sync1 <= bscan_update;
-        update_sync2 <= update_sync1;
-        update_sync3 <= update_sync2;
+    // Capture the completed DR word in the JTAG domain before synchronising the
+    // event. Sampling jtag_sr directly from i_clk is unsafe because the host can
+    // begin the next DR scan before the delayed UPDATE pulse reaches i_clk.
+    reg [32:0] update_word_jtag = 33'd0;
+    reg        update_toggle_jtag = 1'b0;
+    always @(posedge bscan_update) begin
+        if (bscan_sel && jtag_sr[32]) begin
+            update_word_jtag   <= jtag_sr;
+            update_toggle_jtag <= !update_toggle_jtag;
+        end
     end
-    wire update_pulse = update_sync2 && !update_sync3;   // rising edge in i_clk
+
+    reg update_toggle_sync1 = 1'b0;
+    reg update_toggle_sync2 = 1'b0;
+    reg update_toggle_sync3 = 1'b0;
+    always @(posedge i_clk) begin
+        update_toggle_sync1 <= update_toggle_jtag;
+        update_toggle_sync2 <= update_toggle_sync1;
+        update_toggle_sync3 <= update_toggle_sync2;
+    end
+    wire update_pulse = update_toggle_sync2 ^ update_toggle_sync3;
 
     // On UPDATE, if the JTAG word was a write, latch into host_to_fpga
     // and fire a single-cycle valid pulse for downstream command consumers.
@@ -143,8 +157,8 @@ module jtag_uart #(
             host_to_fpga_valid_r <= 1'b0;
         end else begin
             host_to_fpga_valid_r <= 1'b0;
-            if (update_pulse && jtag_sr[32]) begin
-                host_to_fpga         <= jtag_sr[31:0];
+            if (update_pulse) begin
+                host_to_fpga         <= update_word_jtag[31:0];
                 host_to_fpga_valid_r <= 1'b1;
             end
         end

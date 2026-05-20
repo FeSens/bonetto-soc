@@ -2,7 +2,7 @@
 # Per-IP `make formal-<ip>`, `make sim-<ip>`, plus aggregate targets.
 # `make help` for the list.
 
-.PHONY: help all ci lint formal sim fpga program memtest xvc validate-ddr3 clean \
+.PHONY: help all ci lint formal sim fpga program memtest xvc validate-jtag-bram bram-echo bram-transform validate-ddr3 clean \
         formal-wishbone formal-wb-memory formal-jtag-uart formal-ddr3 formal-board \
         sim-wishbone sim-wb-memory sim-jtag-uart sim-ddr3 sim-board
 
@@ -71,10 +71,10 @@ sim-board:
 # --- board flow ---------------------------------------------------------------
 
 fpga:
-	$(MAKE) -C boards/$(BOARD) bitstream
+	$(MAKE) -C boards/$(BOARD) jtag-bram-bitstream
 
 program:
-	$(MAKE) -C boards/$(BOARD) program
+	$(MAKE) -C boards/$(BOARD) program-jtag-bram
 
 memtest:
 	$(MAKE) -C boards/$(BOARD) memtest
@@ -82,8 +82,17 @@ memtest:
 xvc:
 	$(MAKE) -C boards/$(BOARD) xvc
 
+validate-jtag-bram:
+	$(MAKE) -C boards/$(BOARD) validate-jtag-bram
+
+bram-echo:
+	$(MAKE) -C boards/$(BOARD) bram-echo
+
+bram-transform:
+	$(MAKE) -C boards/$(BOARD) bram-transform
+
 validate-ddr3:
-	$(MAKE) -C boards/$(BOARD) validate-ddr3
+	@echo "DDR3 RTL is reset; use validate-jtag-bram until a fresh DDR3 controller is introduced."
 
 # --- housekeeping -------------------------------------------------------------
 
@@ -107,11 +116,14 @@ help:
 	@echo "  ('board' covers boards/$(BOARD)/formal/* and boards/$(BOARD)/sim/*)"
 	@echo ""
 	@echo "Board (default BOARD=$(BOARD); override BOARD=name):"
-	@echo "  make fpga BOARD=name     synth + PnR + bitstream"
-	@echo "  make program BOARD=name  JTAG-load bitstream"
-	@echo "  make memtest BOARD=name  run on-board memory test, results via JTAG UART"
+	@echo "  make fpga BOARD=name     synth + PnR + BRAM proof bitstream"
+	@echo "  make program BOARD=name  JTAG-load BRAM proof bitstream"
+	@echo "  make memtest BOARD=name  run the active board proof target"
 	@echo "  make xvc BOARD=name      run openFPGALoader XVC server for host probes"
-	@echo "  make validate-ddr3       run hardware DDR3 validation against XVC"
+	@echo "  make validate-jtag-bram  validate BRAM through XVC/JTAG-WB"
+	@echo "  make bram-echo           interactive BRAM echo terminal through XVC/JTAG-WB"
+	@echo "  make bram-transform      interactive transformed-read terminal"
+	@echo "  make validate-ddr3       disabled until fresh DDR3 RTL exists"
 	@echo ""
 	@echo "  make lint                lint every IP top against interface.md"
 	@echo "  make clean               remove all build artifacts"

@@ -29,7 +29,7 @@ module memtest_lite #(
     input  wire        i_clk,
     input  wire        i_rst,
     input  wire        i_cal_done,
-    input  wire        i_pause,           // iter-7: held high → FSM stalls at next IDLE
+    input  wire        i_pause,           // held high -> abort/hold WB idle for JTAG access
 
 
     output reg         o_wb_cyc,
@@ -179,21 +179,21 @@ module memtest_lite #(
             o_wb_cyc           <= 1'b0;
             o_wb_stb           <= 1'b0;
             o_wb_we            <= 1'b0;
+        end else if (i_pause) begin
+            state    <= S_WRITE;
+            o_wb_cyc <= 1'b0;
+            o_wb_stb <= 1'b0;
+            o_wb_we  <= 1'b0;
         end else begin
             case (state)
                 S_WRITE: begin
-                    if (i_pause) begin
-                        o_wb_cyc <= 1'b0;
-                        o_wb_stb <= 1'b0;
-                    end else begin
-                        pattern  <= pattern_for_addr;
-                        o_wb_cyc <= 1'b1;
-                        o_wb_stb <= 1'b1;
-                        o_wb_we  <= 1'b1;
-                        o_wb_adr <= tgt_addr;
-                        o_wb_dat <= pattern_for_addr;
-                        state    <= S_WAIT_WACK;
-                    end
+                    pattern  <= pattern_for_addr;
+                    o_wb_cyc <= 1'b1;
+                    o_wb_stb <= 1'b1;
+                    o_wb_we  <= 1'b1;
+                    o_wb_adr <= tgt_addr;
+                    o_wb_dat <= pattern_for_addr;
+                    state    <= S_WAIT_WACK;
                 end
                 S_WAIT_WACK: begin
                     // WB B4 pipelined: drop stb as soon as the slave has

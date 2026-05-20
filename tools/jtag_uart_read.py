@@ -217,28 +217,36 @@ JWB_CMD_PHASE_DEC = 0xEA
 JWB_CMD_MPR_EN    = 0xEB
 JWB_CMD_MPR_DIS   = 0xEC
 JWB_CMD_MPR_READ  = 0xED
+JWB_CMD_RDDBG_SEL = 0xEE
 JWB_CMD_CLEAR_RDDBG = 0xEF
 
 
-def jwb_set_idelay(xvc, lane: int, tap: int):
-    """Pulse the FPGA's IDELAYE2 load on `lane` with `tap`. lane: 0-8."""
-    payload = ((tap & 0x1F) << 8) | (lane & 0xF)
+def jwb_set_idelay(xvc, lane: int, tap: int, channel: int = 0):
+    """Pulse the FPGA's IDELAYE2 load on `lane`/`channel` with `tap`."""
+    payload = ((channel & 1) << 16) | ((tap & 0x1F) << 8) | (lane & 0xF)
     jwb_cmd(xvc, JWB_CMD_SET_CAL, payload)
 
 
-def jwb_mpr_enable(xvc):
+def jwb_mpr_enable(xvc, channel: int = 0):
     """Enable DDR3 MR3 MPR mode through the board-top debug path."""
-    jwb_cmd(xvc, JWB_CMD_MPR_EN, 0)
+    jwb_cmd(xvc, JWB_CMD_MPR_EN, (channel & 1) << 16)
 
 
-def jwb_mpr_disable(xvc):
+def jwb_mpr_disable(xvc, channel: int = 0):
     """Disable DDR3 MR3 MPR mode through the board-top debug path."""
-    jwb_cmd(xvc, JWB_CMD_MPR_DIS, 0)
+    jwb_cmd(xvc, JWB_CMD_MPR_DIS, (channel & 1) << 16)
 
 
-def jwb_mpr_read(xvc, addr: int = 0x1000):
+def jwb_mpr_read(xvc, addr: int = 0x1000, channel: int = 0):
     """Issue one MPR read; addr bit 12 is forced in hardware for BL8."""
-    jwb_cmd(xvc, JWB_CMD_MPR_READ, addr & 0x1FFF)
+    payload = ((channel & 1) << 16) | (addr & 0x1FFF)
+    jwb_cmd(xvc, JWB_CMD_MPR_READ, payload)
+
+
+def jwb_select_rddbg(xvc, lane: int, channel: int = 0):
+    """Select the compact PHY read-capture debug lane."""
+    payload = ((channel & 1) << 16) | (lane & 0x7)
+    jwb_cmd(xvc, JWB_CMD_RDDBG_SEL, payload)
 
 
 def jwb_phase_shift(xvc, n_steps: int):

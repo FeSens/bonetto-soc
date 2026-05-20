@@ -1,7 +1,32 @@
 # DDR3 Full-Capacity Bring-Up
 
-Target: expose the installed YPCB-00338 DDR3 data capacity at the `-125`
-DDR3-1600 speed bin.
+Target: expose the installed YPCB-00338 DDR3 data capacity, starting from a
+slow hardware-proven image and stepping up only after each speed is validated.
+The final target remains the `-125` DDR3-1600 speed bin.
+
+## Bring-Up Ladder
+
+Each row is a separate hardware gate. Do not advance to the next operating
+point until the current one has passed route, programming, direct JTAG/Wishbone
+reads and writes on both channels, and the full hardware validator.
+
+DDR3-400 was considered as an even slower first rung, but the vendored Micron
+MT41K model rejects 200 MHz CK with DLL enabled (`TCK_MAX = 3300 ps`) and also
+requires DLL enabled for the normal init-complete path. Treat DDR3-800 as the
+slowest valid bring-up point unless a separate, explicitly documented DLL-off
+mode is added and proven.
+
+| Gate | CK | Transfer rate | Fabric clock | Purpose |
+|---|---:|---:|---:|---|
+| DDR3-800 | 400 MHz | 800 MT/s | 100 MHz | First full-width dual-channel proof |
+| DDR3-1066 | 533 MHz | 1066 MT/s | 133 MHz | First intermediate speed-bin step |
+| DDR3-1333 | 667 MHz | 1333 MT/s | 167 MHz | Pre-full-speed closure step |
+| DDR3-1600 | 800 MHz | 1600 MT/s | 200 MHz | Final `-125` target |
+
+The first concrete board target for this reset is
+`make -C boards/ypcb-00338 full-2ch-ddr800-bitstream`. It enables both
+channels, all 64 data bits per channel, the 30-bit global word-address map, and
+the `DDR3_RATE_800` timing profile.
 
 ## Target Configuration
 

@@ -16,6 +16,7 @@
 //   0xE5     GO_READ     - issue WB read of stored addr; latch result in rd_data
 //   0xE6     HALT_OTHERS - assert o_halt_others (top.v pauses memtest_lite)
 //   0xE7     RESUME      - clear o_halt_others
+//   0xE8     SET_CAL     - payload[3:0]=lane, [12:8]=tap, [16]=channel
 //
 // Status outputs (consumed by top.v status mux at reg indices 0x10-0x15):
 //   o_busy        1 while a WB transaction is in flight
@@ -66,6 +67,7 @@ module jtag_wb_master #(
     // mode required). Useful when MPR-based rdlvl can't converge.
     output reg  [NUM_BYTE_LANES-1:0] o_cal_load_lane,
     output reg  [4:0]                o_cal_tap,
+    output reg                       o_cal_channel,
 
     // iter-11: MMCM fine-phase shift on clk_dq (DQS-out). Level signals;
     // ddr3_phy edge-detects o_phase_req in its clk_ref domain and pulses
@@ -104,6 +106,7 @@ module jtag_wb_master #(
         o_rd_data = {WB_DATA_W{1'b0}};
         o_cal_load_lane = {9{1'b0}};
         o_cal_tap = 5'b0;
+        o_cal_channel = 1'b0;
         o_phase_req = 1'b0;
         o_phase_inc = 1'b0;
         phase_req_hold = 4'b0;
@@ -142,6 +145,7 @@ module jtag_wb_master #(
             o_halt_others <= 1'b0;
             o_cal_load_lane <= {NUM_BYTE_LANES{1'b0}};
             o_cal_tap       <= 5'd0;
+            o_cal_channel   <= 1'b0;
             o_phase_req     <= 1'b0;
             o_phase_inc     <= 1'b0;
             phase_req_hold  <= 4'd0;
@@ -153,6 +157,7 @@ module jtag_wb_master #(
                 if (i_cmd_word[3:0] < NUM_BYTE_LANES)
                     o_cal_load_lane <= ({{(NUM_BYTE_LANES-1){1'b0}}, 1'b1} << i_cmd_word[3:0]);
                 o_cal_tap <= i_cmd_word[12:8];
+                o_cal_channel <= i_cmd_word[16];
             end
             // CDC to clk_ref (50 MHz) needs the level to be at least 1
             // clk_ref period (= 4 clk_sys cycles) wide. Hold for 8 cycles

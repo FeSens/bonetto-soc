@@ -18,4 +18,5 @@ From the repo root:
 make formal-wb-memory
 ```
 
-Expected: both `prove` and `cover` tasks pass.
+`cover` is the fast smoke check. The full `prove` task uses `smtbmc z3` and can
+be solver-heavy because it runs the `fwb_slave` contract over BRAM state.
