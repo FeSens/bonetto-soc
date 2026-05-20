@@ -86,6 +86,11 @@ Current non-coverage:
 - no PHY, board DQS/DQ, leveling, or hardware DDR3 path is validated by these
   gates.
 
+Hardware note: the DDR3-800 full-pin init probe was routed, programmed, and
+validated over XVC on 2026-05-20 at commit `a6fe0d6`. That proof covers PLL
+lock, generated-clock liveness, both channel init sequencers, refresh liveness,
+and USER1 JTAG status. It deliberately does not cover memory reads/writes.
+
 ## Formal Ladder
 
 Every new RTL slice should add or extend one of these harnesses:
@@ -166,3 +171,7 @@ For each step record:
 
 Do not promote a speed grade because simulation passed. Hardware validation is
 the gate.
+
+Do not promote the DDR3-800 init probe to a completed speed grade either. A
+speed grade is complete only after the JTAG/Wishbone memory validator covers
+both channels through the real DQ/DQS PHY.

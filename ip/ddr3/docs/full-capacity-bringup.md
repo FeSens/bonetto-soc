@@ -56,6 +56,9 @@ both full channel pinouts, drives CK/reset/CKE and command/address pins, leaves
 DQ/DQS high-Z, and exposes init/refresh/clock status through USER1 JTAG. This is
 intentionally an init and constraint probe only; it does not instantiate the full
 controller scheduler or validate memory data until a real DQ/DQS PHY is added.
+This probe was routed, programmed, and validated over XVC on 2026-05-20 at
+commit `a6fe0d6`; see `boards/ypcb-00338/DDR3_VALIDATION.md` for the exact
+route timing, FPGA DONE status, and JTAG status registers.
 
 ## Speed Ladder
 
@@ -110,6 +113,10 @@ Hardware validation must include:
 - random unique addresses;
 - XOR checksum sweep;
 - autonomous soak with zero errors.
+
+The 2026-05-20 DDR3-800 init probe does not satisfy this per-rung memory
+validation list. It is a prerequisite board pin/clock/init proof only and must
+not be tagged as a completed DDR3-800 controller speed grade.
 
 ## Historical Caution
 

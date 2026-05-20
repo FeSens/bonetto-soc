@@ -1,5 +1,107 @@
 # YPCB-00338 DDR3 Validation
 
+## Clean-Sheet DDR3-800 Init Probe Evidence
+
+Validation date: 2026-05-20
+
+Commit under test:
+
+- `a6fe0d6` - `Add DDR3 init probe image`
+
+This is a hardware validation of the clean-sheet DDR3-800 init, refresh, clock,
+pin, and JTAG-status probe only. It does not validate DQ/DQS read/write timing,
+the full Wishbone memory path, or full-capacity data storage.
+
+### Build And Timing Evidence
+
+Build and program command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 program-ddr3-init-ddr800
+```
+
+The first program attempt failed while an old XVC server still owned the DLC10:
+
+```text
+Doneclaim interface failed
+JTAG init failed with: lowlevel init failed
+```
+
+After stopping the stale `openFPGALoader --xvc --port 3721` process, cable
+detect passed:
+
+```text
+idcode 0x23751093
+manufacturer xilinx
+family kintex7
+model  xc7k480t
+irlength 6
+```
+
+Programming then completed with FPGA DONE asserted:
+
+```text
+Shift IR 75
+ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+```
+
+Route log:
+
+```text
+boards/ypcb-00338/build/ddr3_init_ddr800_seed1_route.log
+```
+
+Final nextpnr clock estimates:
+
+```text
+u_clocking.i_clk_50      236.02 MHz (FAIL at 400.00 MHz)
+u_jtag_uart.bscan_drck   749.06 MHz (PASS at 400.00 MHz)
+u_jtag_uart.bscan_update 1331.56 MHz (PASS at 400.00 MHz)
+clk_dq                   692.04 MHz (PASS at 400.00 MHz)
+clk_sys                  195.62 MHz (FAIL at 400.00 MHz)
+clk_ddr                  1331.56 MHz (PASS at 400.00 MHz)
+```
+
+The two FAIL lines are expected for this probe because nextpnr-xilinx applies a
+single global `--freq 400` target. `u_clocking.i_clk_50` is the 50 MHz board
+input/status domain and `clk_sys` is the 100 MHz init/refresh control domain.
+The DDR launch clocks, `clk_dq` and `clk_ddr`, pass the 400 MHz DDR3-800 gate.
+
+### Hardware Status Evidence
+
+XVC command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 xvc
+```
+
+Validation command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 validate-ddr3-init
+```
+
+Final summary:
+
+```text
+connected to localhost:3721 - xvcServer_v1.0:1048576
+settck(2000 ns) -> 2000 ns
+version=0xb07e0d80
+status=0xb07e0820 init_done=1 pll_locked=1 reset_active=0 refresh_late=0
+state=0x023100cc ch0_init_state=0 ch1_init_state=8
+clk_sys=0xc151803a alive=1
+clk_ddr=0xc152c025 alive=1
+clk_dq=0xc153c029 alive=1
+clk_ref=0xc1508002 alive=1
+refresh0=0xf0c054b5 refresh1=0xf0c155ca
+DDR3_INIT_VALIDATE_SUMMARY ok=1
+```
+
+This proves the first fresh board DDR3 image can be routed, programmed, clocked,
+initialized, refreshed, and observed over JTAG at DDR3-800. The next hardware
+gate is not another init-only proof; it is a real DQ/DQS PHY path with
+JTAG/Wishbone memory write/read validation.
+
 Validation date: 2026-05-17
 
 ## Commits Under Test
