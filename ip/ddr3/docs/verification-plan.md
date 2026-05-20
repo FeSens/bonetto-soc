@@ -77,7 +77,10 @@ Current coverage:
   data path. The controller-level Micron bench then wires both channels through
   sixteen x8 models and performs one full-width write/read loopback per channel.
   The protocol benches fail if the model reports timing or protocol errors or
-  warnings.
+  warnings. The line-level Wishbone bridge bench checks the next hardware-facing
+  boundary: a full 64-byte write line is made available to the PHY before the
+  matching WR command can be accepted, and a read response waits for both the
+  scheduler transfer-start pulse and the full returned line.
 
 Current non-coverage:
 
@@ -90,6 +93,11 @@ Hardware note: the DDR3-800 full-pin init probe was routed, programmed, and
 validated over XVC on 2026-05-20 at commit `a6fe0d6`. That proof covers PLL
 lock, generated-clock liveness, both channel init sequencers, refresh liveness,
 and USER1 JTAG status. It deliberately does not cover memory reads/writes.
+
+The first post-init-probe RTL slice is `rtl/ddr3_wb_line_channel.sv`. It is not
+wired into the controller yet; it exists to replace the earlier beat-stream
+controller/PHY boundary with a provable line-level contract suitable for real
+DDR3 write/read timing.
 
 ## Formal Ladder
 
@@ -107,6 +115,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer. First proof exists. |
+| Wishbone line channel | One Wishbone word request maps to one scheduler command while write data is presented as a complete 64-byte line before command accept; reads wait for a full returned line. First proof exists. |
 | Channel scheduler adapter | One BL8 line command is accepted by the scheduler, then starts data only when the matching RD/WR command issues. First proof exists. |
 | Controller shell | Wishbone is gated until both init sequencers finish, then requests flow through two scheduler adapters. First gate proof and scheduler-connected unit simulation exist. |
 | Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation now uses active-high DDR3 DM polarity; downstream merge or mask-preserving PHY write is still pending. |
@@ -132,6 +141,7 @@ Use the real Micron model for protocol validation:
 | Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
 | Wishbone channel unit | Wishbone frontend + full-channel line packetizer | one bus write and one bus read traverse all eight byte lanes with correct command and word mapping |
+| Wishbone line channel unit | line-level Wishbone bridge | command acceptance is gated by write-line readiness; read acknowledgement waits for transfer-start and returned line |
 | Wishbone dual-channel unit | address decoder + two Wishbone channel bridges | channel-0 write and channel-1 read dispatch to independent command/data ports |
 | Channel scheduler unit | scheduler adapter + refresh requester + scheduler | line requests produce matching RD/WR command issue and transfer-start pulses |
 | Controller shell unit | init + dual-channel Wishbone dispatch + two scheduler adapters + packetized line ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR |
