@@ -43,6 +43,9 @@ Current coverage:
   64-bit byte-mask placement, and read-line reassembly at the channel boundary.
   The line-to-x8-lane adapter proof covers the reusable boundary from complete
   dual-channel BL8 lines to sixteen independent x8 lane streams and back. The
+  line-to-x8-burst adapter proof covers the next hardware-facing split from
+  complete dual-channel BL8 lines to sixteen independent preloaded 64-bit x8
+  bursts, including lane backpressure stability and read-burst reassembly. The
   x8 lane PHY timing-core proof checks the next DQ/DQS-facing boundary:
   stable accepted write beats, output-enable invariants, rise/fall write pair
   ordering, and read sample-to-lane-byte ordering under read backpressure. The
@@ -86,10 +89,12 @@ Current coverage:
   testbench agent. A reusable x8 DQS/DQ/DM timing-agent bench also performs two
   writes with active-high DDR3 DM masking and reads the merged line back through
   the byte-lane packetizer. It also runs a unit bench for the full-channel line
-  packetizer with independent per-lane stalls, plus a unit bench for the x8
-  lane PHY timing core that preloads a full BL8 write, checks four DDR
-  rise/fall launch pairs, samples four read pairs, and verifies eight returned
-  lane bytes. The fast-domain x8 burst I/O sequencer unit bench checks the
+  packetizer with independent per-lane stalls, the line-to-x8-lane byte-stream
+  adapter, the line-to-x8-burst preloaded-payload adapter with independent lane
+  stalls, plus a unit bench for the x8 lane PHY timing core that preloads a
+  full BL8 write, checks four DDR rise/fall launch pairs, samples four read
+  pairs, and verifies eight returned lane bytes. The fast-domain x8 burst I/O
+  sequencer unit bench checks the
   smaller preloaded-payload interface that should feed the board I/O shell
   instead of moving wide lane arbitration into `clk_dq`. The line-to-lane PHY
   bridge unit bench runs the full two-channel,
@@ -201,6 +206,12 @@ serializes complete 64-byte channel lines into one x8 stream per physical lane
 and reassembles read lanes into complete lines. It is still not a DQ/DQS PHY; it
 is the reusable RTL adapter that future board PHY logic should drive.
 
+`rtl/ddr3_line_to_bursts.sv` is the post-D88 hardware split for the next board
+PHY attempt. It keeps the complete 512-bit line and 64-bit mask handling in
+slow fabric, but presents each physical x8 lane as one preloaded 64-bit BL8
+burst plus 8 mask bits. That is the contract intended to feed the small
+fast-domain `ddr3_x8_burst_io_sequencer` blocks near the 7-series DQ/DQS shell.
+
 `rtl/ddr3_x8_lane_phy.sv` is the first synthesizable DQ/DQS-facing lane timing
 core after `ddr3_line_to_lanes`. It owns BL8 write preload, write-launch
 latency, DQ/DM/DQS output enables, four rise/fall write pairs, read-capture
@@ -242,6 +253,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Byte lane | BL8 x8 write data/mask ordering, read capture ordering, and ready/valid stability under PHY backpressure. First proof exists. |
 | Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
 | Line-to-x8-lane adapter | Two complete 512-bit channel lines serialize into sixteen x8 lane streams, and read beats from all lanes reassemble into complete channel lines. First proof exists; skewed-lane stall simulation exists. |
+| Line-to-x8-burst adapter | Two complete 512-bit channel lines split into sixteen preloaded 64-bit x8 BL8 bursts, and returned lane bursts reassemble into complete channel lines. First proof exists with `yices`; skewed-lane stall simulation exists. |
 | X8 lane PHY timing core | One BL8 x8 write stream becomes four DDR rise/fall pin-data pairs with DQ/DM/DQS output enables, and four sampled read pairs become eight lane read beats. First bounded proof and unit simulation exist. |
 | X8 fast burst I/O sequencer | One preloaded 64-bit x8 BL8 payload emits four ordered DDR rise/fall DQ pairs with DQS strobes, and four sampled read pairs reassemble into one 64-bit payload. First bounded proof and unit simulation exist. |
 | Line-to-lane PHY bridge | Complete channel lines feed one x8 lane PHY timing core per physical lane, with queued scheduler transfer-start pulses and abstract DQ/DQS/DM timing signals. First focused write/read sequencing proofs and full two-channel unit simulation exist. |
@@ -274,6 +286,7 @@ Use the real Micron model for protocol validation:
 | Reusable x8 timing agent | init sequencer + byte-lane packetizer + x8 DQS/DQ/DM timing agent + one x8 model | two writes with active-high DM masking merge correctly and read back through the byte-lane path |
 | Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
 | Line-to-x8-lane unit | two complete channel line ports + sixteen x8 lane streams | dual-channel line serialization, mask mapping, lane-last markers, skewed lane stalls, and read-line reassembly pass |
+| Line-to-x8-burst unit | two complete channel line ports + sixteen preloaded x8 burst ports | dual-channel line-to-burst mapping, 8-bit mask mapping, skewed lane stalls, and read-line reassembly pass |
 | X8 lane PHY unit | one lane stream + synthesizable timing core | BL8 write preload, four DDR write rise/fall pairs, DQ/DM/DQS output enables, four sampled read pairs, and eight returned lane bytes pass |
 | X8 fast burst I/O unit | one preloaded x8 burst + fast-domain sequencer | 64-bit write payload launches as four DDR pairs, four sampled read pairs return as one 64-bit payload, and ready/valid state returns idle |
 | Line-to-lane PHY unit | two complete channel line ports + sixteen x8 lane PHY timing cores | queued transfer starts, all-lane write launch mapping, DQ/DQS/DM pin-pair checks, read sampling, and complete line reassembly pass |

@@ -33,6 +33,9 @@ The active RTL slices are deliberately small and scheduler-facing:
   per-lane PHY handshakes visible;
 - `ddr3_line_to_lanes.sv`: two-channel bridge from the controller line contract
   to sixteen independent x8 lane streams;
+- `ddr3_line_to_bursts.sv`: two-channel bridge from complete controller lines
+  to sixteen independent preloaded 64-bit x8 BL8 lane bursts, keeping wide line
+  assembly in slow fabric before the fast DQ/DQS sequencers;
 - `ddr3_x8_lane_phy.sv`: synthesizable x8 lane timing core that buffers one BL8
   write burst, launches registered DDR rise/fall DQ/DM/DQS pairs, captures
   read sample pairs, and reassembles ordered lane bytes;
@@ -76,9 +79,10 @@ testbench DQS/DQ agent. The bank machine, scheduler, refresh requester, and
 single-channel scheduler adapter are the first scheduler-owned blocks, and the
 refresh requester now has idle plus focused active-traffic deadline proofs. The
 data boundary has one x8 lane packetizer, one full 64-bit-channel line
-packetizer, a line-to-x8-lane adapter, one x8 lane PHY timing core, one
-fast-domain x8 burst sequencer, one line-to-lane PHY timing bridge, a
-line-backed Wishbone-to-channel bridge, and a pre-PHY controller shell tying
+packetizer, a line-to-x8-lane adapter, a line-to-x8-burst adapter, one x8 lane
+PHY timing core, one fast-domain x8 burst sequencer, one line-to-lane PHY
+timing bridge, a line-backed Wishbone-to-channel bridge, and a pre-PHY
+controller shell tying
 those pieces to the dual-channel command path. The full-capacity address map is
 explicit and formally checked. The board has route-proven DQ/DQS primitive and
 local x8 burst-launch probes, but there is still no calibrated

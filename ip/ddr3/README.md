@@ -29,9 +29,9 @@ validated.
 
 | Area | State |
 |---|---|
-| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, line-to-x8-lane adapter, x8 lane PHY timing core, fast-domain x8 burst I/O sequencer, line-to-lane PHY timing bridge, controller-to-PHY line clock bridge, board-local DQ/DQS ODDR/IDDR/IOBUF shell probe, single-outstanding line-level Wishbone bridge, line-backed Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no timing-clean calibrated read/write PHY yet |
-| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, x8 lane PHY timing-core proof, fast-domain x8 burst I/O sequencer proof, line-to-lane PHY bridge proof, controller-to-PHY line clock bridge proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
-| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, x8 lane PHY timing-core unit test, fast-domain x8 burst I/O sequencer unit test, line-to-lane PHY bridge unit test, controller-to-PHY line clock bridge dual-clock unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
+| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, line-to-x8-lane adapter, line-to-x8-burst adapter, x8 lane PHY timing core, fast-domain x8 burst I/O sequencer, line-to-lane PHY timing bridge, controller-to-PHY line clock bridge, board-local DQ/DQS ODDR/IDDR/IOBUF shell probe, single-outstanding line-level Wishbone bridge, line-backed Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no timing-clean calibrated read/write PHY yet |
+| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, line-to-x8-burst adapter proof, x8 lane PHY timing-core proof, fast-domain x8 burst I/O sequencer proof, line-to-lane PHY bridge proof, controller-to-PHY line clock bridge proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
+| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, line-to-x8-burst adapter unit test, x8 lane PHY timing-core unit test, fast-domain x8 burst I/O sequencer unit test, line-to-lane PHY bridge unit test, controller-to-PHY line clock bridge dual-clock unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, command-probe, command plus line-to-lane loopback, route-only full-pin DQ/DQS I/O-shell timing proof, and route-only full-pin x8 burst/DQ/DQS timing proof; D88 PHY-clock bridge is debug evidence only and its program target is refused by default because it misses the 400 MHz bit-clock target; not external DDR3 storage |
 
@@ -42,6 +42,7 @@ Run these from the repo root:
 ```sh
 make -C ip/ddr3 formal
 make -C ip/ddr3 sim
+make -C ip/ddr3 sim-line-to-bursts formal-line-to-bursts
 make -C ip/ddr3 sim-x8-burst-io-sequencer formal-x8-burst-io-sequencer
 make validate-jtag-bram BOARD=ypcb-00338
 make -C boards/ypcb-00338 ddr3-ctrl-line-loopback-ddr800-bitstream
@@ -101,6 +102,13 @@ What these mean today:
   are reassembled into channel lines only after every lane has delivered eight
   beats. This replaces the old simulation-only bridge in the line-level Micron
   regression.
+- The line-to-x8-burst adapter proof and unit simulation cover the hardware
+  boundary needed before the fast DQ/DQS sequencers: two complete channel lines
+  split into sixteen independent 64-bit x8 BL8 lane bursts with independent
+  backpressure, and returned lane bursts are reassembled into complete channel
+  lines only after every lane has delivered its burst. This keeps wide line
+  assembly in slow fabric and gives the future fast I/O shell preloaded per-lane
+  payloads.
 - The x8 lane PHY timing-core proof and unit simulation cover the first
   synthesizable DQ/DQS-facing slice. It buffers one BL8 x8 write burst,
   launches four rise/fall DDR pin-data pairs after write transfer start,
