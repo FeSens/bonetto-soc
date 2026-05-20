@@ -83,7 +83,12 @@ module ddr3_wb_line_channel #(
     assign o_phy_wr_line_mask = (PHY_HAS_BYTE_MASK != 0)
         ? req_wr_mask : {LINE_BYTES{1'b0}};
 
-    assign o_phy_rd_line_ready = (state == ST_WAIT_RD_DATA) && i_wb_cyc;
+    // Some PHYs sample read-line readiness on the same cycle as the scheduler's
+    // RD transfer-start pulse, before this bridge advances into WAIT_RD_DATA.
+    assign o_phy_rd_line_ready =
+        i_wb_cyc &&
+        ((state == ST_WAIT_RD_DATA) ||
+         ((state == ST_WAIT_RD_XFER) && i_xfer_start));
 
     function [LINE_DATA_W-1:0] place_word_data;
         input [WB_DATA_W-1:0] data;

@@ -426,6 +426,110 @@ the clean dual-channel line controller and scheduled BL8 line boundary in FPGA
 fabric. The next DDR3 hardware gate must replace the internal line loopback
 with a real DQ/DQS PHY and validate external memory reads and writes.
 
+## Clean-Sheet DDR3 Command Plus PHY-Timing Loopback Evidence
+
+Validation date: 2026-05-20
+
+This is a hardware validation of the next pre-pin PHY boundary only:
+
+- DLC10/XVC/USER1 JTAG transport
+- JTAG-driven Wishbone master
+- Wishbone writes and reads through the dual-channel line controller
+- DDR3 command/reset/CKE/ODT/CK/address board pin path
+- `ddr3_line_lane_phy` transfer-start, write-launch, read-sampling, and line
+  reassembly path
+- abstract pin-pair loopback storage behind the PHY timing boundary
+
+External DQ/DQS remain high-Z in this gate, so this does not validate DDR3
+storage, read/write leveling, or a real data eye. The route also does not close
+the global 400 MHz `clk_dq` check, so this is functional pre-pin evidence, not
+DDR3-800 timing signoff.
+
+### Build And Timing Evidence
+
+Build command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 ddr3-ctrl-line-phytimingloop-ddr800-bitstream
+```
+
+Route log:
+
+```text
+boards/ypcb-00338/build/ddr3_ctrl_line_phytimingloop_ddr800_seed1_route.log
+```
+
+Final nextpnr clock estimates:
+
+```text
+u_top.SYS_CLK                    65.30 MHz (FAIL at 400.00 MHz)
+u_top.u_jtag_uart.bscan_drck    531.91 MHz (PASS at 400.00 MHz)
+u_top.u_jtag_uart.bscan_update 1331.56 MHz (PASS at 400.00 MHz)
+u_top.clk_dq                    381.97 MHz (FAIL at 400.00 MHz)
+u_top.clk_ddr                  1557.63 MHz (PASS at 400.00 MHz)
+u_top.clk_sys                  1557.63 MHz (PASS at 400.00 MHz)
+```
+
+The design was built with `--timing-allow-fail` because nextpnr-xilinx applies a
+single global timing target across board/status, JTAG, controller, and generated
+DDR clocks. The `clk_dq` miss is still relevant for the future real PHY path and
+must not be treated as DDR3-800 closure.
+
+### Hardware Status Evidence
+
+Program command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 program-ddr3-ctrl-line-phytimingloop-ddr800
+```
+
+Programming completed with FPGA DONE asserted:
+
+```text
+USB alternate interface 1 not present; keeping current setting
+Shift IR 75
+ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+```
+
+XVC command:
+
+```sh
+nix develop --command make xvc BOARD=ypcb-00338
+```
+
+Validation command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 validate-ddr3-ctrl-line-phytimingloop
+```
+
+Final summary:
+
+```text
+connected to localhost:3721 - xvcServer_v1.0:1048576
+settck(2000 ns) -> 2000 ns
+version=0xb07e0d87
+status=0xb07e8831 magic=0xb07e cal_done=1 cal_error=0 cal_ecode=0(no error) init_done=1 init_error=0 init_ecode=0 mmcm_locked=1 idelay_ready=1 por_rst=0 mpr_busy=0 mtest_any_err=0 hb=1
+state=0x02313007
+clk_sys=0xc151802a clk_ddr=0xc1528026 clk_dq=0xc153c01b clk_ref=0xc150c01f
+bram_sanity: PASS cases=4
+dual_channel_boundary_patterns: PASS cases=28
+same_line_partial_writes: PASS cases=32
+byte_select_writes: PASS cases=4
+randomized_dual_channel_loopback: PASS cases=128
+loop_counts ch0_wr=90 ch1_wr=106 ch0_rd=178 ch1_rd=210
+last_lines ch0=0x00000000 ch1=0x00000061
+final_jwb_status=0xab100005
+DDR3_CTRL_LINE_PHYTIMINGLOOP_VALIDATE_SUMMARY ok=1
+```
+
+The first hardware attempt at this gate exposed a no-DM read-modify-write
+handshake bug: the PHY-timing backend sampled read-line readiness on the same
+cycle as the scheduler RD transfer-start pulse, while the Wishbone bridge only
+asserted readiness one cycle later. The fix makes `o_phy_rd_line_ready` true on
+the `i_xfer_start` edge while waiting for read data, and the focused
+`tb_wb_line_channel_rmw` bench now asserts that timing edge.
+
 ## Clean-Sheet DDR3 Controller Loopback Evidence
 
 Validation date: 2026-05-20

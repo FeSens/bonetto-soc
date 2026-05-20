@@ -144,6 +144,11 @@ module tb_wb_line_channel_rmw;
 
         repeat (2) @(negedge clk);
         xfer_start = 1'b1;
+        #1;
+        if (!rd_line_ready) begin
+            $display("[wb-line-rmw] read line not ready on RMW xfer_start");
+            $fatal(1);
+        end
         @(negedge clk);
         xfer_start = 1'b0;
 
@@ -200,6 +205,11 @@ module tb_wb_line_channel_rmw;
         cmd_ready = 1'b0;
         repeat (3) @(negedge clk);
         xfer_start = 1'b1;
+        #1;
+        if (!rd_line_ready) begin
+            $display("[wb-line-rmw] read line not ready on read xfer_start");
+            $fatal(1);
+        end
         @(negedge clk);
         xfer_start = 1'b0;
 

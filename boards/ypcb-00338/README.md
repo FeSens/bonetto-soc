@@ -93,9 +93,9 @@ counters on both channels. The command-probe validator requires version
 `0xB07E0D84` and runs the same data checks with DDR3 command pins enabled and
 the no-DM RMW path selected. The command plus line-to-lane validator requires
 version `0xB07E0D86`. The command plus PHY-timing loopback target uses version
-`0xB07E0D87`; its JSON synthesis and DDR3-800 bitstream route pass, while
-program/XVC validation is still pending. None of these gates validates external
-DDR3 storage because DQ/DQS remain disconnected from the controller.
+`0xB07E0D87`; it has been routed, programmed, and validated over XVC on
+2026-05-20. None of these gates validates external DDR3 storage because DQ/DQS
+remain disconnected from the controller.
 
 `ddr3-init-ddr800-bitstream` routes with nextpnr's single global `--freq 400`
 check and `--timing-allow-fail`. Read the route log per clock: the DDR launch
@@ -108,10 +108,10 @@ evidence for DDR3-800 external timing.
 
 `ddr3-ctrl-line-phytimingloop-ddr800-bitstream` routes with the full DDR3 board
 XDC and nextpnr's single global `--freq 400` check under `--timing-allow-fail`.
-The 2026-05-20 seed-1 route generated a bitstream with `clk_dq` passing 400 MHz
-and `SYS_CLK` failing the artificial 400 MHz check at 75.62 MHz. That is
-route-only evidence for the abstract PHY timing loopback, not a real DDR3 data
-eye or storage proof.
+The 2026-05-20 seed-1 route generated a bitstream, but `SYS_CLK` fails the
+artificial 400 MHz check at 65.30 MHz and `clk_dq` estimates 381.97 MHz. Treat
+this as functional pre-pin PHY-timing loopback evidence, not DDR3-800 timing,
+data-eye, or storage signoff.
 
 For pin work, use the public board reference archive rather than deriving pins
 from the current reduced top:
@@ -182,10 +182,10 @@ The BRAM validator runs direct JTAG/Wishbone accesses through XVC and requires
 readback from both BRAM banks. `validate-ddr3-init` checks only the fresh
 DDR3-800 init probe status. `validate-ddr3-ctrl-loopback` checks live
 JTAG/Wishbone writes and reads through the clean dual-channel controller and an
-internal loopback PHY. `validate-ddr3-ctrl-line-phytimingloop` is the next
-pre-pin check for the abstract `ddr3_line_lane_phy` timing boundary after its
-bitstream has been programmed. Full DDR3 memory validation remains blocked
-until a real DQ/DQS PHY is wired to the clean controller.
+internal loopback PHY. `validate-ddr3-ctrl-line-phytimingloop` checks the
+abstract `ddr3_line_lane_phy` timing boundary with live JTAG/Wishbone writes
+and reads after its bitstream has been programmed. Full DDR3 memory validation
+remains blocked until a real DQ/DQS PHY is wired to the clean controller.
 
 ## Status Registers
 

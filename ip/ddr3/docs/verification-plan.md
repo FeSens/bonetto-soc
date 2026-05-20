@@ -131,16 +131,16 @@ routed, programmed, and validated over XVC on 2026-05-20 with gate version
 pin path with `ddr3_line_to_lanes` and internal lane memories. It deliberately
 keeps external DDR3 DQ/DQS high-Z and does not cover real memory storage.
 
-Hardware note: the YPCB-00338 command plus PHY-timing loopback gate exists as
-the next pre-pin image, with gate version `0xb07e0d87`. It replaces the
-internal lane memories with `ddr3_line_lane_phy` and an abstract pin-pair
-memory model so live JTAG/Wishbone traffic can exercise transfer-start pulses,
-write DQ rise/fall launch, read sampling, and line reassembly while external
-DQ/DQS stay high-Z. The DDR3-800 JSON synthesis target passes Yosys check;
-the 2026-05-20 seed-1 route also generated a bitstream with the full DDR3 board
-XDC. That route used `--timing-allow-fail`: `clk_dq` passed the global 400 MHz
-check, while `SYS_CLK` failed the artificial 400 MHz check at 75.62 MHz. Program
-and XVC validation are still pending.
+Hardware note: the YPCB-00338 command plus PHY-timing loopback gate was routed,
+programmed, and validated over XVC on 2026-05-20 with gate version
+`0xb07e0d87`. It replaces the internal lane memories with `ddr3_line_lane_phy`
+and an abstract pin-pair memory model so live JTAG/Wishbone traffic can exercise
+transfer-start pulses, write DQ rise/fall launch, read sampling, and line
+reassembly while external DQ/DQS stay high-Z. The DDR3-800 JSON synthesis target
+passes Yosys check; the 2026-05-20 seed-1 route also generated a bitstream with
+the full DDR3 board XDC. That route used `--timing-allow-fail`: `SYS_CLK` failed
+the artificial 400 MHz check at 65.30 MHz and `clk_dq` estimated 381.97 MHz, so
+this is functional pre-pin evidence, not external DDR3 timing or storage proof.
 
 The first post-init-probe RTL slice, `rtl/ddr3_wb_line_channel.sv`, is now wired
 under both `rtl/ddr3_wb_channel.sv` and
