@@ -50,6 +50,17 @@ module tb_ctrl_line;
     reg [CHANNELS-1:0]          phy_rd_line_err = {CHANNELS{1'b0}};
 
     integer i;
+    reg write_ack_seen = 1'b0;
+    reg write_ack_err = 1'b0;
+    reg read_ack_seen = 1'b0;
+    reg read_ack_err = 1'b0;
+    reg [WB_DATA_W-1:0] read_ack_data = {WB_DATA_W{1'b0}};
+    reg ch0_write_cmd_seen = 1'b0;
+    reg ch0_write_start_seen = 1'b0;
+    reg ch1_read_cmd_seen = 1'b0;
+    reg ch1_read_start_seen = 1'b0;
+    reg [3:0] mon_cmd0 = 4'h0;
+    reg [3:0] mon_cmd1 = 4'h0;
 
     always #5 clk = ~clk;
 
@@ -154,35 +165,6 @@ module tb_ctrl_line;
         end
     endtask
 
-    task wait_ddr_cmd;
-        input integer ch;
-        input [3:0] expected_cmd;
-        input [BANK_BITS-1:0] expected_bank;
-        input [ADDR_BITS-1:0] expected_addr;
-        reg [3:0] got_cmd;
-        reg found;
-        begin
-            got_cmd = 4'h0;
-            found = 1'b0;
-            while (!found) begin
-                @(posedge clk);
-                #1;
-                got_cmd = {ddr_cs_n[ch], ddr_ras_n[ch], ddr_cas_n[ch],
-                           ddr_we_n[ch]};
-                found = ddr_cmd_valid[ch] && (got_cmd == expected_cmd);
-            end
-
-            if (ddr_ba[(ch * BANK_BITS) +: BANK_BITS] !== expected_bank ||
-                ddr_addr[(ch * ADDR_BITS) +: ADDR_BITS] !== expected_addr) begin
-                $display("[ctrl-line] DDR command mismatch ch=%0d cmd=%b bank=%h addr=%h",
-                         ch, got_cmd,
-                         ddr_ba[(ch * BANK_BITS) +: BANK_BITS],
-                         ddr_addr[(ch * ADDR_BITS) +: ADDR_BITS]);
-                $fatal(1);
-            end
-        end
-    endtask
-
     initial begin
         repeat (3) @(posedge clk);
         rst = 1'b0;
@@ -207,6 +189,10 @@ module tb_ctrl_line;
         wait (init_done == 2'b11);
         repeat (2) @(posedge clk);
 
+        write_ack_seen = 1'b0;
+        write_ack_err = 1'b0;
+        ch0_write_cmd_seen = 1'b0;
+        ch0_write_start_seen = 1'b0;
         start_wb(1'b1, 30'h0000_002d, 32'hCAFE_BABE, 4'b1110);
         wait (phy_wr_line_valid[0]);
         if (phy_wr_line_valid !== 2'b01) begin
@@ -222,29 +208,26 @@ module tb_ctrl_line;
             $fatal(1);
         end
 
-        wait (wb_ack);
-        if (wb_err) begin
+        wait (write_ack_seen);
+        if (write_ack_err) begin
             $display("[ctrl-line] ch0 write ack unexpectedly errored");
             $fatal(1);
         end
-        wait_ddr_cmd(0, `DDR3_CMD_WR, {BANK_BITS{1'b0}}, 15'h0010);
-        if (phy_start_write !== 2'b01 || phy_start_read !== 2'b00) begin
-            $display("[ctrl-line] write transfer-start mismatch wr=%b rd=%b",
-                     phy_start_write, phy_start_read);
-            $fatal(1);
-        end
+        wait (ch0_write_cmd_seen);
+        wait (ch0_write_start_seen);
         finish_wb();
 
         for (i = 0; i < LINE_BYTES; i = i + 1)
             phy_rd_line_data[LINE_DATA_W + (i * 8) +: 8] = 8'h40 + i[7:0];
 
+        read_ack_seen = 1'b0;
+        read_ack_err = 1'b0;
+        read_ack_data = {WB_DATA_W{1'b0}};
+        ch1_read_cmd_seen = 1'b0;
+        ch1_read_start_seen = 1'b0;
         start_wb(1'b0, {1'b1, 29'h0000_000e}, 32'h0, 4'hF);
-        wait_ddr_cmd(1, `DDR3_CMD_RD, {BANK_BITS{1'b0}}, 15'h0000);
-        if (phy_start_write !== 2'b00 || phy_start_read !== 2'b10) begin
-            $display("[ctrl-line] read transfer-start mismatch wr=%b rd=%b",
-                     phy_start_write, phy_start_read);
-            $fatal(1);
-        end
+        wait (ch1_read_cmd_seen);
+        wait (ch1_read_start_seen);
 
         wait (phy_rd_line_ready[1]);
         if (phy_rd_line_ready[0]) begin
@@ -254,19 +237,74 @@ module tb_ctrl_line;
 
         @(negedge clk);
         phy_rd_line_valid = 2'b10;
-        @(negedge clk);
-        phy_rd_line_valid = 2'b00;
 
-        wait (wb_ack);
-        if (wb_err || wb_dat_r !== 32'h7b7a_7978) begin
+        wait (read_ack_seen);
+        if (read_ack_err || read_ack_data !== 32'h7b7a_7978) begin
             $display("[ctrl-line] ch1 read response mismatch data=%h err=%0b",
-                     wb_dat_r, wb_err);
+                     read_ack_data, read_ack_err);
             $fatal(1);
         end
+        @(negedge clk);
+        phy_rd_line_valid = 2'b00;
         finish_wb();
 
         $display("[ctrl-line] init-gated line-level controller passed");
         $finish;
+    end
+
+    always @(posedge clk) begin
+        #1;
+        if (wb_ack && wb_we) begin
+            write_ack_seen = 1'b1;
+            write_ack_err = wb_err;
+        end
+
+        if (wb_ack && !wb_we) begin
+            read_ack_seen = 1'b1;
+            read_ack_err = wb_err;
+            read_ack_data = wb_dat_r;
+        end
+
+        mon_cmd0 = {ddr_cs_n[0], ddr_ras_n[0], ddr_cas_n[0], ddr_we_n[0]};
+        if (ddr_cmd_valid[0] && (mon_cmd0 == `DDR3_CMD_WR)) begin
+            if (ddr_ba[0 +: BANK_BITS] !== {BANK_BITS{1'b0}} ||
+                ddr_addr[0 +: ADDR_BITS] !== 15'h0010) begin
+                $display("[ctrl-line] ch0 WR command mismatch bank=%h addr=%h",
+                         ddr_ba[0 +: BANK_BITS], ddr_addr[0 +: ADDR_BITS]);
+                $fatal(1);
+            end
+            ch0_write_cmd_seen = 1'b1;
+        end
+
+        if (phy_start_write[0]) begin
+            if (phy_start_write !== 2'b01 || phy_start_read !== 2'b00) begin
+                $display("[ctrl-line] write transfer-start mismatch wr=%b rd=%b",
+                         phy_start_write, phy_start_read);
+                $fatal(1);
+            end
+            ch0_write_start_seen = 1'b1;
+        end
+
+        mon_cmd1 = {ddr_cs_n[1], ddr_ras_n[1], ddr_cas_n[1], ddr_we_n[1]};
+        if (ddr_cmd_valid[1] && (mon_cmd1 == `DDR3_CMD_RD)) begin
+            if (ddr_ba[BANK_BITS +: BANK_BITS] !== {BANK_BITS{1'b0}} ||
+                ddr_addr[ADDR_BITS +: ADDR_BITS] !== 15'h0000) begin
+                $display("[ctrl-line] ch1 RD command mismatch bank=%h addr=%h",
+                         ddr_ba[BANK_BITS +: BANK_BITS],
+                         ddr_addr[ADDR_BITS +: ADDR_BITS]);
+                $fatal(1);
+            end
+            ch1_read_cmd_seen = 1'b1;
+        end
+
+        if (phy_start_read[1]) begin
+            if (phy_start_write !== 2'b00 || phy_start_read !== 2'b10) begin
+                $display("[ctrl-line] read transfer-start mismatch wr=%b rd=%b",
+                         phy_start_write, phy_start_read);
+                $fatal(1);
+            end
+            ch1_read_start_seen = 1'b1;
+        end
     end
 
     initial begin

@@ -194,6 +194,15 @@ Those pieces should remain in slow fabric. The fast domain should eventually
 contain only the minimum 7-series I/O shell: DQ/DQS output/input registers,
 delay/calibration, and tightly local per-bit capture/launch logic.
 
+`rtl/ddr3_x8_burst_io_sequencer.sv` is the first RTL slice shaped for that
+fast-domain boundary. It accepts one complete x8 BL8 write payload as a 64-bit
+word before launch, emits four ordered DDR DQ rise/fall pairs with DQS strobes,
+and captures four read sample pairs back into a 64-bit word. It does not own
+Wishbone, full-channel line packing, no-DM read-modify-write, lane arbitration,
+or clock-domain transport. A future board PHY should feed this sequencer from a
+slow-fabric preload/CDC layer and connect its per-lane DQ/DQS outputs to the
+7-series primitive shell.
+
 `../../boards/ypcb-00338/rtl/ddr3_board_io.sv` now includes that first minimum
 board-local shell as `ddr3_dq_dqs_io_7series`. It wraps one channel of DQ/DQS
 pins with DQ `ODDR`/`IDDR`/`IOBUF` and DQS `ODDR`/`IDDR`/`IOBUFDS` primitives

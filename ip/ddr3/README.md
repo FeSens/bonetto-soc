@@ -17,17 +17,20 @@ command/reset/CKE/ODT/address pins. The command plus line-to-lane image combines
 those board command pins with the reusable lane adapter and internal lane
 memories. The DQ/DQS I/O-shell probe proves the full-pin 7-series ODDR/IDDR
 and IOBUF/IOBUFDS shell can route at the 400 MHz DDR3-800 bit-clock target with
-the DDR3 devices held in reset. The D88 PHY-clock bridge experiment is retained
-only as evidence that wide soft line/lane timing fabric does not belong in that
-bit-clock domain. External DDR3 storage is still not validated.
+the DDR3 devices held in reset. The first post-D88 fast-domain RTL slice is the
+per-lane `ddr3_x8_burst_io_sequencer`, which accepts one preloaded BL8 x8 burst
+and only steps the four DDR rise/fall pairs locally. The D88 PHY-clock bridge
+experiment is retained only as evidence that wide soft line/lane timing fabric
+does not belong in that bit-clock domain. External DDR3 storage is still not
+validated.
 
 ## Status
 
 | Area | State |
 |---|---|
-| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, line-to-x8-lane adapter, x8 lane PHY timing core, line-to-lane PHY timing bridge, controller-to-PHY line clock bridge, board-local DQ/DQS ODDR/IDDR/IOBUF shell probe, single-outstanding line-level Wishbone bridge, line-backed Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no timing-clean calibrated read/write PHY yet |
-| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, x8 lane PHY timing-core proof, line-to-lane PHY bridge proof, controller-to-PHY line clock bridge proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
-| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, x8 lane PHY timing-core unit test, line-to-lane PHY bridge unit test, controller-to-PHY line clock bridge dual-clock unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
+| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, line-to-x8-lane adapter, x8 lane PHY timing core, fast-domain x8 burst I/O sequencer, line-to-lane PHY timing bridge, controller-to-PHY line clock bridge, board-local DQ/DQS ODDR/IDDR/IOBUF shell probe, single-outstanding line-level Wishbone bridge, line-backed Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no timing-clean calibrated read/write PHY yet |
+| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, x8 lane PHY timing-core proof, fast-domain x8 burst I/O sequencer proof, line-to-lane PHY bridge proof, controller-to-PHY line clock bridge proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
+| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, x8 lane PHY timing-core unit test, fast-domain x8 burst I/O sequencer unit test, line-to-lane PHY bridge unit test, controller-to-PHY line clock bridge dual-clock unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, command-probe, command plus line-to-lane loopback, and route-only full-pin DQ/DQS I/O-shell timing proof; D88 PHY-clock bridge is debug evidence only and its program target is refused by default because it misses the 400 MHz bit-clock target; not external DDR3 storage |
 
@@ -38,6 +41,7 @@ Run these from the repo root:
 ```sh
 make -C ip/ddr3 formal
 make -C ip/ddr3 sim
+make -C ip/ddr3 sim-x8-burst-io-sequencer formal-x8-burst-io-sequencer
 make validate-jtag-bram BOARD=ypcb-00338
 make -C boards/ypcb-00338 ddr3-ctrl-line-loopback-ddr800-bitstream
 make -C boards/ypcb-00338 program-ddr3-ctrl-line-loopback-ddr800
@@ -101,6 +105,12 @@ What these mean today:
   controls DQ/DM/DQS output enables, and reassembles four sampled read pairs
   back into the lane stream. Board-specific IOBUF, ODDR/IDDR, IDELAY, and
   calibration are still outside this module.
+- The x8 fast burst I/O sequencer proof and unit simulation cover the narrower
+  fast-domain contract learned from the D88 timing failure. A complete 64-bit
+  x8 BL8 payload is already preloaded before the bit-clock domain sees it; the
+  sequencer only emits four local DDR rise/fall DQ pairs with DQS strobes and
+  captures four sampled read pairs back into one 64-bit word. It deliberately
+  omits Wishbone, line packing, RMW policy, lane arbitration, and calibration.
 - The line-to-lane PHY bridge proof and unit simulation compose the complete
   channel-line contract with one x8 lane PHY per physical byte lane. The bridge
   queues scheduler transfer-start pulses, starts all lanes in a channel
@@ -114,7 +124,7 @@ What these mean today:
   routed only to roughly 107 MHz, so that target is kept as debug evidence and
   refused for normal programming. The next real PHY split must keep wide line
   assembly and lane arbitration in slow fabric and move only a tiny 7-series
-  I/O shell into the fast domain.
+  I/O shell plus local x8 burst stepping into the fast domain.
 - The YPCB-00338 board-local DQ/DQS I/O-shell probe wraps both physical
   channels with 144 DQ IOBUFs, 18 DQS IOBUFDS instances, 164 ODDR outputs, and
   162 IDDR inputs. The route-only DDR3-800 bitstream target holds the DDR3
@@ -251,6 +261,7 @@ What these mean today:
 | `rtl/ddr3_channel_line.sv` | Full 64-bit-channel BL8 line packetizer composed from eight x8 byte lanes. |
 | `rtl/ddr3_line_to_lanes.sv` | Reusable line-to-x8-lane adapter for serializing complete channel BL8 lines into sixteen x8 lane streams and reassembling read lanes. |
 | `rtl/ddr3_x8_lane_phy.sv` | Reusable synthesizable x8 lane PHY timing core that turns lane beats into DDR rise/fall pin data and read samples back into lane beats. |
+| `rtl/ddr3_x8_burst_io_sequencer.sv` | Small fast-domain x8 BL8 burst sequencer for preloaded write payload launch and sampled read-pair reassembly in front of the board I/O shell. |
 | `rtl/ddr3_line_lane_phy.sv` | Integration bridge from complete channel BL8 lines through all x8 lane PHY timing cores, exposing abstract per-lane DQ/DQS/DM timing signals for the future board primitive wrapper. |
 | `rtl/ddr3_line_phy_clock_bridge.sv` | Single-outstanding controller/PHY clock bridge for complete BL8 line payloads and transfer-start/read-return handshakes; useful boundary, not a full DDR bit-clock PHY. |
 | `../../boards/ypcb-00338/rtl/ddr3_board_io.sv` | Board-local 7-series clock, command, high-Z, and DQ/DQS primitive wrappers for staged hardware bring-up. |

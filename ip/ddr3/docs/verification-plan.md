@@ -53,7 +53,11 @@ Current coverage:
   checks the next slow/fast-domain protocol boundary in a same-clock formal
   harness: accepted write payloads preserve data and mask, start pulses cross
   in order, read payloads return intact, and no bridge error is raised for a
-  legal single-outstanding sequence.
+  legal single-outstanding sequence. The fast-domain x8 burst I/O sequencer
+  proof checks the post-D88 per-lane boundary: one accepted 64-bit x8 payload
+  emits exactly four ordered DDR rise/fall DQ pairs with DQS strobes, sampled
+  read pairs reassemble into one 64-bit word, and valid output data remains
+  stable under backpressure.
   The scheduler and line-controller checks now also preserve transfer type so
   the future PHY receives mutually exclusive write/read start pulses aligned to
   the issued WR/RD command.
@@ -85,7 +89,10 @@ Current coverage:
   packetizer with independent per-lane stalls, plus a unit bench for the x8
   lane PHY timing core that preloads a full BL8 write, checks four DDR
   rise/fall launch pairs, samples four read pairs, and verifies eight returned
-  lane bytes. The line-to-lane PHY bridge unit bench runs the full two-channel,
+  lane bytes. The fast-domain x8 burst I/O sequencer unit bench checks the
+  smaller preloaded-payload interface that should feed the board I/O shell
+  instead of moving wide lane arbitration into `clk_dq`. The line-to-lane PHY
+  bridge unit bench runs the full two-channel,
   sixteen-lane integration over abstract DQ/DQS/DM timing signals before any
   Xilinx primitive wrapper is connected. The controller-to-PHY clock bridge
   unit bench runs the real dual-clock case, with a slow controller clock and a
@@ -189,6 +196,13 @@ latency, DQ/DM/DQS output enables, four rise/fall write pairs, read-capture
 latency, and read byte reassembly. It intentionally stops short of Xilinx
 7-series IOBUF/ODDR/IDDR/IDELAY primitives and calibration.
 
+`rtl/ddr3_x8_burst_io_sequencer.sv` is the smaller fast-domain lane boundary
+introduced after the D88 timing experiment. It receives an already-preloaded
+64-bit x8 BL8 write payload and performs only the four local DDR pair launches,
+or captures four local read pairs and returns one 64-bit word. This is the RTL
+shape intended to sit near the 7-series DQ/DQS shell; wide controller-line
+assembly and lane arbitration stay in slow fabric.
+
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler
 transfer-start pulses. It gives the future board wrapper one clean abstract
@@ -216,6 +230,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
 | Line-to-x8-lane adapter | Two complete 512-bit channel lines serialize into sixteen x8 lane streams, and read beats from all lanes reassemble into complete channel lines. First proof exists; skewed-lane stall simulation exists. |
 | X8 lane PHY timing core | One BL8 x8 write stream becomes four DDR rise/fall pin-data pairs with DQ/DM/DQS output enables, and four sampled read pairs become eight lane read beats. First bounded proof and unit simulation exist. |
+| X8 fast burst I/O sequencer | One preloaded 64-bit x8 BL8 payload emits four ordered DDR rise/fall DQ pairs with DQS strobes, and four sampled read pairs reassemble into one 64-bit payload. First bounded proof and unit simulation exist. |
 | Line-to-lane PHY bridge | Complete channel lines feed one x8 lane PHY timing core per physical lane, with queued scheduler transfer-start pulses and abstract DQ/DQS/DM timing signals. First focused write/read sequencing proofs and full two-channel unit simulation exist. |
 | Controller-to-PHY clock bridge | Slow controller line handshakes cross to a faster PHY-side clock without changing payloads or dropping one legal single-outstanding read/write transaction. First dual-clock simulation and same-clock bounded protocol proof exist. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
@@ -247,6 +262,7 @@ Use the real Micron model for protocol validation:
 | Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
 | Line-to-x8-lane unit | two complete channel line ports + sixteen x8 lane streams | dual-channel line serialization, mask mapping, lane-last markers, skewed lane stalls, and read-line reassembly pass |
 | X8 lane PHY unit | one lane stream + synthesizable timing core | BL8 write preload, four DDR write rise/fall pairs, DQ/DM/DQS output enables, four sampled read pairs, and eight returned lane bytes pass |
+| X8 fast burst I/O unit | one preloaded x8 burst + fast-domain sequencer | 64-bit write payload launches as four DDR pairs, four sampled read pairs return as one 64-bit payload, and ready/valid state returns idle |
 | Line-to-lane PHY unit | two complete channel line ports + sixteen x8 lane PHY timing cores | queued transfer starts, all-lane write launch mapping, DQ/DQS/DM pin-pair checks, read sampling, and complete line reassembly pass |
 | Controller-to-PHY clock bridge unit | slow controller clock + fast PHY clock | write payload, start pulses, and read payload cross the bridge without error and return to idle |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |

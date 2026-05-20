@@ -36,6 +36,9 @@ The active RTL slices are deliberately small and scheduler-facing:
 - `ddr3_x8_lane_phy.sv`: synthesizable x8 lane timing core that buffers one BL8
   write burst, launches registered DDR rise/fall DQ/DM/DQS pairs, captures
   read sample pairs, and reassembles ordered lane bytes;
+- `ddr3_x8_burst_io_sequencer.sv`: smaller fast-domain x8 sequencer that
+  accepts one preloaded 64-bit BL8 payload, launches four DDR rise/fall DQ
+  pairs with DQS strobes, and returns one 64-bit captured read payload;
 - `ddr3_line_lane_phy.sv`: reusable bridge that composes
   `ddr3_line_to_lanes` with one `ddr3_x8_lane_phy` per physical byte lane,
   exposing abstract per-lane DQ/DQS/DM timing signals for the future
@@ -72,11 +75,12 @@ single-channel scheduler adapter are the first scheduler-owned blocks, and the
 refresh requester now has idle plus focused active-traffic deadline proofs. The
 data boundary has one x8 lane packetizer, one full 64-bit-channel line
 packetizer, a line-to-x8-lane adapter, one x8 lane PHY timing core, one
-line-to-lane PHY timing bridge, a line-backed Wishbone-to-channel bridge, and a
-pre-PHY controller shell tying those pieces to the dual-channel command path.
-The full-capacity address map is explicit and formally checked. There is still
-no board-level DQS/DQ primitive wrapper, calibration, or hardware-validated DDR3
-read/write path.
+fast-domain x8 burst sequencer, one line-to-lane PHY timing bridge, a
+line-backed Wishbone-to-channel bridge, and a pre-PHY controller shell tying
+those pieces to the dual-channel command path. The full-capacity address map is
+explicit and formally checked. The board has a route-proven DQ/DQS primitive
+shell, but there is still no calibrated hardware-validated DDR3 read/write
+path.
 
 Rules for adding new RTL:
 
@@ -89,7 +93,8 @@ Rules for adding new RTL:
 Recommended first RTL slices:
 
 - typed mode-register field helpers,
-- a board-level 7-series wrapper around the reusable x8 lane PHY timing core,
+- a board-level route probe that connects the fast x8 burst sequencers to the
+  7-series DQ/DQS shell without pulling wide line arbitration into `clk_dq`,
 - a Micron-model runtime loopback that drives `ddr3_ctrl` through the future
   PHY bridge,
 - a backend merge/read-modify-write path before partial writes are exposed as
