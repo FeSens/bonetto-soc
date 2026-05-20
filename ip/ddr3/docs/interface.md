@@ -161,6 +161,15 @@ owns the mask-preserving and no-DM RMW line contracts.
 line contract directly as the intended top-level boundary for the real DQS/DQ
 PHY.
 
+`rtl/ddr3_line_to_lanes.sv` is the reusable bridge from the controller's
+two-channel line contract to sixteen independent x8 lane streams.
+`rtl/ddr3_x8_lane_phy.sv` is the first synthesizable lane timing core after
+that bridge: it accepts eight write bytes plus masks before a WR data window,
+launches four DDR rise/fall pin-data pairs with DQ/DM/DQS output enables, then
+captures four read sample pairs and returns eight lane bytes. Board-specific
+IOBUF, ODDR/IDDR, IDELAY, DQS clocking, training, and calibration still belong
+outside this core.
+
 ## Debug/Status
 
 Expose status registers through the board JTAG/Wishbone path before relying on

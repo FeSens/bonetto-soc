@@ -42,7 +42,10 @@ Current coverage:
   proof composes eight byte lanes and checks 512-bit write data placement,
   64-bit byte-mask placement, and read-line reassembly at the channel boundary.
   The line-to-x8-lane adapter proof covers the reusable boundary from complete
-  dual-channel BL8 lines to sixteen independent x8 lane streams and back.
+  dual-channel BL8 lines to sixteen independent x8 lane streams and back. The
+  x8 lane PHY timing-core proof checks the next DQ/DQS-facing boundary:
+  stable accepted write beats, output-enable invariants, rise/fall write pair
+  ordering, and read sample-to-lane-byte ordering under read backpressure.
   The Wishbone-to-channel bridge proof connects those two contracts and checks
   command emission, command stability under scheduler backpressure, full-width
   write word/mask placement, and read word return from a completed channel line.
@@ -68,16 +71,19 @@ Current coverage:
   testbench agent. A reusable x8 DQS/DQ/DM timing-agent bench also performs two
   writes with active-high DDR3 DM masking and reads the merged line back through
   the byte-lane packetizer. It also runs a unit bench for the full-channel line
-  packetizer with independent per-lane stalls, plus a unit bench for the
-  Wishbone frontend address split, write data/mask placement, and read word
-  selection. The Wishbone-to-channel unit bench drives one write and one read
-  from the bus through all eight byte lanes. The dual-channel dispatch unit
-  bench drives a channel-0 write and a channel-1 read through independent
-  command/data ports. The line-level dual-channel bench repeats that routing
-  check against complete 512-bit line ports. The scheduler-adapter unit bench
-  issues write/read/write line requests across different rows and banks and
-  checks that `o_xfer_start` coincides with the expected RD/WR command. The
-  controller shell unit benches wait for both init sequencers, then run a
+  packetizer with independent per-lane stalls, plus a unit bench for the x8
+  lane PHY timing core that preloads a full BL8 write, checks four DDR
+  rise/fall launch pairs, samples four read pairs, and verifies eight returned
+  lane bytes. It also runs the Wishbone frontend address split, write data/mask
+  placement, and read word selection. The Wishbone-to-channel unit bench drives
+  one write and one read from the bus through all eight byte lanes. The
+  dual-channel dispatch unit bench drives a channel-0 write and a channel-1
+  read through independent command/data ports. The line-level dual-channel
+  bench repeats that routing check against complete 512-bit line ports. The
+  scheduler-adapter unit bench issues write/read/write line requests across
+  different rows and banks and checks that `o_xfer_start` coincides with the
+  expected RD/WR command. The controller shell unit benches wait for both init
+  sequencers, then run a
   channel-0 write and channel-1 read through scheduler-issued DDR3 WR/RD
   commands across both the packetized compatibility path and the line-level
   PHY boundary. Controller-level Micron benches then wire both channels through
@@ -93,8 +99,8 @@ Current coverage:
 
 Current non-coverage:
 
-- no pin-level controller-owned DQS/DQ PHY, calibration, or hardware memory
-  data path exists yet;
+- no board-level 7-series DQ/DQS primitive wrapper, calibration, or hardware
+  memory data path exists yet;
 - no PHY, board DQS/DQ, leveling, or hardware DDR3 path is validated by these
   gates.
 
@@ -128,6 +134,12 @@ serializes complete 64-byte channel lines into one x8 stream per physical lane
 and reassembles read lanes into complete lines. It is still not a DQ/DQS PHY; it
 is the reusable RTL adapter that future board PHY logic should drive.
 
+`rtl/ddr3_x8_lane_phy.sv` is the first synthesizable DQ/DQS-facing lane timing
+core after `ddr3_line_to_lanes`. It owns BL8 write preload, write-launch
+latency, DQ/DM/DQS output enables, four rise/fall write pairs, read-capture
+latency, and read byte reassembly. It intentionally stops short of Xilinx
+7-series IOBUF/ODDR/IDDR/IDELAY primitives and calibration.
+
 ## Formal Ladder
 
 Every new RTL slice should add or extend one of these harnesses:
@@ -143,6 +155,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Byte lane | BL8 x8 write data/mask ordering, read capture ordering, and ready/valid stability under PHY backpressure. First proof exists. |
 | Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
 | Line-to-x8-lane adapter | Two complete 512-bit channel lines serialize into sixteen x8 lane streams, and read beats from all lanes reassemble into complete channel lines. First proof exists; skewed-lane stall simulation exists. |
+| X8 lane PHY timing core | One BL8 x8 write stream becomes four DDR rise/fall pin-data pairs with DQ/DM/DQS output enables, and four sampled read pairs become eight lane read beats. First bounded proof and unit simulation exist. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer, with write-line data captured before command acceptance. First proof exists. |
 | Wishbone line channel | One Wishbone word request maps to one scheduler command while write data is presented as a complete 64-byte line before command accept; reads wait for a full returned line. First proof exists. The no-DM RMW mode proves a write becomes read-old-line, merge selected bytes, then write an all-active line. |
@@ -171,6 +184,7 @@ Use the real Micron model for protocol validation:
 | Reusable x8 timing agent | init sequencer + byte-lane packetizer + x8 DQS/DQ/DM timing agent + one x8 model | two writes with active-high DM masking merge correctly and read back through the byte-lane path |
 | Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
 | Line-to-x8-lane unit | two complete channel line ports + sixteen x8 lane streams | dual-channel line serialization, mask mapping, lane-last markers, skewed lane stalls, and read-line reassembly pass |
+| X8 lane PHY unit | one lane stream + synthesizable timing core | BL8 write preload, four DDR write rise/fall pairs, DQ/DM/DQS output enables, four sampled read pairs, and eight returned lane bytes pass |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
 | JTAG-Wishbone byte-select gate | `jtag_wb_master` plus BRAM or DDR3 loopback target | host-driven `SET_SEL` preserves unselected bytes before no-DM DDR3 RMW is trusted in hardware |
 | Wishbone channel unit | line-level Wishbone bridge + full-channel line packetizer | one bus write and one bus read traverse all eight byte lanes with correct command and word mapping |
