@@ -170,6 +170,13 @@ captures four read sample pairs and returns eight lane bytes. Board-specific
 IOBUF, ODDR/IDDR, IDELAY, DQS clocking, training, and calibration still belong
 outside this core.
 
+`rtl/ddr3_line_lane_phy.sv` composes those two reusable contracts. It accepts
+complete channel BL8 lines, queues explicit scheduler transfer-start pulses,
+starts all x8 lane PHYs for the selected channel together once write bytes are
+loaded or a read window is ready, and exposes abstract per-lane DDR DQ/DQS/DM
+rise/fall timing signals. It is the intended input to a future YPCB-00338
+7-series primitive wrapper, but it is still not pin-level hardware validation.
+
 ## Debug/Status
 
 Expose status registers through the board JTAG/Wishbone path before relying on

@@ -36,6 +36,10 @@ The active RTL slices are deliberately small and scheduler-facing:
 - `ddr3_x8_lane_phy.sv`: synthesizable x8 lane timing core that buffers one BL8
   write burst, launches registered DDR rise/fall DQ/DM/DQS pairs, captures
   read sample pairs, and reassembles ordered lane bytes;
+- `ddr3_line_lane_phy.sv`: reusable bridge that composes
+  `ddr3_line_to_lanes` with one `ddr3_x8_lane_phy` per physical byte lane,
+  exposing abstract per-lane DQ/DQS/DM timing signals for the future
+  board-specific 7-series primitive wrapper;
 - `ddr3_wb_frontend.sv`: single-outstanding Wishbone-to-BL8 frontend that
   splits word addresses into line address and word index, places write data and
   byte masks into a BL8 line, and selects read words from backend response
@@ -66,9 +70,9 @@ testbench DQS/DQ agent. The bank machine, scheduler, refresh requester, and
 single-channel scheduler adapter are the first scheduler-owned blocks, and the
 refresh requester now has idle plus focused active-traffic deadline proofs. The
 data boundary has one x8 lane packetizer, one full 64-bit-channel line
-packetizer, a line-to-x8-lane adapter, one x8 lane PHY timing core, a
-line-backed Wishbone-to-channel bridge, and a pre-PHY controller shell tying
-those pieces to the dual-channel command path.
+packetizer, a line-to-x8-lane adapter, one x8 lane PHY timing core, one
+line-to-lane PHY timing bridge, a line-backed Wishbone-to-channel bridge, and a
+pre-PHY controller shell tying those pieces to the dual-channel command path.
 The full-capacity address map is explicit and formally checked. There is still
 no board-level DQS/DQ primitive wrapper, calibration, or hardware-validated DDR3
 read/write path.
