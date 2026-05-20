@@ -152,6 +152,8 @@ module ddr3_cmd_timing_monitor #(
 
             if (cmd_ref) begin
                 assert(bank_open == {BANKS{1'b0}});
+                for (k = 0; k < BANKS; k = k + 1)
+                    assert(t_rp_wait[k] == 8'd0);
             end
 
             if (CHECK_REFRESH_DEADLINE)

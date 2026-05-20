@@ -97,7 +97,7 @@ $(BUILD)/bank.proof: $(BUILD)/bank.smt2
 	@touch $@
 
 $(BUILD)/scheduler.proof: $(BUILD)/scheduler.smt2
-	@echo "[ddr3] formal: DDR3 scheduler global timing slice, depth=$(SCHED_SMTBMC_DEPTH), solver=$(SOLVER)"
+	@echo "[ddr3] formal: DDR3 scheduler refresh/global timing slice, depth=$(SCHED_SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SCHED_SMTBMC_DEPTH) $<
 	@touch $@
 

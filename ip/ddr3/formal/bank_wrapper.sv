@@ -53,6 +53,8 @@ module ddr3_bank_wrapper (
         .i_req_row(req_row),
         .i_req_col({req_col[14:11], 1'b0, req_col[9:0]}),
         .i_cmd_ready(1'b1),
+        .i_close_req(1'b0),
+        .o_close_ready(),
         .o_rsp_valid(rsp_valid),
         .o_rsp_write(rsp_write),
         .o_state(state),

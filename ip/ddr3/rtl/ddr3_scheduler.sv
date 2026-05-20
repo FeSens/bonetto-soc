@@ -2,8 +2,9 @@
 //
 // This slice instantiates one row/timing machine per bank, accepts one request
 // per bank at a time, and gates the shared command bus with the first global
-// timing rules that cross bank boundaries. Refresh is intentionally left for the
-// next slice; this module only schedules ACT/PRE/RD/WR traffic.
+// timing rules that cross bank boundaries. It also owns the first refresh path:
+// stop accepting requests, ask every bank to close, issue one REF, then wait
+// tRFC before normal traffic resumes.
 
 `default_nettype none
 `include "ddr3_params.vh"
@@ -21,7 +22,8 @@ module ddr3_scheduler #(
     parameter integer T_CCD     = `DDR3_800_TCCD_CYCLES,
     parameter integer T_WTR     = `DDR3_800_TWTR_CMD_CYCLES,
     parameter integer T_RRD     = `DDR3_800_TRRD_CYCLES,
-    parameter integer T_FAW     = `DDR3_800_TFAW_CYCLES
+    parameter integer T_FAW     = `DDR3_800_TFAW_CYCLES,
+    parameter integer T_RFC     = `DDR3_800_TRFC_CYCLES
 ) (
     input wire                 i_clk,
     input wire                 i_rst,
@@ -32,6 +34,10 @@ module ddr3_scheduler #(
     input wire [BANK_BITS-1:0] i_req_bank,
     input wire [ROW_BITS-1:0]  i_req_row,
     input wire [ADDR_BITS-1:0] i_req_col,
+
+    input wire                 i_refresh_req,
+    output reg                 o_refresh_ack,
+    output wire                o_refresh_busy,
 
     output reg                 o_rsp_valid,
     output reg                 o_rsp_write,
@@ -50,6 +56,7 @@ module ddr3_scheduler #(
 );
     localparam integer BANKS = 1 << BANK_BITS;
     localparam [3:0] CMD_ACT = `DDR3_CMD_ACT;
+    localparam [3:0] CMD_REF = `DDR3_CMD_REF;
     localparam [3:0] CMD_RD  = `DDR3_CMD_RD;
     localparam [3:0] CMD_WR  = `DDR3_CMD_WR;
     localparam [3:0] CMD_NOP = `DDR3_CMD_NOP;
@@ -59,6 +66,7 @@ module ddr3_scheduler #(
     wire [BANKS-1:0] bank_rsp_valid;
     wire [BANKS-1:0] bank_rsp_write;
     wire [BANKS-1:0] bank_cmd_ready;
+    wire [BANKS-1:0] bank_close_ready;
     wire [BANKS-1:0] bank_cmd_valid;
     wire [BANKS-1:0] bank_cs_n;
     wire [BANKS-1:0] bank_ras_n;
@@ -73,15 +81,31 @@ module ddr3_scheduler #(
     reg [7:0] t_rrd_wait;
     reg [7:0] t_ccd_wait;
     reg [7:0] t_wtr_wait;
+    reg [7:0] t_rfc_wait;
     reg [T_FAW-1:0] act_window;
 
     reg issue_valid;
     reg [BANK_BITS-1:0] issue_bank;
+    reg [1:0] refresh_state;
+
+    localparam [1:0]
+        REF_IDLE  = 2'd0,
+        REF_CLOSE = 2'd1,
+        REF_ISSUE = 2'd2,
+        REF_WAIT  = 2'd3;
 
     integer k;
     genvar g;
 
-    assign o_req_ready = bank_req_ready[i_req_bank];
+    wire all_banks_closed = &bank_close_ready;
+    wire refresh_issue = (refresh_state == REF_ISSUE);
+    wire bank_issue_allowed_state = (refresh_state == REF_IDLE) ||
+                                    (refresh_state == REF_CLOSE);
+
+    assign o_refresh_busy = (refresh_state != REF_IDLE);
+    assign o_req_ready = (refresh_state == REF_IDLE) &&
+                         !i_refresh_req &&
+                         bank_req_ready[i_req_bank];
 
     function [7:0] load_wait;
         input integer cycles;
@@ -151,6 +175,8 @@ module ddr3_scheduler #(
                 .i_req_row(i_req_row),
                 .i_req_col(i_req_col),
                 .i_cmd_ready(bank_cmd_ready[g]),
+                .i_close_req(refresh_state == REF_CLOSE),
+                .o_close_ready(bank_close_ready[g]),
                 .o_rsp_valid(bank_rsp_valid[g]),
                 .o_rsp_write(bank_rsp_write[g]),
                 .o_state(bank_state[g]),
@@ -166,7 +192,8 @@ module ddr3_scheduler #(
                 .o_addr(bank_addr[g])
             );
 
-            assign bank_cmd_ready[g] = issue_valid &&
+            assign bank_cmd_ready[g] = bank_issue_allowed_state &&
+                                       issue_valid &&
                                        (issue_bank == BANK_ID);
         end
     endgenerate
@@ -206,7 +233,10 @@ module ddr3_scheduler #(
             t_rrd_wait <= 8'd0;
             t_ccd_wait <= 8'd0;
             t_wtr_wait <= 8'd0;
+            t_rfc_wait <= 8'd0;
             act_window <= {T_FAW{1'b0}};
+            refresh_state <= REF_IDLE;
+            o_refresh_ack <= 1'b0;
             o_cmd_valid <= 1'b1;
             o_cs_n      <= CMD_NOP[3];
             o_ras_n     <= CMD_NOP[2];
@@ -219,6 +249,7 @@ module ddr3_scheduler #(
             t_ccd_wait <= dec_wait(t_ccd_wait);
             t_wtr_wait <= dec_wait(t_wtr_wait);
             act_window <= {act_window[T_FAW-2:0], 1'b0};
+            o_refresh_ack <= 1'b0;
 
             o_cmd_valid <= 1'b1;
             o_cs_n      <= CMD_NOP[3];
@@ -228,7 +259,42 @@ module ddr3_scheduler #(
             o_ba        <= {BANK_BITS{1'b0}};
             o_addr      <= {ADDR_BITS{1'b0}};
 
-            if (issue_valid) begin
+            case (refresh_state)
+                REF_IDLE: begin
+                    if (i_refresh_req)
+                        refresh_state <= REF_CLOSE;
+                end
+
+                REF_CLOSE: begin
+                    if (all_banks_closed)
+                        refresh_state <= REF_ISSUE;
+                end
+
+                REF_ISSUE: begin
+                    o_cs_n      <= CMD_REF[3];
+                    o_ras_n     <= CMD_REF[2];
+                    o_cas_n     <= CMD_REF[1];
+                    o_we_n      <= CMD_REF[0];
+                    o_ba        <= {BANK_BITS{1'b0}};
+                    o_addr      <= {ADDR_BITS{1'b0}};
+                    o_refresh_ack <= 1'b1;
+                    t_rfc_wait <= load_wait(T_RFC);
+                    refresh_state <= REF_WAIT;
+                end
+
+                REF_WAIT: begin
+                    if (t_rfc_wait == 8'd0)
+                        refresh_state <= REF_IDLE;
+                    else
+                        t_rfc_wait <= dec_wait(t_rfc_wait);
+                end
+
+                default: begin
+                    refresh_state <= REF_IDLE;
+                end
+            endcase
+
+            if (bank_issue_allowed_state && issue_valid) begin
                 o_cs_n  <= bank_cs_n[issue_bank];
                 o_ras_n <= bank_ras_n[issue_bank];
                 o_cas_n <= bank_cas_n[issue_bank];

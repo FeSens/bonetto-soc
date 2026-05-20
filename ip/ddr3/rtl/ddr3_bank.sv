@@ -3,7 +3,8 @@
 // This is the first reusable scheduler-owned RTL slice. It tracks the open row
 // for one bank, accepts one request at a time, and presents only commands that
 // are locally legal for that bank. The scheduler above this module decides when
-// the presented command is accepted on the shared command bus.
+// the presented command is accepted on the shared command bus and can request a
+// clean precharge before refresh.
 
 `default_nettype none
 `include "ddr3_params.vh"
@@ -32,6 +33,8 @@ module ddr3_bank #(
     input wire [ADDR_BITS-1:0] i_req_col,
 
     input wire                 i_cmd_ready,
+    input wire                 i_close_req,
+    output wire                o_close_ready,
 
     output reg                 o_rsp_valid,
     output reg                 o_rsp_write,
@@ -58,7 +61,9 @@ module ddr3_bank #(
         ST_WAIT_RCD  = 4'd5,
         ST_WAIT_DATA = 4'd6,
         ST_READ      = 4'd7,
-        ST_WRITE     = 4'd8;
+        ST_WRITE     = 4'd8,
+        ST_WAIT_CLOSE_PRE = 4'd9,
+        ST_CLOSE_PRE = 4'd10;
 
     reg                 bank_open;
     reg [ROW_BITS-1:0]  open_row;
@@ -88,6 +93,8 @@ module ddr3_bank #(
     assign o_busy      = (o_state != ST_IDLE);
     assign o_open      = bank_open;
     assign o_open_row  = open_row;
+    assign o_close_ready = !bank_open && (o_state == ST_IDLE) &&
+                           (t_rp_wait == 16'd0);
 
     function [15:0] load_wait;
         input integer cycles;
@@ -152,7 +159,9 @@ module ddr3_bank #(
 
             case (o_state)
                 ST_IDLE: begin
-                    if (i_req_valid) begin
+                    if (i_close_req && bank_open) begin
+                        o_state <= ST_WAIT_CLOSE_PRE;
+                    end else if (i_req_valid) begin
                         pending_write <= i_req_write;
                         pending_row   <= i_req_row;
                         pending_col   <= i_req_col;
@@ -227,6 +236,20 @@ module ddr3_bank #(
                         o_rsp_valid <= 1'b1;
                         o_rsp_write <= 1'b1;
                         o_state <= ST_IDLE;
+                    end
+                end
+
+                ST_WAIT_CLOSE_PRE: begin
+                    if (pre_ready)
+                        o_state <= ST_CLOSE_PRE;
+                end
+
+                ST_CLOSE_PRE: begin
+                    set_cmd(`DDR3_CMD_PRE, BANK, {ADDR_BITS{1'b0}});
+                    if (i_cmd_ready) begin
+                        bank_open <= 1'b0;
+                        t_rp_wait <= load_wait(T_RP);
+                        o_state   <= ST_IDLE;
                     end
                 end
 

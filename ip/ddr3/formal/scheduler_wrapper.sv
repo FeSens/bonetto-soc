@@ -10,7 +10,8 @@ module ddr3_scheduler_wrapper (
     input wire        req_write,
     input wire [2:0]  req_bank,
     input wire [14:0] req_row,
-    input wire [14:0] req_col
+    input wire [14:0] req_col,
+    input wire        refresh_req
 );
     localparam integer T_RCD = 3;
     localparam integer T_RP  = 3;
@@ -27,6 +28,8 @@ module ddr3_scheduler_wrapper (
     wire       rsp_valid;
     wire       rsp_write;
     wire [2:0] rsp_bank;
+    wire       refresh_ack;
+    wire       refresh_busy;
     wire [7:0] bank_busy;
     wire [7:0] bank_open;
     wire       cmd_valid;
@@ -57,6 +60,9 @@ module ddr3_scheduler_wrapper (
         .i_req_bank(req_bank),
         .i_req_row(req_row),
         .i_req_col({req_col[14:11], 1'b0, req_col[9:0]}),
+        .i_refresh_req(refresh_req),
+        .o_refresh_ack(refresh_ack),
+        .o_refresh_busy(refresh_busy),
         .o_rsp_valid(rsp_valid),
         .o_rsp_write(rsp_write),
         .o_rsp_bank(rsp_bank),
@@ -102,6 +108,7 @@ module ddr3_scheduler_wrapper (
     wire selected = cmd_valid && !cs_n;
     wire [3:0] cmd = {cs_n, ras_n, cas_n, we_n};
     wire cmd_act = selected && (cmd == `DDR3_CMD_ACT);
+    wire cmd_ref = selected && (cmd == `DDR3_CMD_REF);
     wire cmd_rd  = selected && (cmd == `DDR3_CMD_RD);
     wire cmd_wr  = selected && (cmd == `DDR3_CMD_WR);
 
@@ -110,6 +117,7 @@ module ddr3_scheduler_wrapper (
     reg [7:0] accepted_write = 8'd0;
     reg saw_read = 1'b0;
     reg saw_write = 1'b0;
+    reg saw_refresh = 1'b0;
     reg saw_bank0_act = 1'b0;
     reg saw_other_bank_act = 1'b0;
     reg last_stalled = 1'b0;
@@ -131,6 +139,7 @@ module ddr3_scheduler_wrapper (
             accepted_write <= 8'd0;
             saw_read <= 1'b0;
             saw_write <= 1'b0;
+            saw_refresh <= 1'b0;
             saw_bank0_act <= 1'b0;
             saw_other_bank_act <= 1'b0;
             last_stalled <= 1'b0;
@@ -140,6 +149,8 @@ module ddr3_scheduler_wrapper (
             last_req_col <= 15'd0;
         end else begin
             assume(req_bank <= 3'd1);
+            if (refresh_req)
+                assume(outstanding == 8'd0);
             if (req_valid)
                 assume(!outstanding[req_bank]);
 
@@ -163,6 +174,14 @@ module ddr3_scheduler_wrapper (
                 outstanding[rsp_bank] <= 1'b0;
             end
 
+            if (refresh_ack)
+                assert(cmd_ref);
+            if (cmd_ref) begin
+                assert(refresh_ack);
+                assert(bank_open == 8'd0);
+                saw_refresh <= 1'b1;
+            end
+
             if (cmd_act && ba == 3'd0)
                 saw_bank0_act <= 1'b1;
             if (cmd_act && ba != 3'd0)
@@ -174,6 +193,7 @@ module ddr3_scheduler_wrapper (
 
             cover(saw_bank0_act && saw_other_bank_act);
             cover(saw_read && saw_write);
+            cover(saw_refresh);
             cover(bank_open != 8'd0);
 
             last_stalled <= req_valid && !req_ready;
