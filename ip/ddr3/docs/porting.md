@@ -60,6 +60,9 @@ make -C boards/ypcb-00338 validate-ddr3-ctrl-line-laneloop
 make -C boards/ypcb-00338 ddr3-ctrl-line-cmdprobe-ddr800-bitstream
 make -C boards/ypcb-00338 program-ddr3-ctrl-line-cmdprobe-ddr800
 make -C boards/ypcb-00338 validate-ddr3-ctrl-line-cmdprobe
+make -C boards/ypcb-00338 ddr3-ctrl-line-cmdlaneloop-ddr800-bitstream
+make -C boards/ypcb-00338 program-ddr3-ctrl-line-cmdlaneloop-ddr800
+make -C boards/ypcb-00338 validate-ddr3-ctrl-line-cmdlaneloop
 ```
 
 The line-controller loopback proves the live JTAG/Wishbone path through the
@@ -78,10 +81,15 @@ DQ/DQS high-Z and returning data through the internal line loopback. On
 YPCB-00338 this gate selects the no-DM read-modify-write line bridge, so
 byte-select Wishbone writes are preserved without relying on missing external
 DM pins. Passing it proves the controller command stream reaches the
-board-facing pin domain, but it is still not external-memory validation. Do not
-call DDR3-800 validated until the DQ/DQS PHY is connected, the 400 MHz paths
-close without waivers, and the JTAG/Wishbone validator reads data back from real
-DDR3 storage.
+board-facing pin domain, but it is still not external-memory validation.
+
+The command plus line-to-lane loopback combines the command-probe path with
+`ddr3_line_to_lanes` and internal x8 lane memories. Passing it is the current
+pre-PHY evidence that the clean controller, command-pin CDC, complete BL8 line
+boundary, and reusable lane adapter work together on the real FPGA. Do not call
+DDR3-800 validated until the DQ/DQS PHY is connected, the 400 MHz paths close
+without waivers, and the JTAG/Wishbone validator reads data back from real DDR3
+storage.
 
 Real external-memory hardware gates must cover boundaries, address walking,
 every data bit, every byte lane, contiguous windows, checksum sweep,

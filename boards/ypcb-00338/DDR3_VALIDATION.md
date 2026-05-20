@@ -1,5 +1,119 @@
 # YPCB-00338 DDR3 Validation
 
+## Clean-Sheet DDR3 Command Plus Line-To-Lane Loopback Evidence
+
+Validation date: 2026-05-20
+
+This is a hardware validation of the final pre-PHY DDR3 controller gate before
+connecting real DQ/DQS storage:
+
+- DLC10/XVC/USER1 JTAG transport
+- JTAG-driven Wishbone master
+- BRAM sanity writes and reads through the same JTAG/Wishbone bridge
+- Wishbone writes and reads through the line-level dual-channel DDR3 controller
+- DDR3 scheduler command generation for both logical channels
+- command/reset/CKE/ODT/CK/address pins driven on both physical DDR3 channels
+- complete 512-bit BL8 write/read line boundary with 64 byte-mask bits
+- `ddr3_line_to_lanes` serialization into sixteen x8 lane streams
+- both logical DDR3 channels through internal lane-loopback memories
+
+The command plus line-to-lane loopback image combines the previous
+command-probe and line-to-lane gates. The controller, scheduler, JTAG bridge,
+Wishbone bus, and line-to-lane adapter are live in the FPGA; controller command
+pulses cross into the 400 MHz DDR command-pin domain; DDR CK is generated; and
+reset, CKE, ODT, command, bank, and address pins are driven. DQ/DQS pins remain
+high-Z, and read data returns from internal lane memories instead of external
+DDR3 storage.
+
+This image is intentionally pre-DQ/DQS. It proves that live JTAG/Wishbone
+traffic can exercise the clean line controller, scheduled BL8 line boundary,
+line-to-lane adapter, and board command-pin path together on real hardware. It
+is not DDR3-800 external-memory signoff: write leveling, DQS/DQ launch/capture,
+real memory storage, and final timing closure remain future gates.
+
+### Build And Timing Evidence
+
+Build command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 ddr3-ctrl-line-cmdlaneloop-ddr800-bitstream
+```
+
+Route log:
+
+```text
+boards/ypcb-00338/build/ddr3_ctrl_line_cmdlaneloop_ddr800_seed1_route.log
+```
+
+Final nextpnr clock estimates:
+
+```text
+u_top.SYS_CLK             72.97 MHz (WARN at artificial 400.00 MHz; real requirement is 50 MHz)
+u_jtag_uart.bscan_drck   617.67 MHz (PASS at 400.00 MHz)
+u_jtag_uart.bscan_update 1062.70 MHz (PASS at 400.00 MHz)
+clk_dq                   518.13 MHz (PASS at 400.00 MHz)
+clk_ddr                 1557.63 MHz (PASS at 400.00 MHz)
+clk_sys                 1557.63 MHz (PASS at 400.00 MHz)
+```
+
+Route completed legally with checksum `0xb8e83b9f` and `1 warning, 0 errors`.
+The target uses `--timing-allow-fail` because `nextpnr-xilinx` currently takes
+one global `--freq`; this board image has a real 50 MHz SYS_CLK domain and a
+400 MHz DDR command-pin domain.
+
+### Hardware Status Evidence
+
+Program command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 program-ddr3-ctrl-line-cmdlaneloop-ddr800
+```
+
+Programming completed with FPGA DONE asserted:
+
+```text
+USB alternate interface 1 not present; keeping current setting
+Shift IR 75
+ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+```
+
+XVC command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 xvc
+```
+
+Validation command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 validate-ddr3-ctrl-line-cmdlaneloop
+```
+
+Final summary:
+
+```text
+connected to localhost:3721 - xvcServer_v1.0:1048576
+settck(2000 ns) -> 2000 ns
+version=0xb07e0d86
+status=0xb07e8831 magic=0xb07e cal_done=1 cal_error=0 cal_ecode=0(no error) init_done=1 init_error=0 init_ecode=0 mmcm_locked=1 idelay_ready=1 por_rst=0 mpr_busy=0 mtest_any_err=0 hb=1
+state=0x02310050
+clk_sys=0xc151c007 clk_ddr=0xc152c033 clk_dq=0xc153c019 clk_ref=0xc150c03d
+bram_sanity: PASS cases=4
+dual_channel_boundary_patterns: PASS cases=28
+same_line_partial_writes: PASS cases=32
+byte_select_writes: PASS cases=4
+randomized_dual_channel_loopback: PASS cases=128
+loop_counts ch0_wr=90 ch1_wr=106 ch0_rd=178 ch1_rd=210
+last_lines ch0=0x00000000 ch1=0x00000061
+final_jwb_status=0xab100005
+DDR3_CTRL_LINE_CMDLANELOOP_VALIDATE_SUMMARY ok=1
+```
+
+This is the current pre-PHY hardware baseline for the clean DDR3 controller.
+The next DDR3 hardware gate must replace the internal lane memories with a real
+DQ/DQS PHY, close the relevant timing paths without waivers, and validate reads
+and writes from external DDR3 storage.
+
 ## Clean-Sheet DDR3 Line-To-Lane Loopback Evidence
 
 Validation date: 2026-05-20

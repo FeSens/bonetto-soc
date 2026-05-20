@@ -6,13 +6,14 @@ The previous controller/PHY RTL was intentionally removed. Keep this directory
 small and verification-first until the new design has a proven command core,
 Micron-model simulation, and hardware evidence at each speed step.
 
-The active board-level hardware baseline now has three YPCB-00338 pre-PHY
+The active board-level hardware baseline now has four YPCB-00338 pre-PHY
 gates. The line-controller loopback keeps the BRAM-only JTAG/Wishbone proof
 alive and routes traffic through the clean dual-channel line controller. The
 line-to-lane loopback inserts the reusable `ddr3_line_to_lanes` RTL between the
 line controller and internal lane memories. The command-probe image drives the
-board command/reset/CKE/ODT/address pins. External DDR3 DQ/DQS is still not
-connected.
+board command/reset/CKE/ODT/address pins. The command plus line-to-lane image
+combines those board command pins with the reusable lane adapter and internal
+lane memories. External DDR3 DQ/DQS is still not connected.
 
 ## Status
 
@@ -22,7 +23,7 @@ connected.
 | Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
 | Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
-| Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, and command-probe; not external DDR3 storage |
+| Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, command-probe, and command plus line-to-lane loopback; not external DDR3 storage |
 
 ## Live Gates
 
@@ -41,6 +42,9 @@ make -C boards/ypcb-00338 validate-ddr3-ctrl-line-laneloop
 make -C boards/ypcb-00338 ddr3-ctrl-line-cmdprobe-ddr800-bitstream
 make -C boards/ypcb-00338 program-ddr3-ctrl-line-cmdprobe-ddr800
 make -C boards/ypcb-00338 validate-ddr3-ctrl-line-cmdprobe
+make -C boards/ypcb-00338 ddr3-ctrl-line-cmdlaneloop-ddr800-bitstream
+make -C boards/ypcb-00338 program-ddr3-ctrl-line-cmdlaneloop-ddr800
+make -C boards/ypcb-00338 validate-ddr3-ctrl-line-cmdlaneloop
 ```
 
 What these mean today:
@@ -162,12 +166,22 @@ What these mean today:
   50 MHz SYS_CLK domain and the 400 MHz DDR command-pin domain. It is a
   command-path smoke gate, not a DDR3-800 timing signoff.
 - `program-ddr3-ctrl-line-cmdprobe-ddr800` and
-  `validate-ddr3-ctrl-line-cmdprobe` are the current hardware gate for the
-  clean controller plus board command-pin path. Passing them proves live
+  `validate-ddr3-ctrl-line-cmdprobe` validate the clean controller plus board
+  command-pin path. Passing them proves live
   JTAG/Wishbone writes and reads through the line controller, scheduler,
   command-pin CDC, and scheduled BL8 line boundary on the real FPGA. External
   DDR3 storage remains unvalidated until a real DQ/DQS PHY is connected and
   timing-closed.
+- `ddr3-ctrl-line-cmdlaneloop-ddr800-bitstream` combines the command-probe and
+  line-to-lane gates: board reset, CKE, ODT, CK, command, bank, and address
+  pins are driven on both physical channels, while `ddr3_line_to_lanes`
+  serializes complete controller lines into sixteen internal x8 lane memories.
+  DQ/DQS remain high-Z.
+- `program-ddr3-ctrl-line-cmdlaneloop-ddr800` and
+  `validate-ddr3-ctrl-line-cmdlaneloop` are the current pre-PHY hardware gate.
+  Passing them proves live JTAG/Wishbone writes and reads through the line
+  controller, scheduler, command-pin CDC, complete BL8 line boundary, and
+  reusable line-to-lane adapter together on the real FPGA.
 
 ## Directory Map
 

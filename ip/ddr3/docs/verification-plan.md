@@ -110,6 +110,12 @@ scheduler, complete BL8 line boundary, and synthesizable `ddr3_line_to_lanes`
 adapter into internal x8 lane memories. It deliberately keeps external DDR3
 DQ/DQS high-Z and does not cover real memory storage.
 
+Hardware note: the YPCB-00338 command plus line-to-lane loopback gate was
+routed, programmed, and validated over XVC on 2026-05-20 with gate version
+`0xb07e0d86`. That proof combines the board command/reset/CKE/ODT/CK/address
+pin path with `ddr3_line_to_lanes` and internal lane memories. It deliberately
+keeps external DDR3 DQ/DQS high-Z and does not cover real memory storage.
+
 The first post-init-probe RTL slice, `rtl/ddr3_wb_line_channel.sv`, is now wired
 under both `rtl/ddr3_wb_channel.sv` and
 `rtl/ddr3_wb_dual_channel_line.sv`. `rtl/ddr3_ctrl_line.sv` exposes that

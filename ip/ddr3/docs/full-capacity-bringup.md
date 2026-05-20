@@ -75,6 +75,14 @@ programmed, and validated over XVC on 2026-05-20; see
 and JTAG/Wishbone loopback evidence. It is a prerequisite data-boundary proof,
 not a completed DDR3-800 speed grade.
 
+`boards/ypcb-00338/rtl/top_ddr3_ctrl_line_cmdlaneloop.sv` is the current
+pre-PHY hardware gate. It combines the board command/reset/CKE/ODT/CK/address
+pin path with `ddr3_line_to_lanes` and internal x8 lane memories. DQ/DQS remain
+high-Z, so the proof stops immediately before real DDR3 storage. This image was
+routed, programmed, and validated over XVC on 2026-05-20 with gate version
+`0xb07e0d86`; see `boards/ypcb-00338/DDR3_VALIDATION.md` for the exact route
+timing, FPGA DONE status, and JTAG/Wishbone loopback evidence.
+
 `boards/ypcb-00338/rtl/top_ddr3_init_probe.sv` is the first fresh hardware
 integration step. It runs per-channel init/refresh sequencers in the 100 MHz
 control domain, launches commands on the 400 MHz DDR3-800 command clock, wires
