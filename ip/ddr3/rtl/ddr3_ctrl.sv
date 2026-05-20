@@ -226,6 +226,7 @@ module ddr3_ctrl #(
                 .i_cmd_write(wb_cmd_write[ch]),
                 .i_cmd_line_addr(wb_cmd_line_addr[ch*LINE_ADDR_W +: LINE_ADDR_W]),
                 .o_xfer_start(wb_xfer_start[ch]),
+                .o_xfer_write(),
                 .i_refresh_enable(all_init_done),
                 .o_req_pending(o_sched_req_pending[ch]),
                 .o_refresh_req(o_refresh_req[ch]),

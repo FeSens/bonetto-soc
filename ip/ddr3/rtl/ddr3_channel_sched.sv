@@ -3,7 +3,8 @@
 // This block is the boundary between a channel-level BL8 line request and the
 // DDR3 bank scheduler. It accepts one line command, translates the packed line
 // address into bank/row/column fields, lets the scheduler perform ACT/PRE/RD/WR
-// timing, and pulses o_xfer_start when the matching RD/WR command has issued.
+// timing, and pulses o_xfer_start with o_xfer_write when the matching RD/WR
+// command has issued.
 
 `default_nettype none
 `include "ddr3_params.vh"
@@ -37,6 +38,7 @@ module ddr3_channel_sched #(
     input wire                        i_cmd_write,
     input wire [LINE_ADDR_W-1:0]      i_cmd_line_addr,
     output wire                       o_xfer_start,
+    output wire                       o_xfer_write,
 
     input wire                        i_refresh_enable,
     output wire                       o_refresh_req,
@@ -84,6 +86,7 @@ module ddr3_channel_sched #(
 
     assign o_cmd_ready = command_accept;
     assign o_xfer_start = rsp_matches;
+    assign o_xfer_write = pending_write;
     assign o_req_pending = pending_valid;
     assign o_refresh_ack = scheduler_refresh_ack;
 

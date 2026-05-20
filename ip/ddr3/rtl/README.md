@@ -24,8 +24,8 @@ The active RTL slices are deliberately small and scheduler-facing:
   deadline;
 - `ddr3_channel_sched.sv`: single-channel adapter that feeds BL8 line requests
   into the refresh requester plus scheduler, reports scheduler request
-  acceptance, and emits an explicit transfer-start pulse when the matching
-  RD/WR command issues;
+  acceptance, and emits an explicit transfer-start pulse plus transfer type
+  when the matching RD/WR command issues;
 - `ddr3_byte_lane.sv`: controller-side x8 BL8 packetizer that emits ordered
   write data/mask beats and captures ordered read data beats;
 - `ddr3_channel_line.sv`: full 64-bit-channel BL8 line packetizer that composes
@@ -62,7 +62,8 @@ The active RTL slices are deliberately small and scheduler-facing:
   versus runtime command pins, and exposes packetized compatibility data ports
   until the board DQS/DQ PHY consumes the line-level contract directly;
 - `ddr3_ctrl_line.sv`: init-gated dual-channel controller shell that exposes the
-  full line-level PHY contract directly.
+  full line-level PHY contract directly, including write/read transfer-start
+  pulses aligned to issued scheduler commands.
 
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with the byte-lane packetizer feeding an ideal

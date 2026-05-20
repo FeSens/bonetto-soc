@@ -93,6 +93,9 @@ module ddr3_ctrl_line #(
     output wire [CHANNELS*LINE_DATA_W-1:0] o_phy_wr_line_data,
     output wire [CHANNELS*LINE_BYTES-1:0] o_phy_wr_line_mask,
 
+    output wire [CHANNELS-1:0] o_phy_start_write,
+    output wire [CHANNELS-1:0] o_phy_start_read,
+
     output wire [CHANNELS-1:0] o_phy_rd_line_ready,
     input  wire [CHANNELS-1:0] i_phy_rd_line_valid,
     input  wire [CHANNELS*LINE_DATA_W-1:0] i_phy_rd_line_data,
@@ -111,6 +114,7 @@ module ddr3_ctrl_line #(
     wire [CHANNELS-1:0] wb_cmd_write;
     wire [CHANNELS*LINE_ADDR_W-1:0] wb_cmd_line_addr;
     wire [CHANNELS-1:0] wb_xfer_start;
+    wire [CHANNELS-1:0] sched_xfer_write;
 
     wire [CHANNELS-1:0] init_cmd_valid;
     wire [CHANNELS-1:0] init_reset_n;
@@ -132,6 +136,8 @@ module ddr3_ctrl_line #(
     wire [CHANNELS*ADDR_BITS-1:0] sched_addr;
 
     assign o_init_all_done = all_init_done;
+    assign o_phy_start_write = wb_xfer_start & sched_xfer_write;
+    assign o_phy_start_read = wb_xfer_start & ~sched_xfer_write;
 
     assign o_wb_stall = !all_init_done || wb_stall_raw;
     assign o_wb_ack = all_init_done && wb_ack_raw;
@@ -232,6 +238,7 @@ module ddr3_ctrl_line #(
                 .i_cmd_write(wb_cmd_write[ch]),
                 .i_cmd_line_addr(wb_cmd_line_addr[ch*LINE_ADDR_W +: LINE_ADDR_W]),
                 .o_xfer_start(wb_xfer_start[ch]),
+                .o_xfer_write(sched_xfer_write[ch]),
                 .i_refresh_enable(all_init_done),
                 .o_req_pending(o_sched_req_pending[ch]),
                 .o_refresh_req(o_refresh_req[ch]),

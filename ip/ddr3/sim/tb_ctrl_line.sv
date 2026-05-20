@@ -41,6 +41,8 @@ module tb_ctrl_line;
     reg [CHANNELS-1:0]          phy_wr_line_ready = {CHANNELS{1'b1}};
     wire [(CHANNELS*LINE_DATA_W)-1:0] phy_wr_line_data;
     wire [(CHANNELS*LINE_BYTES)-1:0]  phy_wr_line_mask;
+    wire [CHANNELS-1:0]         phy_start_write;
+    wire [CHANNELS-1:0]         phy_start_read;
     wire [CHANNELS-1:0]         phy_rd_line_ready;
     reg [CHANNELS-1:0]          phy_rd_line_valid = {CHANNELS{1'b0}};
     reg [(CHANNELS*LINE_DATA_W)-1:0] phy_rd_line_data =
@@ -113,6 +115,8 @@ module tb_ctrl_line;
         .i_phy_wr_line_ready(phy_wr_line_ready),
         .o_phy_wr_line_data(phy_wr_line_data),
         .o_phy_wr_line_mask(phy_wr_line_mask),
+        .o_phy_start_write(phy_start_write),
+        .o_phy_start_read(phy_start_read),
         .o_phy_rd_line_ready(phy_rd_line_ready),
         .i_phy_rd_line_valid(phy_rd_line_valid),
         .i_phy_rd_line_data(phy_rd_line_data),
@@ -224,6 +228,11 @@ module tb_ctrl_line;
             $fatal(1);
         end
         wait_ddr_cmd(0, `DDR3_CMD_WR, {BANK_BITS{1'b0}}, 15'h0010);
+        if (phy_start_write !== 2'b01 || phy_start_read !== 2'b00) begin
+            $display("[ctrl-line] write transfer-start mismatch wr=%b rd=%b",
+                     phy_start_write, phy_start_read);
+            $fatal(1);
+        end
         finish_wb();
 
         for (i = 0; i < LINE_BYTES; i = i + 1)
@@ -231,6 +240,11 @@ module tb_ctrl_line;
 
         start_wb(1'b0, {1'b1, 29'h0000_000e}, 32'h0, 4'hF);
         wait_ddr_cmd(1, `DDR3_CMD_RD, {BANK_BITS{1'b0}}, 15'h0000);
+        if (phy_start_write !== 2'b00 || phy_start_read !== 2'b10) begin
+            $display("[ctrl-line] read transfer-start mismatch wr=%b rd=%b",
+                     phy_start_write, phy_start_read);
+            $fatal(1);
+        end
 
         wait (phy_rd_line_ready[1]);
         if (phy_rd_line_ready[0]) begin

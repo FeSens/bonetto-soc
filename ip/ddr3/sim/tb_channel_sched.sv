@@ -21,6 +21,7 @@ module tb_channel_sched;
     reg                     cmd_write = 1'b0;
     reg [LINE_ADDR_W-1:0]   cmd_line_addr = {LINE_ADDR_W{1'b0}};
     wire                    xfer_start;
+    wire                    xfer_write;
     wire                    req_pending;
     wire [1:0]              bank_busy;
     wire [1:0]              bank_open;
@@ -57,6 +58,7 @@ module tb_channel_sched;
         .i_cmd_write(cmd_write),
         .i_cmd_line_addr(cmd_line_addr),
         .o_xfer_start(xfer_start),
+        .o_xfer_write(xfer_write),
         .i_refresh_enable(1'b0),
         .o_refresh_req(),
         .o_refresh_ack(),
@@ -110,11 +112,13 @@ module tb_channel_sched;
             wait (xfer_start);
             #1;
             if (!ddr_cmd_valid ||
+                xfer_write !== write ||
                 {cs_n, ras_n, cas_n, we_n} !== expected_cmd ||
                 ba !== bank ||
                 addr !== make_col_addr(col_line)) begin
-                $display("[channel-sched] transfer mismatch cmd=%b bank=%0d addr=%h expected_cmd=%b expected_bank=%0d expected_addr=%h",
-                         {cs_n, ras_n, cas_n, we_n}, ba, addr,
+                $display("[channel-sched] transfer mismatch write=%0b cmd=%b bank=%0d addr=%h expected_write=%0b expected_cmd=%b expected_bank=%0d expected_addr=%h",
+                         xfer_write, {cs_n, ras_n, cas_n, we_n}, ba, addr,
+                         write,
                          expected_cmd, bank, make_col_addr(col_line));
                 $fatal(1);
             end

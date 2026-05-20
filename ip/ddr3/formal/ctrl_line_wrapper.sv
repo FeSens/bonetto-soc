@@ -51,6 +51,8 @@ module ddr3_ctrl_line_wrapper (
     wire [CHANNELS-1:0] wr_line_valid;
     wire [CHANNELS*LINE_DATA_W-1:0] wr_line_data;
     wire [CHANNELS*LINE_BYTES-1:0] wr_line_mask;
+    wire [CHANNELS-1:0] phy_start_write;
+    wire [CHANNELS-1:0] phy_start_read;
     wire [CHANNELS-1:0] rd_line_ready;
 
     ddr3_ctrl_line #(
@@ -115,6 +117,8 @@ module ddr3_ctrl_line_wrapper (
         .i_phy_wr_line_ready({CHANNELS{1'b1}}),
         .o_phy_wr_line_data(wr_line_data),
         .o_phy_wr_line_mask(wr_line_mask),
+        .o_phy_start_write(phy_start_write),
+        .o_phy_start_read(phy_start_read),
         .o_phy_rd_line_ready(rd_line_ready),
         .i_phy_rd_line_valid(rd_line_ready),
         .i_phy_rd_line_data(rd_line_data),
@@ -145,7 +149,11 @@ module ddr3_ctrl_line_wrapper (
             assert(refresh_late == {CHANNELS{1'b0}});
             assert(wr_line_valid == {CHANNELS{1'b0}});
             assert(rd_line_ready == {CHANNELS{1'b0}});
+            assert(phy_start_write == {CHANNELS{1'b0}});
+            assert(phy_start_read == {CHANNELS{1'b0}});
         end
+
+        assert((phy_start_write & phy_start_read) == {CHANNELS{1'b0}});
 
         if (wb_ack || wb_err)
             assert(init_all_done);

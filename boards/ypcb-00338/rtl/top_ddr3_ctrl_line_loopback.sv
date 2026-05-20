@@ -303,6 +303,8 @@ module top_ddr3_ctrl_line_loopback #(
     wire [CHANNELS-1:0] phy_rd_line_valid;
     wire [CHANNELS*LINE_DATA_W-1:0] phy_rd_line_data;
     wire [CHANNELS-1:0] phy_rd_line_err;
+    wire [CHANNELS-1:0] phy_start_write;
+    wire [CHANNELS-1:0] phy_start_read;
 
     ddr3_ctrl_line #(
         .INIT_RESET_LOW_CYCLES(
@@ -370,6 +372,8 @@ module top_ddr3_ctrl_line_loopback #(
         .i_phy_wr_line_ready(phy_wr_line_ready),
         .o_phy_wr_line_data(phy_wr_line_data),
         .o_phy_wr_line_mask(phy_wr_line_mask),
+        .o_phy_start_write(phy_start_write),
+        .o_phy_start_read(phy_start_read),
         .o_phy_rd_line_ready(phy_rd_line_ready),
         .i_phy_rd_line_valid(phy_rd_line_valid),
         .i_phy_rd_line_data(phy_rd_line_data),
@@ -727,8 +731,8 @@ module top_ddr3_ctrl_line_loopback #(
             8'h1A: status_word = {16'hAB1A, jwb_addr_hi_echo};
             8'h1C: status_word = {16'hAB1C, 8'd0,
                                    ddr_cyc, ddr_stb, jwb_we, ddr_ack,
-                                   ddr_stall, ddr_err, |phy_wr_line_valid,
-                                   |phy_rd_line_valid};
+                                   ddr_stall, ddr_err, |phy_start_write,
+                                   |phy_start_read};
             8'h20: status_word = loop_wr_count[0 +: 32];
             8'h21: status_word = loop_wr_count[32 +: 32];
             8'h22: status_word = loop_rd_count[0 +: 32];
@@ -751,7 +755,8 @@ module top_ddr3_ctrl_line_loopback #(
     wire _unused = &{1'b0, init_done, init_busy, sched_req_pending,
                      refresh_ack, bank_busy, bank_open, jwb_cal_load_lane,
                      jwb_cal_tap, jwb_cal_channel, jwb_phase_req,
-                     jwb_phase_inc, 1'b0};
+                     jwb_phase_inc, phy_wr_line_valid, phy_rd_line_valid,
+                     1'b0};
 endmodule
 
 `default_nettype wire

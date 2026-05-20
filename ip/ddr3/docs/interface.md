@@ -90,7 +90,8 @@ acceptance and waits for a complete read line before responding.
 channel. It consumes `{write, line_addr}`, decodes `{bank, row, column[9:3]}`,
 feeds the refresh requester plus scheduler, reports request acceptance through
 `o_cmd_ready`, and pulses `o_xfer_start` only when the scheduler emits the
-matching RD or WR command.
+matching RD or WR command. `o_xfer_write` is valid with that pulse and tells
+the downstream PHY whether the data window belongs to a write or read.
 
 `rtl/ddr3_ctrl.sv` ties those bus and scheduler pieces together for two
 channels. It instantiates `ddr3_wb_dual_channel`, two `ddr3_init_seq` blocks,
@@ -104,7 +105,10 @@ issues. This is still a controller/PHY boundary, not a pin-level DQS/DQ PHY.
 the bus dispatch block for `ddr3_wb_dual_channel_line`. A write request is
 accepted only after the line-level PHY side can capture the full 512-bit BL8
 payload and 64-bit mask. A read request does not acknowledge Wishbone until the
-PHY side returns the full 512-bit captured line.
+PHY side returns the full 512-bit captured line. The controller exposes
+one-cycle `o_phy_start_write` and `o_phy_start_read` pulses aligned to the
+scheduler's issued WR/RD command, which is the clean start contract consumed by
+the reusable line-to-lane PHY bridge.
 
 ## DDR3 Command Pins
 

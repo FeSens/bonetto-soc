@@ -124,6 +124,8 @@ module tb_micron_ctrl_line_dual_channel;
         .i_phy_wr_line_ready(phy_wr_line_ready),
         .o_phy_wr_line_data(phy_wr_line_data),
         .o_phy_wr_line_mask(phy_wr_line_mask),
+        .o_phy_start_write(),
+        .o_phy_start_read(),
         .o_phy_rd_line_ready(phy_rd_line_ready),
         .i_phy_rd_line_valid(phy_rd_line_valid),
         .i_phy_rd_line_data(phy_rd_line_data),

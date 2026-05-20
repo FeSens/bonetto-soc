@@ -31,6 +31,7 @@ module ddr3_channel_sched_wrapper (
 
     wire                    cmd_ready;
     wire                    xfer_start;
+    wire                    xfer_write;
     wire                    refresh_req;
     wire                    refresh_ack;
     wire                    refresh_busy;
@@ -68,6 +69,7 @@ module ddr3_channel_sched_wrapper (
         .i_cmd_write(cmd_write),
         .i_cmd_line_addr(cmd_line_addr),
         .o_xfer_start(xfer_start),
+        .o_xfer_write(xfer_write),
         .i_refresh_enable(1'b0),
         .o_refresh_req(refresh_req),
         .o_refresh_ack(refresh_ack),
@@ -194,6 +196,7 @@ module ddr3_channel_sched_wrapper (
 
             if (xfer_start) begin
                 assert(f_pending);
+                assert(xfer_write == f_pending_write);
                 assert((f_pending_write && ddr_write) ||
                        (!f_pending_write && ddr_read));
                 assert(ba == line_bank(f_pending_line));
@@ -207,6 +210,8 @@ module ddr3_channel_sched_wrapper (
 
             assert(!(cmd_ready && xfer_start));
             assert(req_pending == f_pending);
+            if (!xfer_start && !f_pending)
+                assert(!xfer_write);
 
             cover(saw_write);
             cover(saw_read);

@@ -50,6 +50,9 @@ Current coverage:
   instance and checks scheduler transfer-start queuing, representative write
   pin-pair mapping, read sample reassembly with arbitrary sampled data, and no
   unexpected channel/lane errors.
+  The scheduler and line-controller checks now also preserve transfer type so
+  the future PHY receives mutually exclusive write/read start pulses aligned to
+  the issued WR/RD command.
   The Wishbone-to-channel bridge proof connects those two contracts and checks
   command emission, command stability under scheduler backpressure, full-width
   write word/mask placement, and read word return from a completed channel line.
