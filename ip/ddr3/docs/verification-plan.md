@@ -25,7 +25,11 @@ Current coverage:
   traffic on two active banks. It also proves the request-driven refresh slice
   issues REF only after all banks are closed and tRP-safe, then waits tRFC. The
   periodic refresh proof drives the scheduler from a tREFI requester in an idle
-  path and enables the monitor's refresh-deadline assertion.
+  path and enables the monitor's refresh-deadline assertion. A second focused
+  refresh proof uses a two-bank scheduler instance with nondeterministic normal
+  requests to prove the refresh window backpressures new requests, drains
+  in-flight traffic, closes banks, and still reaches REF before the monitor's
+  tREFI deadline.
 - `sim`: compiles and runs the vendored Micron x8 2Gb DDR3 model at a valid
   DDR3-800 clock, then drives both a handwritten reset/MRS/ZQ/REF reference
   script and the RTL init sequencer through the model. It also drives the RTL
@@ -35,9 +39,9 @@ Current coverage:
 
 Current non-coverage:
 
-- no controller-owned data-capture path, real write datapath,
-  active-traffic refresh-deadline proof, real runtime controller integration,
-  Wishbone frontend, dual-channel wrapper, or full memory data path exists yet;
+- no controller-owned data-capture path, real write datapath, real runtime
+  controller integration, Wishbone frontend, dual-channel wrapper, or full
+  memory data path exists yet;
 - no PHY, board DQS/DQ, leveling, or hardware DDR3 path is validated by these
   gates.
 
@@ -51,7 +55,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Init sequencer | Reset, CKE, MRS, ZQCL, DLL wait, and first REF occur in order with minimum waits. |
 | Bank machine | No ACT/RD/WR/PRE violates tRC, tRAS, tRP, tRCD, tWR, tRTP, tCCD, or write-to-read wait. |
 | Global scheduler | No cross-bank violation of tRRD, tFAW, tCCD, or tWTR. First bounded proof exists. |
-| Refresh scheduler | No tRFC violation and no refresh before all banks are precharged. Request-driven proof exists; periodic idle deadline proof exists; active-traffic deadline proof remains pending. |
+| Refresh scheduler | No tRFC violation and no refresh before all banks are precharged. Request-driven proof exists; periodic idle deadline proof exists; focused active-traffic deadline proof exists. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. |
 | Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. |
 | Dual channel decode | Channel select bit routes to exactly one channel and preserves local address. |

@@ -29,7 +29,7 @@ describes the target architecture, not an existing implementation.
 | `ddr3_single_write_read_seq` | Temporary ACT/WRITE/READ/PRE/REF slice for Micron x8 loopback and turnaround timing bring-up. |
 | `ddr3_bank` | One bank's open-row state and local timing waits. This exists now for one request at a time and supports command backpressure plus close requests from the scheduler. |
 | `ddr3_scheduler` | Cross-bank arbitration, tRRD/tFAW/tCCD/tWTR command issue, and request-driven refresh after all banks are precharged. A first slice exists now. |
-| `ddr3_refresh` | Periodic tREFI accounting and early refresh requests into the scheduler. An idle-path proof exists now; active-traffic deadline proof still needs ownership at the controller/front-end boundary. |
+| `ddr3_refresh` | Periodic tREFI accounting and early refresh requests into the scheduler. Idle and focused active-traffic deadline proofs exist now. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 packing, byte-enable merge. |
 | `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
@@ -86,7 +86,7 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
    monitor.
 7. Scheduler-owned request-driven refresh/precharge-all path. This exists now.
 8. Periodic refresh requester and idle deadline proof. This exists now.
-9. Active-traffic refresh-deadline proof.
+9. Focused active-traffic refresh-deadline proof. This exists now.
 10. One controller-owned x8 byte lane with real DQS/DQ write/read logic.
 11. One 64-bit channel.
 12. Two 64-bit channels.

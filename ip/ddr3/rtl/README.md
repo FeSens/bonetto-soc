@@ -23,9 +23,10 @@ The active RTL slices are deliberately small and scheduler-facing:
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with an ideal testbench DQS/DQ agent. The bank
 machine, scheduler, and refresh requester are the first scheduler-owned blocks,
-but there is still no active-traffic refresh-deadline proof, controller-owned
-data capture, real write datapath, Wishbone frontend, PHY, calibration,
-dual-channel wrapper, or hardware-validated DDR3 path.
+and the refresh requester now has idle plus focused active-traffic deadline
+proofs. There is still no controller-owned data capture, real write datapath,
+Wishbone frontend, PHY, calibration, dual-channel wrapper, or
+hardware-validated DDR3 path.
 
 Rules for adding new RTL:
 
@@ -38,7 +39,6 @@ Rules for adding new RTL:
 Recommended first RTL slices:
 
 - typed mode-register field helpers,
-- active-traffic refresh deadline proof,
 - a real controller-owned read/write byte-lane data slice against one Micron x8
   model,
 - a Wishbone frontend that maps 32-bit accesses onto BL8 lines.

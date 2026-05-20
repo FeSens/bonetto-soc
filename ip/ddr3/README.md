@@ -14,7 +14,7 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 | Area | State |
 |---|---|
 | Controller RTL | DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, and periodic refresh requester; no controller-owned PHY |
-| Formal | Live command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, and periodic idle-refresh proof |
+| Formal | Live command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, and bounded active-traffic refresh proof |
 | Simulation | Live Micron DDR3 model smoke, reference init, RTL init, RTL single-read command, and x8 write/read loopback targets |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
@@ -41,9 +41,10 @@ What these mean today:
   local row/timing contract. The scheduler proof wraps the shared command bus
   and proves the first cross-bank tRRD/tFAW/tCCD/write-to-read arbitration
   slice for bounded traffic on two active banks, plus request-driven refresh
-  after all banks are precharged and tRP-safe. The refresh proof connects the
-  periodic tREFI requester to the scheduler in an idle path and enables the
-  monitor's refresh-deadline check.
+  after all banks are precharged and tRP-safe. The refresh proofs connect the
+  periodic tREFI requester to the scheduler in both an idle path and a focused
+  two-bank active-traffic path, enabling the monitor's refresh-deadline check
+  while requests may still be in flight when the refresh window opens.
 - `sim` compiles the vendored Micron DDR3 model, runs a smoke bench, and runs a
   DDR3-800 reset/MRS/ZQ/REF reference script plus the RTL init sequencer against
   the model. It also runs the RTL init sequencer followed by one single-bank
@@ -73,6 +74,7 @@ What these mean today:
 | `formal/bank_wrapper.sv` | Formal harness for the one-bank row/timing machine. |
 | `formal/scheduler_wrapper.sv` | Formal harness for the scheduler timing/refresh slice. |
 | `formal/refresh_wrapper.sv` | Formal harness for periodic idle refresh through the scheduler and timing monitor. |
+| `formal/refresh_traffic_wrapper.sv` | Formal harness for periodic refresh with bounded in-flight scheduler traffic. |
 | `sim/vendor/` | Vendored Micron DDR3 model and parameters. |
 | `sim/tb_micron_model_smoke.sv` | Minimal Micron model compile/run smoke bench. |
 | `sim/tb_micron_init_script.sv` | Handwritten DDR3-800 reset/MRS/ZQ/REF script against the Micron model. |
