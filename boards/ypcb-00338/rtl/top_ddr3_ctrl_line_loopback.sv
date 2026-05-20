@@ -1,17 +1,16 @@
-// DDR3-800 line-controller-loopback image for YPCB-00338.
+// DDR3-800 line-controller board proof image for YPCB-00338.
 //
 // This is the next hardware gate after the BRAM-only JTAG/Wishbone proof and
-// the full-pin DDR3 init probe. It routes host JTAG/Wishbone traffic through
-// the clean dual-channel DDR3 line controller, scheduler, and full-BL8
-// line-level PHY boundary, while a small internal loopback PHY returns read
-// data.
+// the full-pin DDR3 init probe. It routes host JTAG/Wishbone traffic through the
+// clean dual-channel DDR3 line controller and scheduler, then selects one
+// internal proof backend: whole-line loopback, line-to-x8-lane loopback, or the
+// abstract line-lane PHY timing loopback.
 //
 // The controller loopback intentionally runs in the 50 MHz board-clock domain.
 // That keeps this debug image timing-honest in openXC7 while the real DDR PHY is
 // still under construction. The full DDR3 board pinout remains constrained, CK
-// is generated, and DQ/DQS are high-Z, but the external DDR3 devices are held in
-// reset. Passing this image proves the live JTAG/Wishbone/controller/line-PHY
-// fabric path; it does not validate external command timing, DQ/DQS timing, or
+// is generated, and DQ/DQS are high-Z. Passing one of these images proves only
+// the selected internal boundary; it does not validate external DQ/DQS timing or
 // real storage.
 
 `default_nettype none
@@ -22,6 +21,7 @@ module top_ddr3_ctrl_line_loopback #(
     parameter integer DRIVE_DDR3_COMMANDS = 0,
     parameter integer PHY_HAS_BYTE_MASK = 1,
     parameter integer USE_LINE_TO_LANES = 0,
+    parameter integer USE_LINE_LANE_PHY = 0,
     parameter [31:0] GATE_VERSION = 32'hB07E_0D82,
     parameter [23:0] DEFAULT_MAGIC = 24'hD3AD82
 ) (
@@ -383,10 +383,111 @@ module top_ddr3_ctrl_line_loopback #(
     wire [CHANNELS*32-1:0] loop_wr_count;
     wire [CHANNELS*32-1:0] loop_rd_count;
     wire [CHANNELS*LINE_ADDR_W-1:0] loop_last_line_addr;
+    wire [CHANNELS-1:0] phy_loop_error;
 
     genvar ch;
     generate
-        if (USE_LINE_TO_LANES) begin : gen_lane_loopback
+        if (USE_LINE_LANE_PHY) begin : gen_line_lane_phy_loopback
+            wire [CHANNELS-1:0] line_lane_channel_busy;
+            wire [CHANNELS-1:0] line_lane_channel_error;
+            wire [CHANNELS-1:0] line_lane_lane_error_any;
+            wire [PHY_LANES-1:0] line_lane_lane_busy;
+            wire [PHY_LANES-1:0] line_lane_lane_error;
+            wire [PHY_LANES-1:0] line_lane_dq_oe;
+            wire [PHY_LANES-1:0] line_lane_dm_oe;
+            wire [PHY_LANES-1:0] line_lane_dqs_oe;
+            wire [PHY_LANES*8-1:0] line_lane_dq_rise;
+            wire [PHY_LANES*8-1:0] line_lane_dq_fall;
+            wire [PHY_LANES-1:0] line_lane_dm_rise;
+            wire [PHY_LANES-1:0] line_lane_dm_fall;
+            wire [PHY_LANES-1:0] line_lane_dqs_rise;
+            wire [PHY_LANES-1:0] line_lane_dqs_fall;
+            wire [PHY_LANES-1:0] line_lane_rd_capturing;
+            wire [PHY_LANES-1:0] line_lane_rd_sample_valid;
+            wire [PHY_LANES*8-1:0] line_lane_dq_in_rise;
+            wire [PHY_LANES*8-1:0] line_lane_dq_in_fall;
+            wire [CHANNELS-1:0] pinpair_loop_error;
+
+            ddr3_line_lane_phy #(
+                .CHANNELS(CHANNELS),
+                .LANES(LANES)
+            ) u_line_lane_phy (
+                .i_clk(ctrl_clk),
+                .i_rst(ctrl_rst),
+                .i_wr_line_valid(phy_wr_line_valid),
+                .o_wr_line_ready(phy_wr_line_ready),
+                .i_wr_line_data(phy_wr_line_data),
+                .i_wr_line_mask(phy_wr_line_mask),
+                .i_start_write(phy_start_write),
+                .i_start_read(phy_start_read),
+                .i_rd_line_ready(phy_rd_line_ready),
+                .o_rd_line_valid(phy_rd_line_valid),
+                .o_rd_line_data(phy_rd_line_data),
+                .o_rd_line_err(phy_rd_line_err),
+                .o_channel_busy(line_lane_channel_busy),
+                .o_channel_error(line_lane_channel_error),
+                .o_lane_busy(line_lane_lane_busy),
+                .o_lane_error(line_lane_lane_error),
+                .o_dq_oe(line_lane_dq_oe),
+                .o_dm_oe(line_lane_dm_oe),
+                .o_dqs_oe(line_lane_dqs_oe),
+                .o_dq_rise(line_lane_dq_rise),
+                .o_dq_fall(line_lane_dq_fall),
+                .o_dm_rise(line_lane_dm_rise),
+                .o_dm_fall(line_lane_dm_fall),
+                .o_dqs_rise(line_lane_dqs_rise),
+                .o_dqs_fall(line_lane_dqs_fall),
+                .o_rd_capturing(line_lane_rd_capturing),
+                .i_rd_sample_valid(line_lane_rd_sample_valid),
+                .i_dq_rise(line_lane_dq_in_rise),
+                .i_dq_fall(line_lane_dq_in_fall)
+            );
+
+            for (ch = 0; ch < CHANNELS; ch = ch + 1) begin : gen_lane_error
+                assign line_lane_lane_error_any[ch] =
+                    |line_lane_lane_error[ch*LANES +: LANES];
+            end
+
+            ddr3_pinpair_loopback_phy #(
+                .CHANNELS(CHANNELS),
+                .LANES(LANES)
+            ) u_pinpair_loop (
+                .i_clk(ctrl_clk),
+                .i_rst(ctrl_rst),
+                .i_cmd_valid(ddr_cmd_valid_w),
+                .i_cs_n(ddr_cs_n_w),
+                .i_ras_n(ddr_ras_n_w),
+                .i_cas_n(ddr_cas_n_w),
+                .i_we_n(ddr_we_n_w),
+                .i_ba(ddr_ba_w),
+                .i_addr(ddr_addr_w),
+                .i_dq_oe(line_lane_dq_oe),
+                .i_dm_oe(line_lane_dm_oe),
+                .i_dqs_oe(line_lane_dqs_oe),
+                .i_dq_rise(line_lane_dq_rise),
+                .i_dq_fall(line_lane_dq_fall),
+                .i_dm_rise(line_lane_dm_rise),
+                .i_dm_fall(line_lane_dm_fall),
+                .i_dqs_rise(line_lane_dqs_rise),
+                .i_dqs_fall(line_lane_dqs_fall),
+                .i_rd_capturing(line_lane_rd_capturing),
+                .o_rd_sample_valid(line_lane_rd_sample_valid),
+                .o_dq_rise(line_lane_dq_in_rise),
+                .o_dq_fall(line_lane_dq_in_fall),
+                .o_error(pinpair_loop_error),
+                .o_wr_count(loop_wr_count),
+                .o_rd_count(loop_rd_count),
+                .o_last_line_addr(loop_last_line_addr)
+            );
+
+            assign phy_loop_error =
+                pinpair_loop_error |
+                line_lane_channel_error |
+                line_lane_lane_error_any;
+
+            wire _line_lane_unused =
+                &{1'b0, line_lane_channel_busy, line_lane_lane_busy, 1'b0};
+        end else if (USE_LINE_TO_LANES) begin : gen_lane_loopback
             wire [PHY_LANES-1:0] lane_wr_valid;
             wire [PHY_LANES-1:0] lane_wr_ready;
             wire [PHY_LANES*8-1:0] lane_wr_data;
@@ -450,6 +551,7 @@ module top_ddr3_ctrl_line_loopback #(
                         loop_last_line_addr[ch*LINE_ADDR_W +: LINE_ADDR_W])
                 );
             end
+            assign phy_loop_error = {CHANNELS{1'b0}};
         end else begin : gen_line_loopback
             for (ch = 0; ch < CHANNELS; ch = ch + 1) begin : gen_loopback
                 ddr3_line_loopback_phy #(
@@ -481,6 +583,7 @@ module top_ddr3_ctrl_line_loopback #(
                         loop_last_line_addr[ch*LINE_ADDR_W +: LINE_ADDR_W])
                 );
             end
+            assign phy_loop_error = {CHANNELS{1'b0}};
         end
     endgenerate
 
@@ -668,10 +771,11 @@ module top_ddr3_ctrl_line_loopback #(
     );
 
     wire refresh_any_late = |refresh_late;
+    wire phy_any_error = |phy_loop_error;
     wire [31:0] status_flags = {
         16'hB07E,
         init_all_done,       // loopback "cal done"
-        1'b0,                // no loopback cal error
+        phy_any_error,       // abstract PHY loop error
         2'b00,
         init_all_done,
         1'b0,
@@ -680,7 +784,7 @@ module top_ddr3_ctrl_line_loopback #(
         1'b1,                // no IDELAYCTRL in this image
         ctrl_rst,
         1'b0,
-        1'b0,
+        phy_any_error,
         1'b1                 // target=DDR3-controller path
     };
 
@@ -713,7 +817,8 @@ module top_ddr3_ctrl_line_loopback #(
             8'h01: status_word = state_bits;
             8'h02: status_word = {8'h00, heartbeat};
             8'h03: status_word = loop_total;
-            8'h04: status_word = {16'hAB04, 13'd0,
+            8'h04: status_word = {16'hAB04, 12'd0,
+                                   (USE_LINE_LANE_PHY != 0),
                                    (USE_LINE_TO_LANES != 0),
                                    (PHY_HAS_BYTE_MASK != 0),
                                    (DRIVE_DDR3_COMMANDS != 0)};
@@ -750,7 +855,8 @@ module top_ddr3_ctrl_line_loopback #(
 
     assign led_3bits_tri_o[0] = heartbeat[23];
     assign led_3bits_tri_o[1] = init_all_done;
-    assign led_3bits_tri_o[2] = !pll_locked || refresh_any_late || jwb_last_err;
+    assign led_3bits_tri_o[2] =
+        !pll_locked || refresh_any_late || jwb_last_err || phy_any_error;
 
     wire _unused = &{1'b0, init_done, init_busy, sched_req_pending,
                      refresh_ack, bank_busy, bank_open, jwb_cal_load_lane,

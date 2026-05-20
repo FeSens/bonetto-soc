@@ -83,6 +83,18 @@ routed, programmed, and validated over XVC on 2026-05-20 with gate version
 `0xb07e0d86`; see `boards/ypcb-00338/DDR3_VALIDATION.md` for the exact route
 timing, FPGA DONE status, and JTAG/Wishbone loopback evidence.
 
+`boards/ypcb-00338/rtl/top_ddr3_ctrl_line_phytimingloop.sv` is the next
+pre-pin hardware gate. It keeps the command/reset/CKE/ODT/CK/address pin path
+live, replaces the internal x8 lane memories with `ddr3_line_lane_phy`, and
+loops read/write data through an abstract pin-pair memory model behind the
+DQ/DQS/DM timing boundary. External DQ/DQS remain high-Z, so this gate proves
+controller transfer-start pulses, write rise/fall launch, read sampling, and
+full-line reassembly without claiming external DDR3 storage. The DDR3-800 JSON
+synthesis target passes Yosys check and the 2026-05-20 seed-1 route generated a
+bitstream. That route used the full DDR3 board XDC and `--timing-allow-fail`:
+`clk_dq` passed the global 400 MHz check, while `SYS_CLK` failed the artificial
+400 MHz check at 75.62 MHz. Program and XVC validation are still pending.
+
 `boards/ypcb-00338/rtl/top_ddr3_init_probe.sv` is the first fresh hardware
 integration step. It runs per-channel init/refresh sequencers in the 100 MHz
 control domain, launches commands on the 400 MHz DDR3-800 command clock, wires

@@ -15,13 +15,17 @@ and command/address pins from per-channel init/refresh sequencers, and exposes
 status over USER1 JTAG. DQ/DQS are intentionally high-Z in this image, so it is an
 init/clock/constraint probe only, not a memory read/write validator.
 
-The next fresh DDR3 hardware gates are `top_ddr3_ctrl_loopback` and
-`top_ddr3_ctrl_line_cmdprobe`. They keep the full CH0 + CH1 DDR3 pinout
-constrained and validate JTAG/Wishbone writes and reads through the clean
-dual-channel DDR3 controller, scheduler, and BL8 line packetizer using an
-internal loopback PHY. The command-probe variant drives reset/CKE/ODT and
-command/address pins and uses the no-DM read-modify-write line bridge because
-the board constraints expose DQ/DQS but no DDR3 DM pins.
+The next fresh DDR3 hardware gates keep the full CH0 + CH1 DDR3 pinout
+constrained while moving one boundary at a time. `top_ddr3_ctrl_loopback` and
+`top_ddr3_ctrl_line_cmdprobe` validate JTAG/Wishbone writes and reads through
+the clean dual-channel DDR3 controller, scheduler, and BL8 line packetizer using
+internal loopback storage. `top_ddr3_ctrl_line_cmdlaneloop` adds the board
+command/reset/CKE/ODT/CK/address pin path and the reusable `ddr3_line_to_lanes`
+adapter. `top_ddr3_ctrl_line_phytimingloop` replaces the internal lane memories
+with `ddr3_line_lane_phy` plus an abstract pin-pair loopback, so the next proof
+boundary is transfer-start pulses, DQ rise/fall launch, read sampling, and
+line reassembly. DQ/DQS remain high-Z in all of these gates, so none of them
+validate external DDR3 storage.
 
 ## Historical DDR3 Configuration
 
@@ -87,8 +91,11 @@ BRAM sanity, deterministic dual-channel write/read patterns, byte-select
 writes, randomized dual-channel write/read patterns, and nonzero loopback
 counters on both channels. The command-probe validator requires version
 `0xB07E0D84` and runs the same data checks with DDR3 command pins enabled and
-the no-DM RMW path selected. Neither gate validates external DDR3 storage
-because DQ/DQS remain disconnected from the controller.
+the no-DM RMW path selected. The command plus line-to-lane validator requires
+version `0xB07E0D86`. The command plus PHY-timing loopback target uses version
+`0xB07E0D87`; its JSON synthesis and DDR3-800 bitstream route pass, while
+program/XVC validation is still pending. None of these gates validates external
+DDR3 storage because DQ/DQS remain disconnected from the controller.
 
 `ddr3-init-ddr800-bitstream` routes with nextpnr's single global `--freq 400`
 check and `--timing-allow-fail`. Read the route log per clock: the DDR launch
@@ -98,6 +105,13 @@ domains are not intended to meet a 400 MHz constraint.
 `ddr3-ctrl-loopback-ddr800-bitstream` routes the controller fabric at
 `--freq 50`; its route log must pass that target. Do not use this target as
 evidence for DDR3-800 external timing.
+
+`ddr3-ctrl-line-phytimingloop-ddr800-bitstream` routes with the full DDR3 board
+XDC and nextpnr's single global `--freq 400` check under `--timing-allow-fail`.
+The 2026-05-20 seed-1 route generated a bitstream with `clk_dq` passing 400 MHz
+and `SYS_CLK` failing the artificial 400 MHz check at 75.62 MHz. That is
+route-only evidence for the abstract PHY timing loopback, not a real DDR3 data
+eye or storage proof.
 
 For pin work, use the public board reference archive rather than deriving pins
 from the current reduced top:
@@ -168,8 +182,10 @@ The BRAM validator runs direct JTAG/Wishbone accesses through XVC and requires
 readback from both BRAM banks. `validate-ddr3-init` checks only the fresh
 DDR3-800 init probe status. `validate-ddr3-ctrl-loopback` checks live
 JTAG/Wishbone writes and reads through the clean dual-channel controller and an
-internal loopback PHY. Full DDR3 memory validation remains blocked until a real
-DQ/DQS PHY is wired to the clean controller.
+internal loopback PHY. `validate-ddr3-ctrl-line-phytimingloop` is the next
+pre-pin check for the abstract `ddr3_line_lane_phy` timing boundary after its
+bitstream has been programmed. Full DDR3 memory validation remains blocked
+until a real DQ/DQS PHY is wired to the clean controller.
 
 ## Status Registers
 
@@ -211,12 +227,12 @@ Key DDR3 controller-loopback registers:
 | `0x00` | Controller-loopback status flags, magic `0xB07E`; bits 15 and 11 mean loopback/init done |
 | `0x01` | packed CH1/CH0 init states plus refresh flags and heartbeat bits |
 | `0x03` | total loopback read/write transaction count |
-| `0x04` | board gate flags: bit 1 means PHY byte-mask path, bit 0 means command pins driven |
+| `0x04` | board gate flags: bit 3 means line-lane PHY timing path, bit 2 means line-to-lanes path, bit 1 means PHY byte-mask path, bit 0 means command pins driven |
 | `0x10`..`0x13` | JTAG-WB status, address echo, data echo, and read data |
 | `0x20`..`0x21` | CH0/CH1 loopback write counts |
 | `0x22`..`0x23` | CH0/CH1 loopback read counts |
 | `0x24`..`0x25` | CH0/CH1 last loopback line address |
-| `0xFE` | DDR3 controller-loopback version, `0xB07E0D81`; command-probe version, `0xB07E0D84` |
+| `0xFE` | DDR3 controller-loopback version, `0xB07E0D81`; command-probe version, `0xB07E0D84`; command plus line-to-lane version, `0xB07E0D86`; command plus PHY-timing version, `0xB07E0D87` |
 
 ## LEDs
 
