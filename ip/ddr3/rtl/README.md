@@ -15,14 +15,17 @@ The active RTL slices are deliberately small and scheduler-facing:
 - `ddr3_scheduler.sv`: first global scheduler slice, instantiating one bank
   machine per bank, gating the shared command bus for tRRD, tFAW, tCCD, and
   write-to-read timing, and handling request-driven refresh by closing banks
-  before REF.
+  before REF;
+- `ddr3_refresh.sv`: periodic tREFI requester that raises refresh requests
+  early enough to give the scheduler a drain/close margin before the JEDEC
+  deadline.
 
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with an ideal testbench DQS/DQ agent. The bank
-machine and scheduler are the first scheduler-owned blocks, but there is still
-no periodic refresh timer/deadline, controller-owned data capture, real write
-datapath, Wishbone frontend, PHY, calibration, dual-channel wrapper, or
-hardware-validated DDR3 path.
+machine, scheduler, and refresh requester are the first scheduler-owned blocks,
+but there is still no active-traffic refresh-deadline proof, controller-owned
+data capture, real write datapath, Wishbone frontend, PHY, calibration,
+dual-channel wrapper, or hardware-validated DDR3 path.
 
 Rules for adding new RTL:
 
@@ -35,7 +38,7 @@ Rules for adding new RTL:
 Recommended first RTL slices:
 
 - typed mode-register field helpers,
-- periodic refresh timer and tREFI deadline proof,
+- active-traffic refresh deadline proof,
 - a real controller-owned read/write byte-lane data slice against one Micron x8
   model,
 - a Wishbone frontend that maps 32-bit accesses onto BL8 lines.

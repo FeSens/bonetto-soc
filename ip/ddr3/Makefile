@@ -1,10 +1,11 @@
-.PHONY: formal formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler sim sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
+.PHONY: formal formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh sim sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
 SOLVER       ?= z3
 SMTBMC_DEPTH ?= 80
 SCHED_SMTBMC_DEPTH ?= 36
+REFRESH_SMTBMC_DEPTH ?= 80
 
 YOSYS        ?= yosys
 YOSYS_SMTBMC ?= yosys-smtbmc
@@ -15,7 +16,7 @@ VVP          ?= vvp
 # keep verification infrastructure live while the clean-sheet controller is
 # designed.
 
-formal: formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler
+formal: formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh
 
 formal-timing: $(BUILD)/timing_monitor.proof
 
@@ -28,6 +29,8 @@ formal-single-write-read: $(BUILD)/single_write_read.proof
 formal-bank: $(BUILD)/bank.proof
 
 formal-scheduler: $(BUILD)/scheduler.proof
+
+formal-refresh: $(BUILD)/refresh.proof
 
 $(BUILD):
 	mkdir -p $@
@@ -71,6 +74,12 @@ $(BUILD)/scheduler.smt2: rtl/ddr3_params.vh rtl/ddr3_bank.sv rtl/ddr3_scheduler.
 	  prep -top ddr3_scheduler_wrapper; \
 	  write_smt2 -wires $@"
 
+$(BUILD)/refresh.smt2: rtl/ddr3_params.vh rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv formal/ddr3_cmd_timing_monitor.sv formal/refresh_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv formal/ddr3_cmd_timing_monitor.sv formal/refresh_wrapper.sv; \
+	  prep -top ddr3_refresh_wrapper; \
+	  write_smt2 -wires $@"
+
 $(BUILD)/timing_monitor.proof: $(BUILD)/timing_monitor.smt2
 	@echo "[ddr3] formal: DDR3 command timing monitor self-check, depth=$(SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SMTBMC_DEPTH) $<
@@ -99,6 +108,11 @@ $(BUILD)/bank.proof: $(BUILD)/bank.smt2
 $(BUILD)/scheduler.proof: $(BUILD)/scheduler.smt2
 	@echo "[ddr3] formal: DDR3 scheduler refresh/global timing slice, depth=$(SCHED_SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SCHED_SMTBMC_DEPTH) $<
+	@touch $@
+
+$(BUILD)/refresh.proof: $(BUILD)/refresh.smt2
+	@echo "[ddr3] formal: DDR3 periodic refresh requester and idle scheduler path, depth=$(REFRESH_SMTBMC_DEPTH), solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(REFRESH_SMTBMC_DEPTH) $<
 	@touch $@
 
 sim: sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read

@@ -97,8 +97,10 @@ Build the new controller as small modules:
   formally checked with the command timing monitor;
 - `ddr3_scheduler`: cross-bank command selection and turnaround. The first
   slice exists now for ACT/PRE/RD/WR arbitration across the bank machines and
-  request-driven refresh after bank close; periodic refresh timing is the next
-  scheduler slice;
+  request-driven refresh after bank close;
+- `ddr3_refresh`: periodic tREFI accounting. The first slice exists now and is
+  proven through the scheduler in an idle path; active-traffic refresh deadline
+  proof still belongs at the controller/front-end boundary;
 - `ddr3_wb_frontend`: Wishbone request packing and BL8 word selection;
 - `ddr3_phy_*`: board-specific PHY and calibration, isolated from scheduling.
 

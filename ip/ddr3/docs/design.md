@@ -28,7 +28,8 @@ describes the target architecture, not an existing implementation.
 | `ddr3_single_read_seq` | Temporary command-only ACT/READ/PRE/REF slice for Micron and formal timing bring-up. |
 | `ddr3_single_write_read_seq` | Temporary ACT/WRITE/READ/PRE/REF slice for Micron x8 loopback and turnaround timing bring-up. |
 | `ddr3_bank` | One bank's open-row state and local timing waits. This exists now for one request at a time and supports command backpressure plus close requests from the scheduler. |
-| `ddr3_scheduler` | Cross-bank arbitration, tRRD/tFAW/tCCD/tWTR command issue, and request-driven refresh after all banks are precharged. A first slice exists now; periodic tREFI insertion still needs ownership. |
+| `ddr3_scheduler` | Cross-bank arbitration, tRRD/tFAW/tCCD/tWTR command issue, and request-driven refresh after all banks are precharged. A first slice exists now. |
+| `ddr3_refresh` | Periodic tREFI accounting and early refresh requests into the scheduler. An idle-path proof exists now; active-traffic deadline proof still needs ownership at the controller/front-end boundary. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 packing, byte-enable merge. |
 | `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
@@ -83,9 +84,10 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 6. Global scheduler over eight bank machines and cross-bank timing. A first
    no-refresh slice exists now and is formally wrapped by the command timing
    monitor.
-7. Scheduler-owned request-driven refresh/precharge-all path. A first slice
-   exists now; periodic refresh timer/deadline remains.
-8. One controller-owned x8 byte lane with real DQS/DQ write/read logic.
-9. One 64-bit channel.
-10. Two 64-bit channels.
-11. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+7. Scheduler-owned request-driven refresh/precharge-all path. This exists now.
+8. Periodic refresh requester and idle deadline proof. This exists now.
+9. Active-traffic refresh-deadline proof.
+10. One controller-owned x8 byte lane with real DQS/DQ write/read logic.
+11. One 64-bit channel.
+12. Two 64-bit channels.
+13. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
