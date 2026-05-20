@@ -1,8 +1,8 @@
 # DDR3 Interface Contract
 
-No active `ddr3_ctrl` RTL exists yet. This file defines the interface the new
-controller should implement so board integration and JTAG/Wishbone validation
-can be planned before RTL lands.
+`rtl/ddr3_ctrl.sv` is now the active pre-PHY controller shell. This file
+defines the interface it exposes today and the remaining board/PHY contract
+that still must be implemented before DDR3 hardware validation.
 
 ## Wishbone Slave
 
@@ -50,8 +50,8 @@ one 32-bit Wishbone request at a time, stalls while that request is outstanding,
 splits the word address into `{line address, word index}`, packs write data into
 the selected word slot inside a BL8 line, shifts `i_wb_sel` into a line byte
 mask, and selects the requested 32-bit word from a backend read line. It is not
-yet the full controller-level `ddr3_ctrl`; downstream scheduler, merge, PHY,
-calibration, and status integration are still separate work.
+the full controller-level `ddr3_ctrl`; downstream scheduler, merge, PHY,
+calibration, and status integration live above or beside this frontend.
 
 `rtl/ddr3_wb_channel.sv` is the first integrated bus/data slice. It composes
 the Wishbone frontend with `ddr3_channel_line`, emits one scheduler-facing BL8
@@ -82,6 +82,14 @@ channel. It consumes `{write, line_addr}`, decodes `{bank, row, column[9:3]}`,
 feeds the refresh requester plus scheduler, reports request acceptance through
 `o_cmd_ready`, and pulses `o_xfer_start` only when the scheduler emits the
 matching RD or WR command.
+
+`rtl/ddr3_ctrl.sv` ties those bus and scheduler pieces together for two
+channels. It instantiates `ddr3_wb_dual_channel`, two `ddr3_init_seq` blocks,
+and two `ddr3_channel_sched` blocks. Before both init sequencers finish, the
+controller stalls Wishbone and drives each channel's DDR3 command pins from its
+init sequencer. After init, the scheduler adapters own the runtime command pins
+and start the packetized line data path only when a matching RD/WR command
+issues. This is still a controller/PHY boundary, not a pin-level DQS/DQ PHY.
 
 ## DDR3 Command Pins
 
@@ -129,7 +137,8 @@ DQS/DQ bridge. `rtl/ddr3_wb_channel.sv` currently drives that packet boundary
 from Wishbone requests and waits for the scheduler adapter's transfer-start
 pulse before driving the write or read packet flow. `rtl/ddr3_wb_dual_channel.sv`
 replicates that boundary once per channel and keeps the two channel PHY-facing
-interfaces independent.
+interfaces independent. `rtl/ddr3_ctrl.sv` preserves that same per-lane
+valid/ready boundary at the top level.
 
 ## Debug/Status
 

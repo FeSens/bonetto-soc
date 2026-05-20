@@ -43,6 +43,12 @@ line address. It proves the next boundary: a BL8 line request can be accepted
 by the scheduler before the matching RD/WR command issues, and the data path
 must wait for the explicit transfer-start pulse.
 
+`rtl/ddr3_ctrl.sv` is the current pre-PHY top-level controller boundary. It
+combines the dual-channel Wishbone dispatch bridge, two init sequencers, and
+two scheduler adapters. The live unit bench checks the first integrated path:
+pre-init Wishbone stalls, then a channel-0 write and channel-1 read pass
+through scheduler-issued WR/RD commands into the full-channel packet ports.
+
 ## Speed Ladder
 
 Do not skip rungs:

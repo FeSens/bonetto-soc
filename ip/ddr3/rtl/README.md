@@ -41,18 +41,22 @@ The active RTL slices are deliberately small and scheduler-facing:
   later data-transfer start;
 - `ddr3_wb_dual_channel.sv`: full-capacity dual-channel dispatch slice that
   decodes the global word address and routes one Wishbone request to exactly
-  one full-channel bridge.
+  one full-channel bridge;
+- `ddr3_ctrl.sv`: init-gated dual-channel controller shell that connects the
+  dispatch bridge to two init sequencers and two scheduler adapters, muxes init
+  versus runtime command pins, and exposes packetized PHY-side data ports.
 
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with the byte-lane packetizer feeding an ideal
 testbench DQS/DQ agent. The bank machine, scheduler, refresh requester, and
 single-channel scheduler adapter are the first scheduler-owned blocks, and the
 refresh requester now has idle plus focused active-traffic deadline proofs. The
-data boundary has one x8 lane, one full 64-bit-channel line packetizer, and a
-first Wishbone-to-channel bridge.
+data boundary has one x8 lane, one full 64-bit-channel line packetizer, a first
+Wishbone-to-channel bridge, and a pre-PHY controller shell tying those pieces to
+the dual-channel command path.
 The full-capacity address map is explicit and formally checked. There is still
-no pin-level controller-owned DQS/DQ PHY, integrated controller, calibration,
-or hardware-validated DDR3 path.
+no pin-level controller-owned DQS/DQ PHY, calibration, Micron-model runtime
+loopback through `ddr3_ctrl`, or hardware-validated DDR3 path.
 
 Rules for adding new RTL:
 
@@ -67,7 +71,7 @@ Recommended first RTL slices:
 - typed mode-register field helpers,
 - a real controller-owned PHY bridge from the byte-lane packet stream to DQS/DQ
   timing against one Micron x8 model,
-- a controller integration shell connecting the dual-channel Wishbone bridge to
-  two scheduler adapters and future PHY data paths,
+- a Micron-model runtime loopback that drives `ddr3_ctrl` through the future
+  PHY bridge,
 - a backend merge/read-modify-write path before partial writes are exposed as
   hardware validated.

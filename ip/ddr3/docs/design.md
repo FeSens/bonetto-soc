@@ -37,7 +37,7 @@ describes the target architecture, not an existing implementation.
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 word packing, byte-mask generation, and read word selection. This exists now as a single-outstanding frontend slice. |
 | `ddr3_wb_channel` | First bus/data integration slice tying the Wishbone frontend to the full-channel line packetizer and emitting one scheduler-facing BL8 line command. This exists now and waits for an explicit transfer-start pulse before launching the data packetizer. |
 | `ddr3_wb_dual_channel` | Full-capacity bus-facing dispatch slice tying the global address decoder to two full-channel Wishbone bridges. This exists now as a single-outstanding dual-channel slice. |
-| `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
+| `ddr3_ctrl` | Init-gated dual-channel controller shell. This exists now and connects the global Wishbone dispatch bridge to two init sequencers and two scheduler adapters, with packetized PHY-side data ports but no DQS/DQ PHY. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
 
 The scheduler emits one command per controller cycle. The PHY decides how that
@@ -84,6 +84,13 @@ address. It accepts a line request when the scheduler accepts the bank request,
 then later pulses `o_xfer_start` when the matching RD or WR command actually
 issues on the DDR3 command bus.
 
+`rtl/ddr3_ctrl.sv` is the current pre-PHY integration boundary. It holds the
+Wishbone slave stalled until both channel init sequencers report done, muxes
+init commands onto each channel's DDR3 command pins before handoff, then lets
+the two scheduler adapters own runtime ACT/RD/WR/PRE/REF commands. The data
+side remains packetized as per-lane valid/ready beats for the future Xilinx
+7-series PHY.
+
 ## Timing Contract
 
 The command scheduler must never issue a command that violates:
@@ -128,8 +135,11 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
     channel owns a PHY.
 16. One single-channel BL8 scheduler adapter. This exists now and proves that
     scheduler acceptance and RD/WR data-transfer start are separate events.
-17. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
-18. One 64-bit channel integrated through scheduler, frontend, and PHY.
-19. Two 64-bit channels with the dispatch bridge driving independent
+17. One init-gated dual-channel controller shell. This exists now and is
+    validated by a focused pre-init gate proof plus a post-init write/read
+    scheduler integration simulation.
+18. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
+19. One 64-bit channel integrated through scheduler, frontend, and PHY.
+20. Two 64-bit channels with the dispatch bridge driving independent
     scheduler/PHY stacks.
-20. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+21. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.

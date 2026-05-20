@@ -51,7 +51,10 @@ Current coverage:
   port to the refresh requester plus scheduler and checks that request
   acceptance is separate from the RD/WR transfer-start pulse, that the transfer
   starts only for the matching pending request, and that issued command bank and
-  column fields match the accepted line address.
+  column fields match the accepted line address. The controller shell proof
+  checks the top-level init gate: before both init sequencers are done,
+  Wishbone requests remain stalled, no response is produced, refresh/scheduler
+  traffic is quiet, and no PHY-side packet transfer starts.
 - `sim`: runs a unit bench for the full-capacity address map, then compiles and
   runs the vendored Micron x8 2Gb DDR3 model at a valid DDR3-800 clock. It
   drives both a handwritten reset/MRS/ZQ/REF reference script and the RTL init
@@ -66,14 +69,16 @@ Current coverage:
   bench drives a channel-0 write and a channel-1 read through independent
   command/data ports. The scheduler-adapter unit bench issues write/read/write
   line requests across different rows and banks and checks that `o_xfer_start`
-  coincides with the expected RD/WR command. The protocol benches fail if the
-  model reports timing or protocol errors or warnings.
+  coincides with the expected RD/WR command. The controller shell unit bench
+  waits for both init sequencers, then runs a channel-0 write and channel-1
+  read through scheduler-issued DDR3 WR/RD commands and the full-channel packet
+  data path. The protocol benches fail if the model reports timing or protocol
+  errors or warnings.
 
 Current non-coverage:
 
-- no pin-level controller-owned DQS/DQ PHY, real runtime controller
-  integration, scheduler-connected dual-channel controller, or full memory data
-  path exists yet;
+- no pin-level controller-owned DQS/DQ PHY, calibration, Micron-model runtime
+  loopback through `ddr3_ctrl`, or full memory data path exists yet;
 - no PHY, board DQS/DQ, leveling, or hardware DDR3 path is validated by these
   gates.
 
@@ -94,6 +99,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer. First proof exists. |
 | Channel scheduler adapter | One BL8 line command is accepted by the scheduler, then starts data only when the matching RD/WR command issues. First proof exists. |
+| Controller shell | Wishbone is gated until both init sequencers finish, then requests flow through two scheduler adapters. First gate proof and scheduler-connected unit simulation exist. |
 | Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation exists; downstream merge or mask-preserving PHY write is still pending. |
 | Dual channel decode | Channel select bit routes to exactly one channel and preserves local address. First proof exists through `ddr3_wb_dual_channel`. |
 
@@ -118,6 +124,7 @@ Use the real Micron model for protocol validation:
 | Wishbone channel unit | Wishbone frontend + full-channel line packetizer | one bus write and one bus read traverse all eight byte lanes with correct command and word mapping |
 | Wishbone dual-channel unit | address decoder + two Wishbone channel bridges | channel-0 write and channel-1 read dispatch to independent command/data ports |
 | Channel scheduler unit | scheduler adapter + refresh requester + scheduler | line requests produce matching RD/WR command issue and transfer-start pulses |
+| Controller shell unit | init + dual-channel Wishbone dispatch + two scheduler adapters + packetized line ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR |
 | Runtime x8 | controller + one x8 model | controller-owned DQS/DQ write/read patterns pass |
 | Full channel | controller + eight x8 models | every 64 data bits and byte lane pass |
 | Dual channel | two full-channel stacks | both channels pass independent and interleaved traffic |
