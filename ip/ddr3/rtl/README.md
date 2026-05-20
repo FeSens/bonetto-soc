@@ -1,6 +1,13 @@
-# DDR3 RTL Restart Area
+# DDR3 RTL Area
 
-No active DDR3 controller or PHY RTL lives here yet.
+The only active RTL slice here is the DDR3-800 initialization sequencer:
+
+- `ddr3_params.vh`: shared command encodings, mode registers, geometry, and
+  DDR3-800 timing waits;
+- `ddr3_init_seq.sv`: reset, CKE, MR2, MR3, MR1, MR0, ZQCL, first REF.
+
+There is still no runtime bank scheduler, Wishbone frontend, PHY, calibration,
+dual-channel wrapper, or hardware-validated DDR3 path.
 
 Rules for adding new RTL:
 
@@ -13,5 +20,4 @@ Rules for adding new RTL:
 Recommended first RTL slices:
 
 - a typed DDR3 command encoder/decoder,
-- a JEDEC init sequencer that can pass the Micron model,
 - a single-bank open-row scheduler wired into the command timing monitor.

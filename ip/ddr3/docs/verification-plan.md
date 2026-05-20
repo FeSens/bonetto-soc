@@ -14,16 +14,18 @@ make -C ip/ddr3 sim
 Current coverage:
 
 - `formal`: proves the reusable DDR3 command timing monitor is internally
-  consistent on a legal ACT/RD/PRE/REF/WR/ZQ trace.
+  consistent on a legal ACT/RD/PRE/REF/WR/ZQ trace, and proves the
+  controller-owned init sequencer emits reset, MRS, ZQCL, and REF in order with
+  minimum waits.
 - `sim`: compiles and runs the vendored Micron x8 2Gb DDR3 model at a valid
-  DDR3-800 clock, then drives a reset/MRS/ZQ/REF initialization script through
-  the model and fails if the model reports timing or protocol errors.
+  DDR3-800 clock, then drives both a handwritten reset/MRS/ZQ/REF reference
+  script and the RTL init sequencer through the model. The make target fails if
+  the model reports timing or protocol errors.
 
 Current non-coverage:
 
-- no controller RTL exists yet;
-- no controller-owned init sequencer exists yet; the current init script is a
-  handwritten simulation reference;
+- no runtime controller, bank scheduler, Wishbone frontend, dual-channel wrapper,
+  or memory data path exists yet;
 - no PHY, DQS, DQ, leveling, or hardware DDR3 path is validated by these gates.
 
 ## Formal Ladder
