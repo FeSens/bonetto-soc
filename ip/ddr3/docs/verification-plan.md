@@ -41,6 +41,8 @@ Current coverage:
   data/error return from the selected word in a BL8 line. The full-channel line
   proof composes eight byte lanes and checks 512-bit write data placement,
   64-bit byte-mask placement, and read-line reassembly at the channel boundary.
+  The line-to-x8-lane adapter proof covers the reusable boundary from complete
+  dual-channel BL8 lines to sixteen independent x8 lane streams and back.
   The Wishbone-to-channel bridge proof connects those two contracts and checks
   command emission, command stability under scheduler backpressure, full-width
   write word/mask placement, and read word return from a completed channel line.
@@ -81,7 +83,8 @@ Current coverage:
   PHY boundary. Controller-level Micron benches then wire both channels through
   sixteen x8 models and perform one full-width write/read loopback per channel
   through both the packetized compatibility boundary and the line-level
-  boundary via a simulation-only line-to-x8 bridge.
+  boundary via the RTL line-to-x8-lane adapter plus simulation-only x8 timing
+  agents.
   The protocol benches fail if the model reports timing or protocol errors or
   warnings. The line-level Wishbone bridge bench checks the next hardware-facing
   boundary: a full 64-byte write line is made available to the PHY before the
@@ -107,6 +110,11 @@ provable line-level contract at the controller boundary intended for real DDR3
 write/read timing, while `rtl/ddr3_ctrl.sv` keeps the packetized compatibility
 boundary alive for the existing Micron-agent regression.
 
+`rtl/ddr3_line_to_lanes.sv` is the next boundary after `ddr3_ctrl_line`: it
+serializes complete 64-byte channel lines into one x8 stream per physical lane
+and reassembles read lanes into complete lines. It is still not a DQ/DQS PHY; it
+is the reusable RTL adapter that future board PHY logic should drive.
+
 ## Formal Ladder
 
 Every new RTL slice should add or extend one of these harnesses:
@@ -121,6 +129,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Refresh scheduler | No tRFC violation and no refresh before all banks are precharged. Request-driven proof exists; periodic idle deadline proof exists; focused active-traffic deadline proof exists. |
 | Byte lane | BL8 x8 write data/mask ordering, read capture ordering, and ready/valid stability under PHY backpressure. First proof exists. |
 | Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
+| Line-to-x8-lane adapter | Two complete 512-bit channel lines serialize into sixteen x8 lane streams, and read beats from all lanes reassemble into complete channel lines. First proof exists; skewed-lane stall simulation exists. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer, with write-line data captured before command acceptance. First proof exists. |
 | Wishbone line channel | One Wishbone word request maps to one scheduler command while write data is presented as a complete 64-byte line before command accept; reads wait for a full returned line. First proof exists. The no-DM RMW mode proves a write becomes read-old-line, merge selected bytes, then write an all-active line. |
@@ -148,6 +157,7 @@ Use the real Micron model for protocol validation:
 | Single WRITE/READ command | controller + one x8 model + byte-lane packetizer + ideal DQS/DQ agent | deterministic BL8 x8 write/read pattern passes |
 | Reusable x8 timing agent | init sequencer + byte-lane packetizer + x8 DQS/DQ/DM timing agent + one x8 model | two writes with active-high DM masking merge correctly and read back through the byte-lane path |
 | Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
+| Line-to-x8-lane unit | two complete channel line ports + sixteen x8 lane streams | dual-channel line serialization, mask mapping, lane-last markers, skewed lane stalls, and read-line reassembly pass |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
 | JTAG-Wishbone byte-select gate | `jtag_wb_master` plus BRAM or DDR3 loopback target | host-driven `SET_SEL` preserves unselected bytes before no-DM DDR3 RMW is trusted in hardware |
 | Wishbone channel unit | line-level Wishbone bridge + full-channel line packetizer | one bus write and one bus read traverse all eight byte lanes with correct command and word mapping |
@@ -158,7 +168,7 @@ Use the real Micron model for protocol validation:
 | Controller shell unit | init + dual-channel Wishbone dispatch + two scheduler adapters + packetized compatibility data ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR |
 | Controller line shell unit | init + line-level dual-channel Wishbone dispatch + two scheduler adapters + line-level PHY ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR and complete PHY lines |
 | Controller Micron dual-channel | init + dual-channel Wishbone dispatch + two scheduler adapters + sixteen x8 timing agents/models | channel-0 and channel-1 full-width write/read loopbacks pass without Micron model errors or warnings |
-| Controller line Micron dual-channel | init + line-level dual-channel dispatch + two scheduler adapters + line-to-x8 simulation bridge + sixteen x8 timing agents/models | channel-0 and channel-1 full-width write/read loopbacks pass through complete line ports without Micron model errors or warnings |
+| Controller line Micron dual-channel | init + line-level dual-channel dispatch + two scheduler adapters + RTL line-to-x8-lane adapter + sixteen x8 timing agents/models | channel-0 and channel-1 full-width write/read loopbacks pass through complete line ports without Micron model errors or warnings |
 | Runtime x8 | controller + one x8 model | controller-owned DQS/DQ write/read patterns pass |
 | Full channel | controller + eight x8 models | every 64 data bits and byte lane pass |
 | Dual channel | two full-channel stacks | both channels pass independent and interleaved traffic |

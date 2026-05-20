@@ -130,10 +130,10 @@ module tb_micron_ctrl_line_dual_channel;
         .i_phy_rd_line_err(phy_rd_line_err)
     );
 
-    ddr3_line_phy_bridge #(
+    ddr3_line_to_lanes #(
         .CHANNELS(CHANNELS),
         .LANES(LANES)
-    ) u_line_bridge (
+    ) u_line_to_lanes (
         .i_clk(ck),
         .i_rst(rst),
         .i_wr_line_valid(phy_wr_line_valid),
