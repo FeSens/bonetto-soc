@@ -18,7 +18,11 @@
 
 `include "ddr3_params.vh"
 
-module top_ddr3_ctrl_line_loopback (
+module top_ddr3_ctrl_line_loopback #(
+    parameter integer DRIVE_DDR3_COMMANDS = 0,
+    parameter [31:0] GATE_VERSION = 32'hB07E_0D82,
+    parameter [23:0] DEFAULT_MAGIC = 24'hD3AD82
+) (
     input  wire        SYS_CLK,
     input  wire        SYS_RSTN,
     output wire [2:0]  led_3bits_tri_o,
@@ -53,11 +57,20 @@ module top_ddr3_ctrl_line_loopback (
     inout  wire [8:0]  ddr3_ch1_dqs_p,
     inout  wire [8:0]  ddr3_ch1_dqs_n
 );
+    function integer div_ceil;
+        input integer value;
+        input integer divisor;
+        begin
+            div_ceil = (value + divisor - 1) / divisor;
+        end
+    endfunction
+
     localparam integer CHANNELS = 2;
     localparam integer LANES = 8;
     localparam integer WB_DATA_W = 32;
     localparam integer JWB_ADDR_W = 15;
     localparam integer GLOBAL_WORD_ADDR_W = 30;
+    localparam integer CTRL_DIV = DRIVE_DDR3_COMMANDS ? 8 : 1;
     localparam integer ADDR_BITS = `DDR3_ADDR_BITS;
     localparam integer BANK_BITS = `DDR3_BANK_BITS;
     localparam integer LINE_ADDR_W =
@@ -90,7 +103,37 @@ module top_ddr3_ctrl_line_loopback (
     );
 
     wire ctrl_clk = SYS_CLK;
-    wire ctrl_rst = por_rst;
+    wire cmd_pin_clk = DRIVE_DDR3_COMMANDS ? clk_dq : ctrl_clk;
+
+    reg [2:0] pll_locked_ctrl_sr = 3'b000;
+    always @(posedge ctrl_clk) begin
+        pll_locked_ctrl_sr <= {pll_locked_ctrl_sr[1:0], pll_locked};
+    end
+    wire pll_locked_ctrl = pll_locked_ctrl_sr[2];
+
+    reg [2:0] pll_locked_cmd_sr = 3'b000;
+    always @(posedge cmd_pin_clk) begin
+        pll_locked_cmd_sr <= {pll_locked_cmd_sr[1:0], pll_locked};
+    end
+    wire pll_locked_cmd = pll_locked_cmd_sr[2];
+
+    reg [4:0] ctrl_rst_sr = 5'b1_1111;
+    always @(posedge ctrl_clk) begin
+        if (por_rst || (DRIVE_DDR3_COMMANDS && !pll_locked_ctrl))
+            ctrl_rst_sr <= 5'b1_1111;
+        else
+            ctrl_rst_sr <= {ctrl_rst_sr[3:0], 1'b0};
+    end
+    wire ctrl_rst = ctrl_rst_sr[4];
+
+    reg [4:0] cmd_pin_rst_sr = 5'b1_1111;
+    always @(posedge cmd_pin_clk) begin
+        if (DRIVE_DDR3_COMMANDS && !pll_locked_cmd)
+            cmd_pin_rst_sr <= 5'b1_1111;
+        else
+            cmd_pin_rst_sr <= {cmd_pin_rst_sr[3:0], 1'b0};
+    end
+    wire cmd_pin_rst = cmd_pin_rst_sr[4];
 
     reg [23:0] heartbeat = 24'd0;
     always @(posedge ctrl_clk) begin
@@ -259,7 +302,32 @@ module top_ddr3_ctrl_line_loopback (
     wire [CHANNELS*LINE_DATA_W-1:0] phy_rd_line_data;
     wire [CHANNELS-1:0] phy_rd_line_err;
 
-    ddr3_ctrl_line u_ctrl (
+    ddr3_ctrl_line #(
+        .INIT_RESET_LOW_CYCLES(
+            div_ceil(`DDR3_800_RESET_LOW_CYCLES, CTRL_DIV)),
+        .INIT_RESET_CKE_CYCLES(
+            div_ceil(`DDR3_800_RESET_CKE_CYCLES, CTRL_DIV)),
+        .INIT_TXPR_CYCLES(div_ceil(`DDR3_800_TXPR_CYCLES, CTRL_DIV)),
+        .INIT_TMRD_CYCLES(div_ceil(`DDR3_800_TMRD_CYCLES, CTRL_DIV)),
+        .INIT_TMOD_CYCLES(div_ceil(`DDR3_800_TMOD_CYCLES, CTRL_DIV)),
+        .INIT_TZQINIT_CYCLES(
+            div_ceil(`DDR3_800_TZQINIT_CYCLES, CTRL_DIV)),
+        .INIT_TRFC_CYCLES(div_ceil(`DDR3_800_TRFC_CYCLES, CTRL_DIV)),
+        .INIT_TDLLK_CYCLES(div_ceil(`DDR3_800_TDLLK_CYCLES, CTRL_DIV)),
+        .T_RP(div_ceil(`DDR3_800_TRP_CYCLES, CTRL_DIV)),
+        .T_RCD(div_ceil(`DDR3_800_TRCD_CYCLES, CTRL_DIV)),
+        .T_RAS(div_ceil(`DDR3_800_TRAS_CYCLES, CTRL_DIV)),
+        .T_RC(div_ceil(`DDR3_800_TRC_CYCLES, CTRL_DIV)),
+        .T_RFC(div_ceil(`DDR3_800_TRFC_CYCLES, CTRL_DIV)),
+        .T_WR(div_ceil(`DDR3_800_TWR_CMD_CYCLES, CTRL_DIV)),
+        .T_WTR(div_ceil(`DDR3_800_TWTR_CMD_CYCLES, CTRL_DIV)),
+        .T_RTP(div_ceil(`DDR3_800_TRTP_CYCLES, CTRL_DIV)),
+        .T_RRD(div_ceil(`DDR3_800_TRRD_CYCLES, CTRL_DIV)),
+        .T_FAW(div_ceil(`DDR3_800_TFAW_CYCLES, CTRL_DIV)),
+        .T_CCD(div_ceil(`DDR3_800_TCCD_CYCLES, CTRL_DIV)),
+        .T_REFI(div_ceil(`DDR3_800_TREFI_CYCLES, CTRL_DIV)),
+        .T_MARGIN(div_ceil(`DDR3_800_REFRESH_MARGIN_CYCLES, CTRL_DIV))
+    ) u_ctrl (
         .i_clk(ctrl_clk),
         .i_rst(ctrl_rst),
         .i_init_start(1'b1),
@@ -339,19 +407,80 @@ module top_ddr3_ctrl_line_loopback (
         end
     endgenerate
 
-    ddr3_cmd_pins_7series u_ch0_cmd (
-        .i_clk_dq(ctrl_clk),
-        .i_rst(ctrl_rst),
-        .i_reset_n(1'b0),
-        .i_cke(1'b0),
-        .i_odt(1'b0),
-        .i_cmd_valid(1'b1),
-        .i_cs_n(1'b1),
-        .i_ras_n(1'b1),
-        .i_cas_n(1'b1),
-        .i_we_n(1'b1),
-        .i_ba({BANK_BITS{1'b0}}),
-        .i_addr({ADDR_BITS{1'b0}}),
+    wire [CHANNELS-1:0] board_reset_n;
+    wire [CHANNELS-1:0] board_cke;
+    wire [CHANNELS-1:0] board_odt;
+    wire [CHANNELS-1:0] board_cmd_valid;
+    wire [CHANNELS-1:0] board_cs_n;
+    wire [CHANNELS-1:0] board_ras_n;
+    wire [CHANNELS-1:0] board_cas_n;
+    wire [CHANNELS-1:0] board_we_n;
+    wire [CHANNELS*BANK_BITS-1:0] board_ba;
+    wire [CHANNELS*ADDR_BITS-1:0] board_addr;
+
+    generate
+        if (DRIVE_DDR3_COMMANDS) begin : gen_cmd_drive
+            for (ch = 0; ch < CHANNELS; ch = ch + 1) begin : gen_cmd_cdc
+                ddr3_cmd_cdc_7series #(
+                    .ADDR_BITS(ADDR_BITS),
+                    .BANK_BITS(BANK_BITS)
+                ) u_cmd_cdc (
+                    .i_clk_ctrl(ctrl_clk),
+                    .i_rst_ctrl(ctrl_rst),
+                    .i_clk_dq(clk_dq),
+                    .i_rst_dq(cmd_pin_rst),
+                    .i_reset_n(ddr_reset_n_w[ch]),
+                    .i_cke(ddr_cke_w[ch]),
+                    .i_odt(ddr_odt_w[ch]),
+                    .i_cmd_valid(ddr_cmd_valid_w[ch]),
+                    .i_cs_n(ddr_cs_n_w[ch]),
+                    .i_ras_n(ddr_ras_n_w[ch]),
+                    .i_cas_n(ddr_cas_n_w[ch]),
+                    .i_we_n(ddr_we_n_w[ch]),
+                    .i_ba(ddr_ba_w[ch*BANK_BITS +: BANK_BITS]),
+                    .i_addr(ddr_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
+                    .o_reset_n(board_reset_n[ch]),
+                    .o_cke(board_cke[ch]),
+                    .o_odt(board_odt[ch]),
+                    .o_cmd_valid(board_cmd_valid[ch]),
+                    .o_cs_n(board_cs_n[ch]),
+                    .o_ras_n(board_ras_n[ch]),
+                    .o_cas_n(board_cas_n[ch]),
+                    .o_we_n(board_we_n[ch]),
+                    .o_ba(board_ba[ch*BANK_BITS +: BANK_BITS]),
+                    .o_addr(board_addr[ch*ADDR_BITS +: ADDR_BITS])
+                );
+            end
+        end else begin : gen_cmd_safe
+            assign board_reset_n = {CHANNELS{1'b0}};
+            assign board_cke = {CHANNELS{1'b0}};
+            assign board_odt = {CHANNELS{1'b0}};
+            assign board_cmd_valid = {CHANNELS{1'b1}};
+            assign board_cs_n = {CHANNELS{1'b1}};
+            assign board_ras_n = {CHANNELS{1'b1}};
+            assign board_cas_n = {CHANNELS{1'b1}};
+            assign board_we_n = {CHANNELS{1'b1}};
+            assign board_ba = {(CHANNELS*BANK_BITS){1'b0}};
+            assign board_addr = {(CHANNELS*ADDR_BITS){1'b0}};
+        end
+    endgenerate
+
+    ddr3_cmd_pins_7series #(
+        .ADDR_BITS(ADDR_BITS),
+        .BANK_BITS(BANK_BITS)
+    ) u_ch0_cmd (
+        .i_clk_dq(cmd_pin_clk),
+        .i_rst(cmd_pin_rst),
+        .i_reset_n(board_reset_n[0]),
+        .i_cke(board_cke[0]),
+        .i_odt(board_odt[0]),
+        .i_cmd_valid(board_cmd_valid[0]),
+        .i_cs_n(board_cs_n[0]),
+        .i_ras_n(board_ras_n[0]),
+        .i_cas_n(board_cas_n[0]),
+        .i_we_n(board_we_n[0]),
+        .i_ba(board_ba[0*BANK_BITS +: BANK_BITS]),
+        .i_addr(board_addr[0*ADDR_BITS +: ADDR_BITS]),
         .o_reset_n(ddr3_reset_n),
         .o_cke(ddr3_cke),
         .o_odt(ddr3_odt),
@@ -363,19 +492,22 @@ module top_ddr3_ctrl_line_loopback (
         .o_addr(ddr3_addr)
     );
 
-    ddr3_cmd_pins_7series u_ch1_cmd (
-        .i_clk_dq(ctrl_clk),
-        .i_rst(ctrl_rst),
-        .i_reset_n(1'b0),
-        .i_cke(1'b0),
-        .i_odt(1'b0),
-        .i_cmd_valid(1'b1),
-        .i_cs_n(1'b1),
-        .i_ras_n(1'b1),
-        .i_cas_n(1'b1),
-        .i_we_n(1'b1),
-        .i_ba({BANK_BITS{1'b0}}),
-        .i_addr({ADDR_BITS{1'b0}}),
+    ddr3_cmd_pins_7series #(
+        .ADDR_BITS(ADDR_BITS),
+        .BANK_BITS(BANK_BITS)
+    ) u_ch1_cmd (
+        .i_clk_dq(cmd_pin_clk),
+        .i_rst(cmd_pin_rst),
+        .i_reset_n(board_reset_n[1]),
+        .i_cke(board_cke[1]),
+        .i_odt(board_odt[1]),
+        .i_cmd_valid(board_cmd_valid[1]),
+        .i_cs_n(board_cs_n[1]),
+        .i_ras_n(board_ras_n[1]),
+        .i_cas_n(board_cas_n[1]),
+        .i_we_n(board_we_n[1]),
+        .i_ba(board_ba[1*BANK_BITS +: BANK_BITS]),
+        .i_addr(board_addr[1*ADDR_BITS +: ADDR_BITS]),
         .o_reset_n(ddr3_ch1_reset_n),
         .o_cke(ddr3_ch1_cke),
         .o_odt(ddr3_ch1_odt),
@@ -389,14 +521,14 @@ module top_ddr3_ctrl_line_loopback (
 
     ddr3_ck_out_7series u_ch0_ck (
         .i_clk_ddr(clk_ddr),
-        .i_rst(ctrl_rst),
+        .i_rst(1'b0),
         .o_ck_p(ddr3_ck_p),
         .o_ck_n(ddr3_ck_n)
     );
 
     ddr3_ck_out_7series u_ch1_ck (
         .i_clk_ddr(clk_ddr),
-        .i_rst(ctrl_rst),
+        .i_rst(1'b0),
         .o_ck_p(ddr3_ch1_ck_p),
         .o_ck_n(ddr3_ch1_ck_n)
     );
@@ -504,7 +636,8 @@ module top_ddr3_ctrl_line_loopback (
             8'h01: status_word = state_bits;
             8'h02: status_word = {8'h00, heartbeat};
             8'h03: status_word = loop_total;
-            8'h04: status_word = 32'd0;
+            8'h04: status_word = {16'hAB04, 15'd0,
+                                   (DRIVE_DDR3_COMMANDS != 0)};
             8'h08: status_word = loop_rd_count[0 +: 32] + loop_rd_count[32 +: 32];
             8'h10: status_word = {16'hAB10, 12'd0,
                                    jwb_busy, jwb_last_ack,
@@ -530,9 +663,9 @@ module top_ddr3_ctrl_line_loopback (
                                    loop_last_line_addr[LINE_ADDR_W +: LINE_ADDR_W]};
             8'h30: status_word = {16'hF0C0, refresh_count[0*16 +: 16]};
             8'h31: status_word = {16'hF0C1, refresh_count[1*16 +: 16]};
-            8'hFE: status_word = 32'hB07E_0D82;
+            8'hFE: status_word = GATE_VERSION;
             8'hFF: status_word = host_to_fpga;
-            default: status_word = {24'hD3AD82, host_to_fpga[7:0]};
+            default: status_word = {DEFAULT_MAGIC, host_to_fpga[7:0]};
         endcase
     end
 
@@ -543,8 +676,7 @@ module top_ddr3_ctrl_line_loopback (
     wire _unused = &{1'b0, init_done, init_busy, sched_req_pending,
                      refresh_ack, bank_busy, bank_open, jwb_cal_load_lane,
                      jwb_cal_tap, jwb_cal_channel, jwb_phase_req,
-                     jwb_phase_inc, ddr_reset_n_w, ddr_cke_w, ddr_odt_w,
-                     1'b0};
+                     jwb_phase_inc, 1'b0};
 endmodule
 
 `default_nettype wire

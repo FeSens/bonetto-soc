@@ -1,5 +1,115 @@
 # YPCB-00338 DDR3 Validation
 
+## Clean-Sheet DDR3 Line-Controller Command-Probe Evidence
+
+Validation date: 2026-05-20
+
+This is a hardware validation of the first board-pin command probe for the
+clean DDR3 line-controller path:
+
+- DLC10/XVC/USER1 JTAG transport
+- JTAG-driven Wishbone master
+- BRAM sanity writes and reads through the same JTAG/Wishbone bridge
+- Wishbone writes and reads through the line-level dual-channel DDR3 controller
+- DDR3 scheduler command generation for both logical channels
+- command/reset/CKE/ODT/address pins driven on both physical DDR3 channels
+- complete 512-bit BL8 write/read line boundary with 64 byte-mask bits
+- both logical DDR3 channels through an internal line-loopback data path
+
+The command-probe image keeps the controller, scheduler, JTAG bridge, and
+Wishbone bus in the 50 MHz board-clock domain, then crosses controller command
+pulses into the 400 MHz DDR command-pin domain. DDR CK is generated, DDR reset,
+CKE, ODT, command, bank, and address pins are driven, and DQ/DQS pins remain
+high-Z. Read data still returns through the internal line-loopback path, not
+from external DDR3 storage.
+
+This image is intentionally a pre-DQ/DQS probe. It proves the live
+JTAG/Wishbone path can exercise the controller, scheduler, command-pin CDC, and
+full BL8 line boundary on the real FPGA. It is not DDR3-800 external-memory
+signoff: DQ/DQS timing, write leveling, read capture, real memory storage, and
+400 MHz command-path closure are still future gates.
+
+### Build And Timing Evidence
+
+Build command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 ddr3-ctrl-line-cmdprobe-ddr800-bitstream
+```
+
+Route log:
+
+```text
+boards/ypcb-00338/build/ddr3_ctrl_line_cmdprobe_ddr800_seed1_route.log
+```
+
+Final nextpnr clock estimates:
+
+```text
+u_top.SYS_CLK            106.41 MHz (WARN at artificial 400.00 MHz; real requirement is 50 MHz)
+u_jtag_uart.bscan_drck   487.33 MHz (PASS at 400.00 MHz)
+u_jtag_uart.bscan_update 1331.56 MHz (PASS at 400.00 MHz)
+clk_dq                   368.73 MHz (WARN at 400.00 MHz; command-probe timing still open)
+clk_ddr                 1557.63 MHz (PASS at 400.00 MHz)
+clk_sys                 1557.63 MHz (PASS at 400.00 MHz)
+```
+
+The target uses `--timing-allow-fail` because `nextpnr-xilinx` currently takes
+one global `--freq`; this board image has a real 50 MHz SYS_CLK domain and a
+400 MHz DDR command-pin domain. The `clk_dq` warning remains real evidence that
+the pre-PHY command path is not yet closed at DDR3-800.
+
+### Hardware Status Evidence
+
+Program command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 program-ddr3-ctrl-line-cmdprobe-ddr800
+```
+
+Programming completed with FPGA DONE asserted:
+
+```text
+USB alternate interface 1 not present; keeping current setting
+Shift IR 75
+ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+```
+
+XVC command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 xvc
+```
+
+Validation command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 validate-ddr3-ctrl-line-cmdprobe
+```
+
+Final summary:
+
+```text
+connected to localhost:3721 - xvcServer_v1.0:1048576
+settck(2000 ns) -> 2000 ns
+version=0xb07e0d83
+status=0xb07e8831 magic=0xb07e cal_done=1 cal_error=0 cal_ecode=0(no error) init_done=1 init_error=0 init_ecode=0 mmcm_locked=1 idelay_ready=1 por_rst=0 mpr_busy=0 mtest_any_err=0 hb=1
+state=0x023101e5
+clk_sys=0xc1518034 clk_ddr=0xc152c03d clk_dq=0xc153c00f clk_ref=0xc150c02f
+bram_sanity: PASS cases=4
+dual_channel_boundary_patterns: PASS cases=28
+same_line_partial_writes: PASS cases=32
+randomized_dual_channel_loopback: PASS cases=128
+loop_counts ch0_wr=86 ch1_wr=102 ch0_rd=86 ch1_rd=102
+last_lines ch0=0x00000000 ch1=0x00000061
+final_jwb_status=0xab100005
+DDR3_CTRL_LINE_CMDPROBE_VALIDATE_SUMMARY ok=1
+```
+
+The next DDR3 hardware gate must replace the internal line loopback with a real
+DQ/DQS PHY, close the 400 MHz command/data timing paths without waivers, and
+validate reads and writes from external DDR3 storage.
+
 ## Clean-Sheet DDR3 Line-Controller Loopback Evidence
 
 Validation date: 2026-05-20
