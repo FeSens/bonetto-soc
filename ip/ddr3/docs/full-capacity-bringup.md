@@ -59,6 +59,9 @@ sequencers, and two scheduler adapters. The line-level unit bench checks the
 first integrated path that a real PHY should consume: pre-init Wishbone stalls,
 a channel-0 write captures a complete 512-bit line before the eventual WR
 command, and a channel-1 read acknowledges only after a complete returned line.
+The line-level Micron regression then feeds that boundary through a
+simulation-only line-to-x8 bridge into sixteen Micron models for a full-width
+write/read loopback on each channel.
 
 `boards/ypcb-00338/rtl/top_ddr3_init_probe.sv` is the first fresh hardware
 integration step. It runs per-channel init/refresh sequencers in the 100 MHz

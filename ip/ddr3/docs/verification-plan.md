@@ -78,8 +78,10 @@ Current coverage:
   controller shell unit benches wait for both init sequencers, then run a
   channel-0 write and channel-1 read through scheduler-issued DDR3 WR/RD
   commands across both the packetized compatibility path and the line-level
-  PHY boundary. The controller-level Micron bench then wires both channels through
-  sixteen x8 models and performs one full-width write/read loopback per channel.
+  PHY boundary. Controller-level Micron benches then wire both channels through
+  sixteen x8 models and perform one full-width write/read loopback per channel
+  through both the packetized compatibility boundary and the line-level
+  boundary via a simulation-only line-to-x8 bridge.
   The protocol benches fail if the model reports timing or protocol errors or
   warnings. The line-level Wishbone bridge bench checks the next hardware-facing
   boundary: a full 64-byte write line is made available to the PHY before the
@@ -155,6 +157,7 @@ Use the real Micron model for protocol validation:
 | Controller shell unit | init + dual-channel Wishbone dispatch + two scheduler adapters + packetized compatibility data ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR |
 | Controller line shell unit | init + line-level dual-channel Wishbone dispatch + two scheduler adapters + line-level PHY ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR and complete PHY lines |
 | Controller Micron dual-channel | init + dual-channel Wishbone dispatch + two scheduler adapters + sixteen x8 timing agents/models | channel-0 and channel-1 full-width write/read loopbacks pass without Micron model errors or warnings |
+| Controller line Micron dual-channel | init + line-level dual-channel dispatch + two scheduler adapters + line-to-x8 simulation bridge + sixteen x8 timing agents/models | channel-0 and channel-1 full-width write/read loopbacks pass through complete line ports without Micron model errors or warnings |
 | Runtime x8 | controller + one x8 model | controller-owned DQS/DQ write/read patterns pass |
 | Full channel | controller + eight x8 models | every 64 data bits and byte lane pass |
 | Dual channel | two full-channel stacks | both channels pass independent and interleaved traffic |

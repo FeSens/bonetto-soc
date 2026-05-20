@@ -143,9 +143,9 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 17. One init-gated dual-channel controller shell. This exists now in both the
     packetized compatibility form and the line-level hardware-facing form. Both
     have focused pre-init gate proofs and post-init write/read scheduler
-    integration simulations. A Micron regression also runs the compatibility
-    shell through sixteen x8 models, one full 64-bit write/read loopback per
-    channel, using the simulation-only x8 timing agents.
+    integration simulations. Micron regressions run both the compatibility shell
+    and the line-level shell through sixteen x8 models, one full 64-bit
+    write/read loopback per channel, using the simulation-only x8 timing agents.
 18. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing. A
     reusable simulation-only x8 timing agent exists now to keep Micron DQS/DQ/DM
     phasing and active-high DM merge behavior in regression while this RTL is
