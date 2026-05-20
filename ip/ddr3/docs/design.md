@@ -35,7 +35,7 @@ describes the target architecture, not an existing implementation.
 | `ddr3_byte_lane` | Controller-side x8 BL8 data packetizer. This exists now and proves write data/mask ordering plus read capture ordering before a board-specific DQS/DQ PHY is added. |
 | `ddr3_channel_line` | Full 64-bit-channel BL8 line packetizer that composes eight x8 byte lanes into one 512-bit line plus 64 byte-mask bits. This exists now. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 word packing, byte-mask generation, and read word selection. This exists now as a single-outstanding frontend slice. |
-| `ddr3_wb_channel` | First bus/data integration slice tying the Wishbone frontend to the full-channel line packetizer and emitting one scheduler-facing BL8 line command. This exists now and waits for an explicit transfer-start pulse before launching the data packetizer. |
+| `ddr3_wb_channel` | Bus/data integration slice tying the line-level Wishbone bridge to the full-channel line packetizer and emitting one scheduler-facing BL8 line command. This exists now, presents a complete write line before scheduler command acceptance, and waits for an explicit transfer-start pulse before launching the data packetizer. |
 | `ddr3_wb_dual_channel` | Full-capacity bus-facing dispatch slice tying the global address decoder to two full-channel Wishbone bridges. This exists now as a single-outstanding dual-channel slice. |
 | `ddr3_ctrl` | Init-gated dual-channel controller shell. This exists now and connects the global Wishbone dispatch bridge to two init sequencers and two scheduler adapters, with packetized PHY-side data ports but no DQS/DQ PHY. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
@@ -69,7 +69,7 @@ across both channels. `rtl/ddr3_addr_decode.sv` implements this map and
 `formal/addr_decode_wrapper.sv` proves the split, recomposition, line alignment,
 and no-alias property for matching `{channel, line, word}` fields.
 
-The low word-index bits intentionally match `ddr3_wb_frontend` and
+The low word-index bits intentionally match `ddr3_wb_line_channel` and
 `ddr3_wb_channel`: consecutive 32-bit Wishbone addresses fill one 64-byte BL8
 line before the BL8 column address increments.
 
@@ -88,8 +88,9 @@ issues on the DDR3 command bus.
 Wishbone slave stalled until both channel init sequencers report done, muxes
 init commands onto each channel's DDR3 command pins before handoff, then lets
 the two scheduler adapters own runtime ACT/RD/WR/PRE/REF commands. The data
-side remains packetized as per-lane valid/ready beats for the future Xilinx
-7-series PHY.
+side is line-backed internally and remains exposed as per-lane packetized
+valid/ready beats only as a compatibility boundary until the Xilinx 7-series
+DQS/DQ PHY lands.
 
 ## Timing Contract
 
@@ -127,9 +128,9 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 13. One single-outstanding Wishbone-to-BL8 frontend. This exists now and proves
     protocol, address split, write data/mask placement, and read word
     selection before it is connected to the scheduler/data path.
-14. One Wishbone-to-full-channel bridge. This exists now and proves the first
-    integration between the bus frontend, one BL8 line command, and the eight
-    byte-lane data packetizers.
+14. One Wishbone-to-full-channel bridge. This exists now and proves the
+    line-level integration between one Wishbone word request, one BL8 line
+    command, and the eight byte-lane data packetizers.
 15. One full-capacity dual-channel Wishbone dispatch bridge. This exists now
     and proves channel selection plus local address preservation before either
     channel owns a PHY.

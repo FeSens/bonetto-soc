@@ -1,10 +1,10 @@
 // Single-channel Wishbone-to-DDR3 BL8 data bridge.
 //
-// This block is the first integration point between the bus-facing frontend and
-// the full 64-bit-channel data packetizer. It accepts one 32-bit Wishbone word
-// request at a time, emits one aligned BL8 line command for the scheduler, and
-// starts the eight-lane data packetizer when the scheduler/PHY boundary reports
-// that the matching RD/WR command has reached the data-transfer point.
+// This block keeps the existing packetized PHY-side interface, but the bus and
+// scheduler boundary is now line based. A write request must present the whole
+// 64-byte BL8 channel line before the scheduler can accept the command. The
+// packetizer then serializes that already-captured line when the scheduler
+// reaches the matching RD/WR data window.
 
 `default_nettype none
 
@@ -12,12 +12,13 @@ module ddr3_wb_channel #(
     parameter integer WB_ADDR_W = 8,
     parameter integer LANES     = 8,
     parameter integer WB_DATA_W = 32,
-    localparam integer LINE_BYTES    = LANES * 8,
-    localparam integer LINE_DATA_W   = LINE_BYTES * 8,
-    localparam integer LINE_MASK_W   = LINE_BYTES,
+    localparam integer LINE_BYTES     = LANES * 8,
+    localparam integer LINE_DATA_W    = LINE_BYTES * 8,
+    localparam integer LINE_MASK_W    = LINE_BYTES,
     localparam integer WORDS_PER_LINE = LINE_BYTES / (WB_DATA_W / 8),
-    localparam integer WORD_INDEX_W  = (WORDS_PER_LINE <= 1) ? 1 : $clog2(WORDS_PER_LINE),
-    localparam integer LINE_ADDR_W   = WB_ADDR_W - WORD_INDEX_W
+    localparam integer WORD_INDEX_W =
+        (WORDS_PER_LINE <= 1) ? 1 : $clog2(WORDS_PER_LINE),
+    localparam integer LINE_ADDR_W = WB_ADDR_W - WORD_INDEX_W
 ) (
     input wire                     i_clk,
     input wire                     i_rst,
@@ -53,88 +54,89 @@ module ddr3_wb_channel #(
     input wire [LANES-1:0]         i_phy_rd_valid,
     input wire [(LANES*8)-1:0]     i_phy_rd_data
 );
-    wire                    frontend_stall;
-    wire                    req_valid;
-    wire                    req_ready;
-    wire                    req_write;
-    wire [LINE_ADDR_W-1:0]  req_line_addr;
-    wire [WORD_INDEX_W-1:0] req_word_index_unused;
-    wire [LINE_DATA_W-1:0]  req_wr_data;
-    wire [LINE_MASK_W-1:0]  req_wr_mask;
+    wire bridge_wb_stall;
+    wire bridge_cmd_valid;
+    wire bridge_cmd_write;
+    wire [LINE_ADDR_W-1:0] bridge_cmd_line_addr;
+    wire [LINE_DATA_W-1:0] bridge_wr_line_data;
+    wire [LINE_MASK_W-1:0] bridge_wr_line_mask;
 
-    wire                    line_ready;
-    wire                    line_busy;
-    wire [LINE_DATA_W-1:0]  line_rd_data;
+    wire line_ready;
+    wire line_busy;
+    wire line_rd_valid;
+    wire [LINE_DATA_W-1:0] line_rd_data;
 
-    reg                     pending_xfer;
-    reg                     pending_write;
-    reg [LINE_DATA_W-1:0]   pending_wr_data;
-    reg [LINE_MASK_W-1:0]   pending_wr_mask;
+    reg pending_xfer;
+    reg pending_write;
+    reg [LINE_DATA_W-1:0] pending_wr_data;
+    reg [LINE_MASK_W-1:0] pending_wr_mask;
 
-    wire wb_line_block = !line_ready || pending_xfer;
-    wire frontend_stb = i_wb_stb && !wb_line_block;
-    wire cmd_accept = req_valid && req_ready;
+    wire adapter_ready = line_ready && !pending_xfer;
+    wire bridge_wb_stb = i_wb_stb && adapter_ready;
+    wire cmd_accept = bridge_cmd_valid && i_cmd_ready;
     wire line_start = i_xfer_start && line_ready &&
                       (pending_xfer || cmd_accept);
-    wire line_write = pending_xfer ? pending_write : req_write;
+    wire line_write = pending_xfer ? pending_write : bridge_cmd_write;
     wire [LINE_DATA_W-1:0] line_wr_data =
-        pending_xfer ? pending_wr_data : req_wr_data;
+        pending_xfer ? pending_wr_data : bridge_wr_line_data;
     wire [LINE_MASK_W-1:0] line_wr_mask =
-        pending_xfer ? pending_wr_mask : req_wr_mask;
+        pending_xfer ? pending_wr_mask : bridge_wr_line_mask;
 
-    assign req_ready = line_ready && !pending_xfer && i_cmd_ready;
-
-    assign o_wb_stall = frontend_stall || wb_line_block;
-    assign o_cmd_valid = req_valid && line_ready && !pending_xfer;
-    assign o_cmd_write = req_write;
-    assign o_cmd_line_addr = req_line_addr;
-    assign o_busy = line_busy || pending_xfer || req_valid;
+    assign o_wb_stall = bridge_wb_stall || !adapter_ready;
+    assign o_cmd_valid = bridge_cmd_valid;
+    assign o_cmd_write = bridge_cmd_write;
+    assign o_cmd_line_addr = bridge_cmd_line_addr;
+    assign o_busy = bridge_wb_stall || pending_xfer || line_busy;
+    assign o_line_rd_valid = line_rd_valid;
 
     always @(posedge i_clk) begin
         if (i_rst) begin
             pending_xfer <= 1'b0;
             pending_write <= 1'b0;
             pending_wr_data <= {LINE_DATA_W{1'b0}};
-            pending_wr_mask <= {LINE_MASK_W{1'b0}};
+            pending_wr_mask <= {LINE_MASK_W{1'b1}};
         end else begin
             if (cmd_accept && !line_start) begin
                 pending_xfer <= 1'b1;
-                pending_write <= req_write;
-                pending_wr_data <= req_wr_data;
-                pending_wr_mask <= req_wr_mask;
+                pending_write <= bridge_cmd_write;
+                pending_wr_data <= bridge_wr_line_data;
+                pending_wr_mask <= bridge_wr_line_mask;
             end else if (line_start) begin
                 pending_xfer <= 1'b0;
             end
         end
     end
 
-    ddr3_wb_frontend #(
+    ddr3_wb_line_channel #(
         .WB_ADDR_W(WB_ADDR_W),
-        .LINE_BYTES(LINE_BYTES),
+        .LANES(LANES),
         .WB_DATA_W(WB_DATA_W)
-    ) u_frontend (
+    ) u_bridge (
         .i_clk(i_clk),
         .i_rst(i_rst),
         .i_wb_cyc(i_wb_cyc),
-        .i_wb_stb(frontend_stb),
+        .i_wb_stb(bridge_wb_stb),
         .i_wb_we(i_wb_we),
         .i_wb_adr(i_wb_adr),
         .i_wb_dat(i_wb_dat),
         .i_wb_sel(i_wb_sel),
-        .o_wb_stall(frontend_stall),
+        .o_wb_stall(bridge_wb_stall),
         .o_wb_ack(o_wb_ack),
         .o_wb_dat(o_wb_dat),
         .o_wb_err(o_wb_err),
-        .o_req_valid(req_valid),
-        .i_req_ready(req_ready),
-        .o_req_write(req_write),
-        .o_req_line_addr(req_line_addr),
-        .o_req_word_index(req_word_index_unused),
-        .o_req_wr_data(req_wr_data),
-        .o_req_wr_mask(req_wr_mask),
-        .i_rsp_valid(o_line_rd_valid),
-        .i_rsp_data(line_rd_data),
-        .i_rsp_err(1'b0)
+        .o_cmd_valid(bridge_cmd_valid),
+        .i_cmd_ready(i_cmd_ready),
+        .o_cmd_write(bridge_cmd_write),
+        .o_cmd_line_addr(bridge_cmd_line_addr),
+        .i_xfer_start(line_start),
+        .o_phy_wr_line_valid(),
+        .i_phy_wr_line_ready(adapter_ready),
+        .o_phy_wr_line_data(bridge_wr_line_data),
+        .o_phy_wr_line_mask(bridge_wr_line_mask),
+        .o_phy_rd_line_ready(),
+        .i_phy_rd_line_valid(line_rd_valid),
+        .i_phy_rd_line_data(line_rd_data),
+        .i_phy_rd_line_err(1'b0)
     );
 
     ddr3_channel_line #(
@@ -149,7 +151,7 @@ module ddr3_wb_channel #(
         .i_wr_mask(line_wr_mask),
         .o_busy(line_busy),
         .o_done(o_line_done),
-        .o_rd_valid(o_line_rd_valid),
+        .o_rd_valid(line_rd_valid),
         .o_rd_data(line_rd_data),
         .o_phy_wr_valid(o_phy_wr_valid),
         .i_phy_wr_ready(i_phy_wr_ready),

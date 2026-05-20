@@ -43,13 +43,15 @@ line address. It proves the next boundary: a BL8 line request can be accepted
 by the scheduler before the matching RD/WR command issues, and the data path
 must wait for the explicit transfer-start pulse.
 
-`rtl/ddr3_wb_line_channel.sv` is the next clean pre-PHY boundary. It preserves
-the single-outstanding Wishbone word request model, but exposes the complete
-64-byte BL8 channel line to the future PHY before a write command can be
-accepted by the scheduler. Reads wait for both the scheduler transfer-start
-pulse and a complete returned line before acknowledging the bus. This is the
-contract to wire into the future board DQ/DQS PHY instead of stretching one
-byte-lane beat per controller cycle into a DDR3 data window.
+`rtl/ddr3_wb_line_channel.sv` is now the clean pre-PHY line contract under
+`rtl/ddr3_wb_channel.sv`. It preserves the single-outstanding Wishbone word
+request model, but exposes the complete 64-byte BL8 channel line before a write
+command can be accepted by the scheduler. Reads wait for both the scheduler
+transfer-start pulse and a complete returned line before acknowledging the bus.
+The current top-level still uses the existing per-lane packetized compatibility
+ports for simulation; the future board DQ/DQS PHY should consume this captured
+line contract instead of stretching one byte-lane beat per controller cycle into
+a DDR3 data window.
 
 `rtl/ddr3_ctrl.sv` is the current pre-PHY top-level controller boundary. It
 combines the dual-channel Wishbone dispatch bridge, two init sequencers, and

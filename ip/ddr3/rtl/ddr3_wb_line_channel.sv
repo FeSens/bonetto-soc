@@ -147,7 +147,8 @@ module ddr3_wb_line_channel #(
                             o_wb_ack <= 1'b1;
                             state <= ST_IDLE;
                         end else begin
-                            state <= ST_WAIT_RD_XFER;
+                            state <= i_xfer_start ? ST_WAIT_RD_DATA
+                                                   : ST_WAIT_RD_XFER;
                         end
                     end
                 end

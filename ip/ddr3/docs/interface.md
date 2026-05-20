@@ -55,21 +55,21 @@ write the byte. It is not the full controller-level `ddr3_ctrl`; downstream
 scheduler, merge, PHY, calibration, and status integration live above or
 beside this frontend.
 
-`rtl/ddr3_wb_channel.sv` is the first integrated bus/data slice. It composes
-the Wishbone frontend with `ddr3_channel_line`, emits one scheduler-facing BL8
-line command `{write, line_addr}`, and returns completed read lines to the
-frontend for 32-bit word selection. Its scheduler-facing handshake deliberately
-uses two events:
+`rtl/ddr3_wb_channel.sv` is the integrated bus/data slice. It now composes the
+line-level Wishbone bridge with `ddr3_channel_line`: a write request presents a
+complete 64-byte BL8 channel line before the scheduler can accept the command,
+and a read request waits for a complete returned line before acknowledging
+Wishbone. Its scheduler-facing handshake deliberately uses two events:
 
-- `i_cmd_ready` accepts and removes the line request from the Wishbone side.
+- `i_cmd_ready` accepts a line request only when the bridge and packetizer have
+  a stable line-level contract for that request.
 - `i_xfer_start` launches the full-channel data packetizer when the matching
   RD/WR command has actually issued.
 
 This separation matters because an open-row miss, bank timing wait, refresh
 window, or write-to-read turnaround can delay the RD/WR command after the
 Wishbone request has already been accepted. The channel bridge still does not
-own a DDR3 command scheduler, row machine selection, PHY timing, calibration,
-or partial-write read-modify-write.
+own PHY timing, calibration, or partial-write read-modify-write.
 
 `rtl/ddr3_wb_dual_channel.sv` is the first integrated global bus slice. It
 wraps two `ddr3_wb_channel` instances behind `ddr3_addr_decode`, uses
@@ -112,7 +112,7 @@ The scheduler-visible command stream must be monitorable by
 
 ## PHY Data Boundary
 
-Keep the PHY boundary packetized around BL8:
+The controller-side logical PHY boundary is a complete BL8 channel line:
 
 | Direction | Signal | Width | Meaning |
 |---|---|---:|---|
@@ -134,13 +134,14 @@ validated.
 64-bit BL8 byte lane with eight write mask bits and an ordered read-capture
 response. `rtl/ddr3_channel_line.sv` composes eight of those lanes into the
 full 64-bit-channel packet boundary: one 512-bit BL8 line plus 64 byte-mask
-bits, with per-lane PHY handshakes still visible for the future Xilinx 7-series
-DQS/DQ bridge. `rtl/ddr3_wb_channel.sv` currently drives that packet boundary
-from Wishbone requests and waits for the scheduler adapter's transfer-start
-pulse before driving the write or read packet flow. `rtl/ddr3_wb_dual_channel.sv`
-replicates that boundary once per channel and keeps the two channel PHY-facing
-interfaces independent. `rtl/ddr3_ctrl.sv` preserves that same per-lane
-valid/ready boundary at the top level.
+bits, with per-lane compatibility handshakes still visible until the Xilinx
+7-series DQS/DQ PHY replaces that simulation-facing packetizer.
+`rtl/ddr3_wb_channel.sv` captures the complete line before scheduler command
+acceptance, then waits for the scheduler adapter's transfer-start pulse before
+driving the packet flow. `rtl/ddr3_wb_dual_channel.sv` replicates that boundary
+once per channel and keeps the two channel PHY-facing interfaces independent.
+`rtl/ddr3_ctrl.sv` preserves that same packetized compatibility boundary at the
+top level while the real DQS/DQ PHY is still pending.
 
 ## Debug/Status
 

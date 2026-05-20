@@ -136,9 +136,9 @@ $(BUILD)/wb_frontend.smt2: rtl/ddr3_wb_frontend.sv ../../formal/vendor/fwb_slave
 	  prep -top ddr3_wb_frontend_wrapper; \
 	  write_smt2 -wires $@"
 
-$(BUILD)/wb_channel.smt2: rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_channel_wrapper.sv | $(BUILD)
+$(BUILD)/wb_channel.smt2: rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_channel_wrapper.sv | $(BUILD)
 	$(YOSYS) -q -p "\
-	  read_verilog -formal -sv -DFORMAL rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_channel_wrapper.sv; \
+	  read_verilog -formal -sv -DFORMAL rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_channel_wrapper.sv; \
 	  prep -top ddr3_wb_channel_wrapper; \
 	  write_smt2 -wires $@"
 
@@ -148,9 +148,9 @@ $(BUILD)/wb_line_channel.smt2: rtl/ddr3_wb_line_channel.sv ../../formal/vendor/f
 	  prep -top ddr3_wb_line_channel_wrapper; \
 	  write_smt2 -wires $@"
 
-$(BUILD)/wb_dual_channel.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_dual_channel_wrapper.sv | $(BUILD)
+$(BUILD)/wb_dual_channel.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_dual_channel_wrapper.sv | $(BUILD)
 	$(YOSYS) -q -p "\
-	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_addr_decode.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_dual_channel_wrapper.sv; \
+	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv ../../formal/vendor/fwb_slave.v formal/wb_dual_channel_wrapper.sv; \
 	  prep -top ddr3_wb_dual_channel_wrapper; \
 	  write_smt2 -wires $@"
 
@@ -160,9 +160,9 @@ $(BUILD)/channel_sched.smt2: rtl/ddr3_params.vh rtl/ddr3_refresh.sv rtl/ddr3_ban
 	  prep -top ddr3_channel_sched_wrapper; \
 	  write_smt2 -wires $@"
 
-$(BUILD)/ctrl.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv formal/ctrl_wrapper.sv | $(BUILD)
+$(BUILD)/ctrl.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv formal/ctrl_wrapper.sv | $(BUILD)
 	$(YOSYS) -q -p "\
-	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv formal/ctrl_wrapper.sv; \
+	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv formal/ctrl_wrapper.sv; \
 	  prep -top ddr3_ctrl_wrapper; \
 	  write_smt2 -wires $@"
 
@@ -407,30 +407,30 @@ $(SIM_BUILD)/wb_frontend.vvp: rtl/ddr3_wb_frontend.sv sim/tb_wb_frontend.sv | $(
 	  -s tb_wb_frontend \
 	  -o $@ rtl/ddr3_wb_frontend.sv sim/tb_wb_frontend.sv
 
-$(SIM_BUILD)/wb_channel.vvp: rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv sim/tb_wb_channel.sv | $(SIM_BUILD)
+$(SIM_BUILD)/wb_channel.vvp: rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv sim/tb_wb_channel.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_wb_channel \
-	  -o $@ rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv sim/tb_wb_channel.sv
+	  -o $@ rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv sim/tb_wb_channel.sv
 
 $(SIM_BUILD)/wb_line_channel.vvp: rtl/ddr3_wb_line_channel.sv sim/tb_wb_line_channel.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_wb_line_channel \
 	  -o $@ rtl/ddr3_wb_line_channel.sv sim/tb_wb_line_channel.sv
 
-$(SIM_BUILD)/wb_dual_channel.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv sim/tb_wb_dual_channel.sv | $(SIM_BUILD)
+$(SIM_BUILD)/wb_dual_channel.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv sim/tb_wb_dual_channel.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_wb_dual_channel \
-	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv sim/tb_wb_dual_channel.sv
+	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv sim/tb_wb_dual_channel.sv
 
 $(SIM_BUILD)/channel_sched.vvp: rtl/ddr3_params.vh rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv sim/tb_channel_sched.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_channel_sched \
 	  -o $@ rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv sim/tb_channel_sched.sv
 
-$(SIM_BUILD)/ctrl.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/tb_ctrl.sv | $(SIM_BUILD)
+$(SIM_BUILD)/ctrl.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/tb_ctrl.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_ctrl \
-	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/tb_ctrl.sv
+	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/tb_ctrl.sv
 
 $(SIM_BUILD)/micron_init_script.vvp: sim/tb_micron_init_script.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I sim/vendor \
@@ -462,11 +462,11 @@ $(SIM_BUILD)/micron_x8_phy_agent.vvp: rtl/ddr3_params.vh rtl/ddr3_init_seq.sv rt
 	  -s tb_micron_x8_phy_agent \
 	  -o $@ rtl/ddr3_init_seq.sv rtl/ddr3_byte_lane.sv sim/ddr3_x8_phy_agent.sv sim/tb_micron_x8_phy_agent.sv sim/vendor/ddr3.v
 
-$(SIM_BUILD)/micron_ctrl_dual_channel.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/ddr3_x8_phy_agent.sv sim/tb_micron_ctrl_dual_channel.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
+$(SIM_BUILD)/micron_ctrl_dual_channel.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/ddr3_x8_phy_agent.sv sim/tb_micron_ctrl_dual_channel.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl -I sim/vendor \
 	  -Dden2048Mb -Dsg125 -Dx8 \
 	  -s tb_micron_ctrl_dual_channel \
-	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_frontend.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/ddr3_x8_phy_agent.sv sim/tb_micron_ctrl_dual_channel.sv sim/vendor/ddr3.v
+	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/ddr3_x8_phy_agent.sv sim/tb_micron_ctrl_dual_channel.sv sim/vendor/ddr3.v
 
 clean:
 	rm -rf $(BUILD) $(SIM_BUILD) sim/sim_build sim/sim_build_* sim/build_micron

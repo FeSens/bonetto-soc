@@ -13,8 +13,8 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 
 | Area | State |
 |---|---|
-| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, single-outstanding Wishbone-to-BL8 frontend, Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no controller-owned PHY |
-| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, Wishbone frontend proof, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
+| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, single-outstanding line-level Wishbone bridge, line-backed Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no controller-owned PHY |
+| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, Wishbone frontend proof, line-level Wishbone proof, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
 | Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
@@ -61,13 +61,17 @@ What these mean today:
   read data/error return from the selected 32-bit word inside a BL8 line. Its
   unit simulation checks address decode, active-high DDR3 DM mask placement
   from Wishbone byte enables, write data placement, and read word selection.
-- The Wishbone-to-channel bridge proof connects the frontend to the full
+- The line-level Wishbone proof checks that write command acceptance is gated
+  until the complete 512-bit/64-mask BL8 line is available, and that reads wait
+  for transfer-start plus a complete returned line before acknowledging the bus.
+- The Wishbone-to-channel bridge proof connects that line bridge to the full
   eight-lane line packetizer. It checks that a Wishbone request emits the
   expected BL8 line command, holds that command stable under backpressure, maps
   the selected 32-bit write word and inverted byte enables into the
-  active-high 512-bit/64-mask channel line, and returns the selected read word
-  from a completed channel line. Its unit simulation exercises one full-width
-  write and one full-width read through all eight lanes.
+  active-high 512-bit/64-mask channel line before command acceptance, and
+  returns the selected read word from a completed channel line. Its unit
+  simulation exercises one full-width write and one full-width read through all
+  eight lanes.
 - The dual-channel dispatch proof composes two full-channel bridges behind the
   global word-address decoder. It checks that channel bit 29 routes each
   accepted Wishbone request to exactly one channel and preserves the lower
@@ -118,8 +122,9 @@ What these mean today:
 | `rtl/ddr3_channel_sched.sv` | Single-channel adapter from BL8 line requests into refresh plus scheduler command issue, with an explicit transfer-start pulse. |
 | `rtl/ddr3_byte_lane.sv` | Controller-side x8 BL8 byte-lane packetizer for ordered write/read data beats. |
 | `rtl/ddr3_channel_line.sv` | Full 64-bit-channel BL8 line packetizer composed from eight x8 byte lanes. |
-| `rtl/ddr3_wb_frontend.sv` | Single-outstanding Wishbone-to-BL8 frontend for 32-bit word packing, byte masks, and read word selection. |
-| `rtl/ddr3_wb_channel.sv` | Integration slice tying the Wishbone frontend to the full-channel line packetizer and exposing one BL8 line command. |
+| `rtl/ddr3_wb_frontend.sv` | Single-outstanding Wishbone-to-BL8 frontend for 32-bit word packing, byte masks, and read word selection; retained for focused frontend proof coverage. |
+| `rtl/ddr3_wb_line_channel.sv` | Line-level Wishbone bridge that presents a complete write line before scheduler command acceptance and acknowledges reads only after a returned line. |
+| `rtl/ddr3_wb_channel.sv` | Integration slice tying the line-level Wishbone bridge to the full-channel line packetizer and exposing one BL8 line command. |
 | `rtl/ddr3_wb_dual_channel.sv` | Full-capacity dual-channel Wishbone dispatch bridge built from two channel bridges and the global address decoder. |
 | `rtl/ddr3_ctrl.sv` | Init-gated dual-channel controller shell connecting Wishbone dispatch, two init sequencers, two scheduler adapters, command pins, and packetized PHY-side data ports. |
 | `formal/ddr3_cmd_timing_monitor.sv` | Reusable JEDEC command/timing assertion block. |
@@ -135,6 +140,7 @@ What these mean today:
 | `formal/byte_lane_wrapper.sv` | Formal harness for BL8 x8 byte-lane data/mask ordering and read capture. |
 | `formal/channel_line_wrapper.sv` | Formal harness for full-channel lane composition, byte-mask mapping, and read-line reassembly. |
 | `formal/wb_frontend_wrapper.sv` | Formal harness for Wishbone protocol, backend request stability, and BL8 word mapping. |
+| `formal/wb_line_channel_wrapper.sv` | Formal harness for the line-level Wishbone bridge contract. |
 | `formal/wb_channel_wrapper.sv` | Formal harness for the Wishbone-to-full-channel bridge command/data mapping. |
 | `formal/wb_dual_channel_wrapper.sv` | Formal harness for global Wishbone channel selection and local address preservation. |
 | `formal/channel_sched_wrapper.sv` | Formal harness for BL8 line request acceptance, scheduler command issue, and transfer-start timing. |
@@ -144,6 +150,7 @@ What these mean today:
 | `sim/tb_byte_lane.sv` | Unit bench for the byte-lane packetizer. |
 | `sim/tb_channel_line.sv` | Unit bench for the full-channel BL8 line packetizer with per-lane stalls. |
 | `sim/tb_wb_frontend.sv` | Unit bench for the Wishbone-to-BL8 frontend. |
+| `sim/tb_wb_line_channel.sv` | Unit bench for the line-level Wishbone bridge. |
 | `sim/tb_wb_channel.sv` | Unit bench for the Wishbone-to-full-channel bridge. |
 | `sim/tb_wb_dual_channel.sv` | Unit bench for channel-0 write dispatch and channel-1 read dispatch. |
 | `sim/tb_channel_sched.sv` | Unit bench for BL8 line requests issuing through the scheduler adapter. |
