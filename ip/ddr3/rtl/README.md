@@ -56,6 +56,11 @@ The active RTL slices are deliberately small and scheduler-facing:
   `ddr3_line_to_bursts`, one `ddr3_x8_burst_clock_bridge` per physical byte
   lane, and one fast-domain `ddr3_x8_burst_io_sequencer` per lane, exposing an
   abstract DQ/DQS contract while keeping complete line assembly in slow fabric;
+- `ddr3_line_serdes_phy.sv`: line-to-SERDES PHY shell that composes
+  `ddr3_line_to_bursts`, one `ddr3_x8_burst_clock_bridge` per physical byte
+  lane, and one `ddr3_x8_serdes_burst_lane` per lane, exposing one 64-bit
+  SERDES word plus DQS/DQ output-enable vectors per physical lane before the
+  board OSERDES/ISERDES/IDELAY wrapper;
 - `ddr3_line_lane_phy.sv`: reusable bridge that composes
   `ddr3_line_to_lanes` with one `ddr3_x8_lane_phy` per physical byte lane,
   exposing abstract per-lane DQ/DQS/DM timing signals for the future
@@ -94,7 +99,7 @@ data boundary has one x8 lane packetizer, one full 64-bit-channel line
 packetizer, a line-to-x8-lane adapter, a line-to-x8-burst adapter, one x8 lane
 PHY timing core, one fast-domain x8 burst sequencer, one x8 SERDES-domain burst
 lane adapter, one x8 burst clock bridge, one line-to-fast-burst PHY shell, one
-line-to-lane PHY timing bridge, a
+line-to-SERDES PHY shell, one line-to-lane PHY timing bridge, a
 line-backed Wishbone-to-channel bridge, and a pre-PHY controller shell tying
 those pieces to the dual-channel command path. The full-capacity address map is
 explicit and formally checked. The board has route-proven DQ/DQS primitive and

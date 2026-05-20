@@ -71,7 +71,10 @@ Current coverage:
   line-to-fast-burst PHY shell proof then composes the slow line-to-burst
   adapter, one narrow clock bridge, and one fast-domain x8 burst sequencer for
   a representative lane, checking write launch mapping, read-burst return, and
-  synchronized error status for a legal sequence.
+  synchronized error status for a legal sequence. The line-to-SERDES PHY shell
+  proof checks the next board-wrapper-facing split: line-to-burst, per-lane
+  clock bridge, and x8 SERDES-domain lane adapter compose without corrupting
+  the representative write/read payload or output-enable contract.
   The scheduler and line-controller checks now also preserve transfer type so
   the future PHY receives mutually exclusive write/read start pulses aligned to
   the issued WR/RD command.
@@ -115,6 +118,10 @@ Current coverage:
   a real slow/fast two-clock integration with two channels and two lanes per
   channel, checking selected-channel write launch, selected-channel read
   sampling, complete-line reassembly, and final idle/error state. The
+  line-to-SERDES PHY shell unit bench repeats that slow/fast integration with
+  two physical x9 channels and checks that every selected-channel lane produces
+  the expected 64-bit SERDES write word and that returned SERDES words
+  reassemble into a complete line. The
   line-to-lane PHY bridge unit bench runs the
   full two-channel, sixteen-lane integration over abstract DQ/DQS/DM timing
   signals before any Xilinx primitive wrapper is connected. The
@@ -259,6 +266,15 @@ start pulses, and one returned read burst between slow controller fabric and the
 fast sequencer domain. This is the replacement for moving the full line/lane
 PHY into `clk_dq`.
 
+`rtl/ddr3_line_serdes_phy.sv` composes the reusable line-to-burst adapter,
+per-lane burst clock bridges, and one `ddr3_x8_serdes_burst_lane` per physical
+lane. It keeps line assembly and channel arbitration in slow fabric while
+exposing the divided-clock SERDES-word contract expected by the board-local
+OSERDES/ISERDES/IDELAY wrapper. The focused unit simulation uses
+`CHANNELS=2, LANES=9` so the physical YPCB-00338 lane count is covered at this
+boundary. It is still not a calibrated board PHY or an external memory data
+path.
+
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler
 transfer-start pulses. It gives the future board wrapper one clean abstract
@@ -291,6 +307,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | X8 SERDES burst lane adapter | One preloaded 64-bit x8 BL8 payload becomes one divided-clock SERDES word with DQS/DQ output-enable windows, and one sampled SERDES word returns as one read payload. First bounded proof and unit simulation exist. |
 | X8 burst clock bridge | One preloaded x8 payload, start pulses, and one returned read payload cross between slow fabric and fast sequencer clocks without data loss. First same-clock protocol proof and dual-clock simulation exist. |
 | Line-to-fast-burst PHY shell | Complete channel lines split into preloaded x8 bursts in slow fabric, cross narrow per-lane bridges, launch through fast x8 sequencers, and reassemble read bursts into complete lines. First focused proof and dual-clock unit simulation exist. |
+| Line-to-SERDES PHY shell | Complete channel lines split into preloaded x8 bursts in slow fabric, cross narrow per-lane bridges, and expose one 64-bit SERDES word plus DQS/DQ output-enable windows per physical lane. First focused proof and two-channel x9 dual-clock unit simulation exist. |
 | Line-to-lane PHY bridge | Complete channel lines feed one x8 lane PHY timing core per physical lane, with queued scheduler transfer-start pulses and abstract DQ/DQS/DM timing signals. First focused write/read sequencing proofs and full two-channel unit simulation exist. |
 | Controller-to-PHY clock bridge | Slow controller line handshakes cross to a faster PHY-side clock without changing payloads or dropping one legal single-outstanding read/write transaction. First dual-clock simulation and same-clock bounded protocol proof exist. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
@@ -327,6 +344,7 @@ Use the real Micron model for protocol validation:
 | X8 SERDES burst lane unit | one preloaded x8 burst + SERDES-domain adapter | 64-bit write payload appears as one SERDES word with preamble/data/postamble output enables, one sampled SERDES read word returns, and ready/valid state returns idle |
 | X8 burst clock bridge unit | slow controller clock + fast PHY clock | 64-bit write payload plus mask, start pulses, and read payload cross the bridge without error and return to idle |
 | Line-to-fast-burst PHY unit | complete channel lines + per-lane burst bridges and fast sequencers | line-to-burst mapping, slow/fast bridge handshakes, selected-channel write launch, read sampling, and complete-line return pass |
+| Line-to-SERDES PHY unit | complete channel lines + per-lane burst bridges and SERDES-domain lane adapters | two physical x9 channels, selected-channel SERDES write words, returned SERDES read words, complete-line return, and final idle/error state pass |
 | Line-to-lane PHY unit | two complete channel line ports + sixteen x8 lane PHY timing cores | queued transfer starts, all-lane write launch mapping, DQ/DQS/DM pin-pair checks, read sampling, and complete line reassembly pass |
 | Controller-to-PHY clock bridge unit | slow controller clock + fast PHY clock | write payload, start pulses, and read payload cross the bridge without error and return to idle |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
