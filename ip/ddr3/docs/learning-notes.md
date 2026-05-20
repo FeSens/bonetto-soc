@@ -77,10 +77,15 @@ Required future simulation stages:
    known-good script.
 3. Init-only controller: drive reset/CKE/MRS/ZQ/DLL wait until the model accepts
    init completion.
-4. Command-only runtime: ACT/RD/WR/PRE/REF against one x8 model.
-5. Full byte lane: DQS/DQ write and read loopback with one x8 model.
-6. Full channel: eight x8 models for 64-bit data, then optional ECC lane.
-7. Dual channel: two independent full-channel model stacks.
+4. Command-only runtime: ACT/RD/WR/PRE/REF against one x8 model. This now
+   exists for single-bank READ and WRITE/READ command slices.
+5. Ideal x8 loopback: DQS/DQ write and read loopback with one x8 model driven
+   by a testbench agent. This exists now and should remain a regression for
+   command/data phasing.
+6. Controller-owned x8 byte lane: real DQS/DQ write and read logic, still
+   pending.
+7. Full channel: eight x8 models for 64-bit data, then optional ECC lane.
+8. Dual channel: two independent full-channel model stacks.
 
 ## Architecture Direction
 

@@ -13,9 +13,9 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 
 | Area | State |
 |---|---|
-| Controller RTL | DDR3-800 init sequencer plus one command-only single-bank ACT/READ/PRE/REF slice; no data path or PHY |
-| Formal | Live command timing monitor self-check, init sequencer proof, and single-read command proof |
-| Simulation | Live Micron DDR3 model smoke, reference init, RTL init, and RTL single-read command targets |
+| Controller RTL | DDR3-800 init sequencer plus single-bank ACT/READ/PRE/REF and ACT/WRITE/READ/PRE/REF command slices; no controller-owned PHY |
+| Formal | Live command timing monitor self-check, init sequencer proof, single-read proof, and single-write/read proof |
+| Simulation | Live Micron DDR3 model smoke, reference init, RTL init, RTL single-read command, and x8 write/read loopback targets |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
 
@@ -34,15 +34,16 @@ What these mean today:
 - `formal` proves the reusable DDR3 command timing monitor against a legal
   trace and proves the controller-owned init sequencer emits reset, MRS, ZQCL,
   REF, and post-DLL-lock wait in order with minimum waits. It also proves the
-  command-only single-bank runtime slice emits ACT, READ, PRE, and REF in order
-  through the same timing monitor.
+  single-bank runtime slices emit ACT/READ/PRE/REF and
+  ACT/WRITE/READ/PRE/REF in order through the same timing monitor.
 - `sim` compiles the vendored Micron DDR3 model, runs a smoke bench, and runs a
   DDR3-800 reset/MRS/ZQ/REF reference script plus the RTL init sequencer against
   the model. It also runs the RTL init sequencer followed by one single-bank
-  READ command sequence. Model errors, and warnings on the protocol benches, are
-  promoted to make failures. This is not data-path or PHY validation yet; it
-  keeps the real Micron BFM, initialization assumptions, and first runtime
-  command timing in the live gate.
+  READ command sequence and one single-bank WRITE/READ loopback through an
+  ideal x8 DQS/DQ testbench agent. Model errors, and warnings on the protocol
+  benches, are promoted to make failures. This is not board PHY validation yet;
+  it keeps the real Micron BFM, initialization assumptions, first runtime
+  command timing, and one byte-lane data loopback in the live gate.
 - `validate-jtag-bram` is still the hardware confidence check for JTAG/Wishbone.
 
 ## Directory Map
@@ -52,14 +53,17 @@ What these mean today:
 | `rtl/ddr3_params.vh` | Shared command encodings, mode registers, geometry, and DDR3-800 waits. |
 | `rtl/ddr3_init_seq.sv` | DDR3-800 reset/MRS/ZQ/REF initialization sequencer. |
 | `rtl/ddr3_single_read_seq.sv` | Command-only single-bank ACT/READ/PRE/REF runtime slice. |
+| `rtl/ddr3_single_write_read_seq.sv` | Single-bank ACT/WRITE/READ/PRE/REF runtime slice for timing and x8 model bring-up. |
 | `formal/ddr3_cmd_timing_monitor.sv` | Reusable JEDEC command/timing assertion block. |
 | `formal/timing_monitor_wrapper.sv` | Self-check harness for the timing monitor. |
 | `formal/init_seq_wrapper.sv` | Formal harness for init sequencer ordering and waits. |
 | `formal/single_read_wrapper.sv` | Formal harness for the single-bank runtime command slice. |
+| `formal/single_write_read_wrapper.sv` | Formal harness for the single-bank write/read runtime command slice. |
 | `sim/vendor/` | Vendored Micron DDR3 model and parameters. |
 | `sim/tb_micron_model_smoke.sv` | Minimal Micron model compile/run smoke bench. |
 | `sim/tb_micron_init_script.sv` | Handwritten DDR3-800 reset/MRS/ZQ/REF script against the Micron model. |
 | `sim/tb_micron_init_seq.sv` | RTL init sequencer bench against the Micron model. |
 | `sim/tb_micron_single_read.sv` | RTL init plus single-bank READ command bench against the Micron model. |
+| `sim/tb_micron_single_write_read.sv` | RTL init plus single-bank WRITE/READ x8 loopback bench with an ideal testbench DQS/DQ agent. |
 | `docs/verification-plan.md` | Required formal and simulation ladder for new RTL. |
 | `docs/learning-notes.md` | Reference lessons from LiteDRAM and UberDDR3. |

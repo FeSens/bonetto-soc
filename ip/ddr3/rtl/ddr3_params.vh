@@ -49,7 +49,10 @@
 `define DDR3_800_TFAW_CYCLES        20
 `define DDR3_800_TCCD_CYCLES        4
 `define DDR3_800_TWTR_CYCLES        8
+`define DDR3_800_TWTR_CMD_CYCLES    13      // CWL + BL/2 + tWTR for WR->RD
 `define DDR3_800_TRTP_CYCLES        8
 `define DDR3_800_TWR_CYCLES         8
+`define DDR3_800_CWL_CYCLES         5
+`define DDR3_800_CL_CYCLES          6
 
 `endif

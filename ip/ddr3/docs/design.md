@@ -26,6 +26,7 @@ describes the target architecture, not an existing implementation.
 | `ddr3_cmd` | Command encoding/decoding helpers and mode-register fields. |
 | `ddr3_init_seq` | JEDEC reset, CKE, MRS, ZQCL, first refresh, and DLL-lock release wait. |
 | `ddr3_single_read_seq` | Temporary command-only ACT/READ/PRE/REF slice for Micron and formal timing bring-up. |
+| `ddr3_single_write_read_seq` | Temporary ACT/WRITE/READ/PRE/REF slice for Micron x8 loopback and turnaround timing bring-up. |
 | `ddr3_bank` | One bank's open-row state and local timing waits. |
 | `ddr3_scheduler` | Cross-bank arbitration, refresh, tRRD/tFAW/tCCD/tWTR, command issue. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 packing, byte-enable merge. |
@@ -73,8 +74,11 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 
 1. Micron model smoke and command monitor self-check.
 2. Init-only RTL accepted by one Micron x8 model.
-3. Single-bank runtime against one Micron x8 model.
-4. One full x8 byte lane with DQS/DQ write/read.
-5. One 64-bit channel.
-6. Two 64-bit channels.
-7. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+3. Single-bank runtime commands against one Micron x8 model.
+4. One x8 BL8 write/read loopback against the Micron model using an ideal
+   testbench DQS/DQ agent. This exists now and validates command/data phasing in
+   simulation only.
+5. One controller-owned x8 byte lane with real DQS/DQ write/read logic.
+6. One 64-bit channel.
+7. Two 64-bit channels.
+8. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
