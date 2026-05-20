@@ -49,6 +49,14 @@ two scheduler adapters. The live unit bench checks the first integrated path:
 pre-init Wishbone stalls, then a channel-0 write and channel-1 read pass
 through scheduler-issued WR/RD commands into the full-channel packet ports.
 
+`boards/ypcb-00338/rtl/top_ddr3_init_probe.sv` is the first fresh hardware
+integration step. It runs per-channel init/refresh sequencers in the 100 MHz
+control domain, launches commands on the 400 MHz DDR3-800 command clock, wires
+both full channel pinouts, drives CK/reset/CKE and command/address pins, leaves
+DQ/DQS high-Z, and exposes init/refresh/clock status through USER1 JTAG. This is
+intentionally an init and constraint probe only; it does not instantiate the full
+controller scheduler or validate memory data until a real DQ/DQS PHY is added.
+
 ## Speed Ladder
 
 Do not skip rungs:
@@ -87,10 +95,11 @@ For each speed grade:
 
 1. Formal proof of the relevant controller slice.
 2. Micron model simulation at that speed.
-3. Route with fixed seed and recorded timing.
-4. FPGA programming with `done`.
-5. JTAG/Wishbone memory validator on both channels.
-6. Evidence note with final status flags and first-failure fields if any.
+3. Full-pin init probe route/program/validation for that speed.
+4. Route with fixed seed and recorded timing.
+5. FPGA programming with `done`.
+6. JTAG/Wishbone memory validator on both channels.
+7. Evidence note with final status flags and first-failure fields if any.
 
 Hardware validation must include:
 

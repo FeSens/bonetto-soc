@@ -1,13 +1,19 @@
 # boards/ypcb-00338
 
 Top-level integration for the Inspur YPCB-00338
-(`xc7k480t-ffg1156-2`). The current active bitstream is the BRAM-only
+(`xc7k480t-ffg1156-2`). The default active bitstream is the BRAM-only
 JTAG/Wishbone proof image. It integrates:
 
 - BSCANE2 USER1 via `jtag_uart`,
 - JTAG-driven Wishbone debug master,
 - `wb_decode2` with two BRAM banks,
 - board heartbeat/ack/error LEDs.
+
+The first fresh DDR3 board-facing image is `top_ddr3_init_probe`. It routes the
+full CH0 + CH1 DDR3 pinout at the DDR3-800 clock point, drives CK/reset/CKE
+and command/address pins from per-channel init/refresh sequencers, and exposes
+status over USER1 JTAG. DQ/DQS are intentionally high-Z in this image, so it is an
+init/clock/constraint probe only, not a memory read/write validator.
 
 ## Historical DDR3 Configuration
 
@@ -43,6 +49,24 @@ to synthesize or program stale RTL:
 ```sh
 DDR3 RTL is reset; use jtag-bram-bitstream until a fresh DDR3 image exists.
 ```
+
+Use the explicit init-probe targets for the current fresh DDR3 hardware step:
+
+```sh
+make -C boards/ypcb-00338 ddr3-init-ddr800-bitstream
+make -C boards/ypcb-00338 program-ddr3-init-ddr800
+make -C boards/ypcb-00338 xvc
+make -C boards/ypcb-00338 validate-ddr3-init
+```
+
+That validator requires version `0xB07E0D80`, PLL lock, live generated clocks,
+both channel init sequencers done, and no late refresh. It deliberately does
+not validate the full DDR3 memory path.
+
+`ddr3-init-ddr800-bitstream` routes with nextpnr's single global `--freq 400`
+check and `--timing-allow-fail`. Read the route log per clock: the DDR launch
+clocks must pass 400 MHz, while the board input/status and 100 MHz control
+domains are not intended to meet a 400 MHz constraint.
 
 For pin work, use the public board reference archive rather than deriving pins
 from the current reduced top:
@@ -109,9 +133,10 @@ Then run validation in another:
 make validate-jtag-bram BOARD=ypcb-00338
 ```
 
-The validator runs direct JTAG/Wishbone accesses through XVC and requires
-readback from both BRAM banks. DDR3 validation targets stay disabled until the
-next controller has real RTL again.
+The BRAM validator runs direct JTAG/Wishbone accesses through XVC and requires
+readback from both BRAM banks. `validate-ddr3-init` checks only the fresh
+DDR3-800 init probe status. Full DDR3 memory validation remains blocked until a
+real DQ/DQS PHY is wired to the clean controller.
 
 ## Status Registers
 
@@ -133,14 +158,36 @@ Key BRAM-proof registers:
 | `0xFE` | BRAM proof version, `0xB07EB001` |
 | `0xFF` | host command echo |
 
+Key DDR3 init-probe registers:
+
+| Register | Meaning |
+|---|---|
+| `0x00` | DDR3 probe status flags, magic `0xB07E`; bit 11 means both init sequencers done |
+| `0x01` | packed CH1/CH0 init states plus refresh request/ack/busy/late flags |
+| `0x15` | generated 100 MHz system clock liveness |
+| `0x16` | generated 400 MHz DDR CK-domain liveness |
+| `0x17` | generated 400 MHz +90 degree command-launch clock liveness |
+| `0x18` | board reference clock liveness |
+| `0x20`..`0x21` | CH0/CH1 refresh counters |
+| `0xFE` | DDR3 init-probe version, `0xB07E0D80` |
+
 ## LEDs
 
-The LED encoder is a coarse cable-less health indicator:
+The LED encoder is a coarse cable-less health indicator. In the default BRAM
+proof image:
 
 | LED | Healthy behavior |
 |---|---|
 | `led[0]` | Heartbeat |
 | `led[1]` | Last JTAG-Wishbone operation acknowledged |
 | `led[2]` | Last JTAG-Wishbone operation errored |
+
+In the DDR3 init probe:
+
+| LED | Healthy behavior |
+|---|---|
+| `led[0]` | Heartbeat |
+| `led[1]` | Both DDR3 init sequencers done |
+| `led[2]` | Off; lights on PLL unlock or late refresh |
 
 Use JTAG status registers for final diagnosis; LEDs are only a first glance.
