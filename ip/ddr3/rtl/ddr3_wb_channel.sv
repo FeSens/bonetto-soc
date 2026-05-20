@@ -131,6 +131,7 @@ module ddr3_wb_channel #(
         .i_xfer_start(line_start),
         .o_phy_wr_line_valid(),
         .i_phy_wr_line_ready(adapter_ready),
+        .i_phy_wr_line_loaded(1'b1),
         .o_phy_wr_line_data(bridge_wr_line_data),
         .o_phy_wr_line_mask(bridge_wr_line_mask),
         .o_phy_rd_line_ready(),

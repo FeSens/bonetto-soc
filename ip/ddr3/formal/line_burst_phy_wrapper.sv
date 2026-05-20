@@ -28,6 +28,7 @@ module ddr3_line_burst_phy_wrapper (
     wire [CHANNELS-1:0] rd_line_ready = {CHANNELS{1'b1}};
 
     wire [CHANNELS-1:0] wr_line_ready;
+    wire [CHANNELS-1:0] wr_line_loaded;
     wire [CHANNELS-1:0] rd_line_valid;
     wire [(CHANNELS*LINE_DATA_W)-1:0] rd_line_data;
     wire [CHANNELS-1:0] rd_line_err;
@@ -61,6 +62,7 @@ module ddr3_line_burst_phy_wrapper (
         .i_phy_rst(rst),
         .i_wr_line_valid(wr_line_valid),
         .o_wr_line_ready(wr_line_ready),
+        .o_wr_line_loaded(wr_line_loaded),
         .i_wr_line_data(F_WR_DATA),
         .i_wr_line_mask(F_WR_MASK),
         .i_start_write(start_write),

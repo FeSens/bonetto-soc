@@ -2,9 +2,10 @@
 //
 // A real DDR3 PHY cannot accept one byte per slow controller cycle after the
 // WR command has already issued. This bridge keeps the bus and scheduler
-// contract single-outstanding, but presents the whole BL8 channel line to the
-// PHY at command-accept time. The PHY can then serialize the line in the DDR
-// clock domain when the scheduler later reaches the WR data window.
+// contract single-outstanding, but presents the whole BL8 channel line before
+// the scheduler may accept the WR command. The PHY then reports when the line
+// is staged in the write-data path, so the scheduler's WR command cannot run
+// ahead of the DDR write data.
 
 `default_nettype none
 
@@ -42,6 +43,7 @@ module ddr3_wb_line_channel #(
 
     output wire                    o_phy_wr_line_valid,
     input wire                     i_phy_wr_line_ready,
+    input wire                     i_phy_wr_line_loaded,
     output wire [LINE_DATA_W-1:0]  o_phy_wr_line_data,
     output wire [LINE_BYTES-1:0]   o_phy_wr_line_mask,
 
@@ -65,12 +67,16 @@ module ddr3_wb_line_channel #(
     reg [WORD_INDEX_W-1:0] req_word_index;
     reg [LINE_DATA_W-1:0] req_wr_data;
     reg [LINE_BYTES-1:0] req_wr_mask;
+    reg wr_line_sent;
+    reg wr_line_loaded;
 
     wire wb_accept = i_wb_cyc && i_wb_stb && !o_wb_stall;
     wire cmd_is_write = (state == ST_RMW_CMD) ||
         ((state == ST_CMD) && req_write && (PHY_HAS_BYTE_MASK != 0));
-    wire cmd_can_issue = !cmd_is_write || i_phy_wr_line_ready;
+    wire cmd_can_issue = !cmd_is_write || wr_line_loaded;
     wire cmd_accept = o_cmd_valid && i_cmd_ready;
+    wire wr_line_accept =
+        o_phy_wr_line_valid && i_phy_wr_line_ready;
 
     assign o_wb_stall = (state != ST_IDLE);
     assign o_cmd_valid =
@@ -78,7 +84,7 @@ module ddr3_wb_line_channel #(
     assign o_cmd_write = cmd_is_write;
     assign o_cmd_line_addr = req_line_addr;
 
-    assign o_phy_wr_line_valid = cmd_accept && cmd_is_write;
+    assign o_phy_wr_line_valid = cmd_is_write && !wr_line_sent;
     assign o_phy_wr_line_data = req_wr_data;
     assign o_phy_wr_line_mask = (PHY_HAS_BYTE_MASK != 0)
         ? req_wr_mask : {LINE_BYTES{1'b0}};
@@ -146,12 +152,23 @@ module ddr3_wb_line_channel #(
             req_word_index <= {WORD_INDEX_W{1'b0}};
             req_wr_data <= {LINE_DATA_W{1'b0}};
             req_wr_mask <= {LINE_BYTES{1'b1}};
+            wr_line_sent <= 1'b0;
+            wr_line_loaded <= 1'b0;
             o_wb_ack <= 1'b0;
             o_wb_dat <= {WB_DATA_W{1'b0}};
             o_wb_err <= 1'b0;
         end else begin
             o_wb_ack <= 1'b0;
             o_wb_err <= 1'b0;
+
+            if (cmd_is_write) begin
+                if (wr_line_accept) begin
+                    wr_line_sent <= 1'b1;
+                    wr_line_loaded <= i_phy_wr_line_loaded;
+                end else if (wr_line_sent && i_phy_wr_line_loaded) begin
+                    wr_line_loaded <= 1'b1;
+                end
+            end
 
             case (state)
                 ST_IDLE: begin
@@ -163,17 +180,23 @@ module ddr3_wb_line_channel #(
                             i_wb_dat, i_wb_adr[WORD_INDEX_W-1:0]);
                         req_wr_mask <= place_word_mask(
                             i_wb_sel, i_wb_adr[WORD_INDEX_W-1:0]);
+                        wr_line_sent <= 1'b0;
+                        wr_line_loaded <= 1'b0;
                         state <= ST_CMD;
                     end
                 end
 
                 ST_CMD: begin
                     if (!i_wb_cyc) begin
+                        wr_line_sent <= 1'b0;
+                        wr_line_loaded <= 1'b0;
                         state <= ST_IDLE;
                     end else if (cmd_accept) begin
                         if (req_write) begin
                             if (PHY_HAS_BYTE_MASK != 0) begin
                                 o_wb_ack <= 1'b1;
+                                wr_line_sent <= 1'b0;
+                                wr_line_loaded <= 1'b0;
                                 state <= ST_IDLE;
                             end else begin
                                 state <= i_xfer_start ? ST_WAIT_RD_DATA
@@ -187,20 +210,27 @@ module ddr3_wb_line_channel #(
                 end
 
                 ST_WAIT_RD_XFER: begin
-                    if (!i_wb_cyc)
+                    if (!i_wb_cyc) begin
+                        wr_line_sent <= 1'b0;
+                        wr_line_loaded <= 1'b0;
                         state <= ST_IDLE;
-                    else if (i_xfer_start)
+                    end else if (i_xfer_start) begin
                         state <= ST_WAIT_RD_DATA;
+                    end
                 end
 
                 ST_WAIT_RD_DATA: begin
                     if (!i_wb_cyc) begin
+                        wr_line_sent <= 1'b0;
+                        wr_line_loaded <= 1'b0;
                         state <= ST_IDLE;
                     end else if (i_phy_rd_line_valid) begin
                         if (req_write && (PHY_HAS_BYTE_MASK == 0)) begin
                             if (i_phy_rd_line_err) begin
                                 o_wb_ack <= 1'b1;
                                 o_wb_err <= 1'b1;
+                                wr_line_sent <= 1'b0;
+                                wr_line_loaded <= 1'b0;
                                 state <= ST_IDLE;
                             end else begin
                                 req_wr_data <= merge_word_data(
@@ -210,6 +240,8 @@ module ddr3_wb_line_channel #(
                                         req_word_index * WB_BYTES +: WB_BYTES],
                                     req_word_index);
                                 req_wr_mask <= {LINE_BYTES{1'b0}};
+                                wr_line_sent <= 1'b0;
+                                wr_line_loaded <= 1'b0;
                                 state <= ST_RMW_CMD;
                             end
                         end else begin
@@ -217,6 +249,8 @@ module ddr3_wb_line_channel #(
                             o_wb_err <= i_phy_rd_line_err;
                             o_wb_dat <= pick_word_data(
                                 i_phy_rd_line_data, req_word_index);
+                            wr_line_sent <= 1'b0;
+                            wr_line_loaded <= 1'b0;
                             state <= ST_IDLE;
                         end
                     end
@@ -224,14 +258,20 @@ module ddr3_wb_line_channel #(
 
                 ST_RMW_CMD: begin
                     if (!i_wb_cyc) begin
+                        wr_line_sent <= 1'b0;
+                        wr_line_loaded <= 1'b0;
                         state <= ST_IDLE;
                     end else if (cmd_accept) begin
                         o_wb_ack <= 1'b1;
+                        wr_line_sent <= 1'b0;
+                        wr_line_loaded <= 1'b0;
                         state <= ST_IDLE;
                     end
                 end
 
                 default: begin
+                    wr_line_sent <= 1'b0;
+                    wr_line_loaded <= 1'b0;
                     state <= ST_IDLE;
                 end
             endcase

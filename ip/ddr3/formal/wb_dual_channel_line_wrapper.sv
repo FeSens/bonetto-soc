@@ -59,6 +59,7 @@ module ddr3_wb_dual_channel_line_wrapper (
         .i_xfer_start(xfer_start),
         .o_phy_wr_line_valid(wr_line_valid),
         .i_phy_wr_line_ready(wr_line_ready),
+        .i_phy_wr_line_loaded(wr_line_ready),
         .o_phy_wr_line_data(wr_line_data),
         .o_phy_wr_line_mask(wr_line_mask),
         .o_phy_rd_line_ready(rd_line_ready),
@@ -127,22 +128,32 @@ module ddr3_wb_dual_channel_line_wrapper (
 
             if (f_past_valid && $past(wb_accept)) begin
                 if ($past(m_adr[29])) begin
-                    assert(cmd_valid == 2'b10);
-                    assert(cmd_write[1] == $past(m_we));
+                    if ($past(m_we)) begin
+                        assert(wr_line_valid == 2'b10);
+                        assert(cmd_valid == 2'b00);
+                    end else begin
+                        assert(cmd_valid == 2'b10);
+                        assert(!cmd_write[1]);
+                    end
                     assert(cmd_line_addr[LINE_ADDR_W +: LINE_ADDR_W] ==
                            $past(m_adr[28:4]));
                 end else begin
-                    assert(cmd_valid == 2'b01);
-                    assert(cmd_write[0] == $past(m_we));
+                    if ($past(m_we)) begin
+                        assert(wr_line_valid == 2'b01);
+                        assert(cmd_valid == 2'b00);
+                    end else begin
+                        assert(cmd_valid == 2'b01);
+                        assert(!cmd_write[0]);
+                    end
                     assert(cmd_line_addr[0 +: LINE_ADDR_W] ==
                            $past(m_adr[28:4]));
                 end
             end
 
             if (wr_line_valid[0])
-                assert(cmd_valid[0] && cmd_write[0] && !f_pending_channel);
+                assert(f_pending && !f_pending_channel && !cmd_valid[0]);
             if (wr_line_valid[1])
-                assert(cmd_valid[1] && cmd_write[1] && f_pending_channel);
+                assert(f_pending && f_pending_channel && !cmd_valid[1]);
 
             if (rd_line_ready[0])
                 assert(!f_pending_channel);

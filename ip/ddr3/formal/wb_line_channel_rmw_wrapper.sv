@@ -67,6 +67,7 @@ module ddr3_wb_line_channel_rmw_wrapper (
         .i_xfer_start(xfer_start),
         .o_phy_wr_line_valid(wr_line_valid),
         .i_phy_wr_line_ready(wr_line_ready),
+        .i_phy_wr_line_loaded(wr_line_ready),
         .o_phy_wr_line_data(wr_line_data),
         .o_phy_wr_line_mask(wr_line_mask),
         .o_phy_rd_line_ready(rd_line_ready),
@@ -196,9 +197,8 @@ module ddr3_wb_line_channel_rmw_wrapper (
             end
 
             if (wr_line_valid) begin
-                assert(cmd_valid);
-                assert(cmd_ready);
-                assert(cmd_write);
+                assert(f_wait_rmw_write);
+                assert(!cmd_valid);
                 assert(wr_line_mask == {LINE_BYTES{1'b0}});
                 assert(wr_line_data == expected_merged_line(
                     f_rmw_read_line, f_pending_data, f_pending_sel,
@@ -231,7 +231,7 @@ module ddr3_wb_line_channel_rmw_wrapper (
 
             if (cmd_accept && cmd_write) begin
                 assert(f_wait_rmw_write);
-                assert(wr_line_valid);
+                assert(!wr_line_valid);
                 f_wait_rmw_write <= 1'b0;
             end
 

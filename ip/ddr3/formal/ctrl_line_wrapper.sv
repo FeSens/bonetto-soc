@@ -115,6 +115,7 @@ module ddr3_ctrl_line_wrapper (
         .o_ddr_addr(ddr_addr),
         .o_phy_wr_line_valid(wr_line_valid),
         .i_phy_wr_line_ready({CHANNELS{1'b1}}),
+        .i_phy_wr_line_loaded({CHANNELS{1'b1}}),
         .o_phy_wr_line_data(wr_line_data),
         .o_phy_wr_line_mask(wr_line_mask),
         .o_phy_start_write(phy_start_write),

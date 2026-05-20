@@ -124,6 +124,7 @@ module tb_ctrl_line;
         .o_ddr_addr(ddr_addr),
         .o_phy_wr_line_valid(phy_wr_line_valid),
         .i_phy_wr_line_ready(phy_wr_line_ready),
+        .i_phy_wr_line_loaded({CHANNELS{1'b1}}),
         .o_phy_wr_line_data(phy_wr_line_data),
         .o_phy_wr_line_mask(phy_wr_line_mask),
         .o_phy_start_write(phy_start_write),

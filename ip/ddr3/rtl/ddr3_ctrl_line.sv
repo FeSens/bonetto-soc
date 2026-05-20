@@ -90,6 +90,7 @@ module ddr3_ctrl_line #(
 
     output wire [CHANNELS-1:0] o_phy_wr_line_valid,
     input  wire [CHANNELS-1:0] i_phy_wr_line_ready,
+    input  wire [CHANNELS-1:0] i_phy_wr_line_loaded,
     output wire [CHANNELS*LINE_DATA_W-1:0] o_phy_wr_line_data,
     output wire [CHANNELS*LINE_BYTES-1:0] o_phy_wr_line_mask,
 
@@ -167,6 +168,7 @@ module ddr3_ctrl_line #(
         .i_xfer_start(wb_xfer_start),
         .o_phy_wr_line_valid(o_phy_wr_line_valid),
         .i_phy_wr_line_ready(i_phy_wr_line_ready),
+        .i_phy_wr_line_loaded(i_phy_wr_line_loaded),
         .o_phy_wr_line_data(o_phy_wr_line_data),
         .o_phy_wr_line_mask(o_phy_wr_line_mask),
         .o_phy_rd_line_ready(o_phy_rd_line_ready),

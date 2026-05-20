@@ -83,8 +83,10 @@ hardware-proven.
 
 `rtl/ddr3_wb_dual_channel_line.sv` is the hardware-facing version of that same
 global bus slice. It wraps two `ddr3_wb_line_channel` instances directly, so
-the selected channel exposes a complete write line and byte mask at request
-acceptance and waits for a complete read line before responding.
+the selected channel first exposes a complete write line and byte mask, waits
+for the PHY side to report that line loaded, then allows the scheduler to
+accept the matching WR command. Reads wait for a complete read line before
+responding.
 
 `rtl/ddr3_channel_sched.sv` is the first scheduler-side adapter for one
 channel. It consumes `{write, line_addr}`, decodes `{bank, row, column[9:3]}`,
@@ -103,12 +105,12 @@ issues. This is still a controller/PHY boundary, not a pin-level DQS/DQ PHY.
 
 `rtl/ddr3_ctrl_line.sv` keeps the same init and scheduler ownership, but swaps
 the bus dispatch block for `ddr3_wb_dual_channel_line`. A write request is
-accepted only after the line-level PHY side can capture the full 512-bit BL8
-payload and 64-bit mask. A read request does not acknowledge Wishbone until the
-PHY side returns the full 512-bit captured line. The controller exposes
-one-cycle `o_phy_start_write` and `o_phy_start_read` pulses aligned to the
-scheduler's issued WR/RD command, which is the clean start contract consumed by
-the reusable line-to-lane PHY bridge.
+accepted only after the line-level PHY side has accepted and loaded the full
+512-bit BL8 payload and 64-bit mask. A read request does not acknowledge
+Wishbone until the PHY side returns the full 512-bit captured line. The
+controller exposes one-cycle `o_phy_start_write` and `o_phy_start_read` pulses
+aligned to the scheduler's issued WR/RD command, which is the clean start
+contract consumed by the reusable line-to-lane and line-to-burst PHY bridges.
 
 ## DDR3 Command Pins
 

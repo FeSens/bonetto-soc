@@ -66,6 +66,7 @@ module tb_wb_dual_channel_line;
         .i_xfer_start(xfer_start),
         .o_phy_wr_line_valid(wr_line_valid),
         .i_phy_wr_line_ready(wr_line_ready),
+        .i_phy_wr_line_loaded({CHANNELS{1'b1}}),
         .o_phy_wr_line_data(wr_line_data),
         .o_phy_wr_line_mask(wr_line_mask),
         .o_phy_rd_line_ready(rd_line_ready),
@@ -114,20 +115,13 @@ module tb_wb_dual_channel_line;
         start_wb(1'b1, 30'h0000_002d, 32'hCAFE_BABE, 4'b1110);
         @(negedge clk);
         cmd_ready = 2'b01;
-        if (cmd_valid[0] || wr_line_valid[0]) begin
-            $display("[wb-dual-line] write command issued before line ready");
+        if (cmd_valid[0] || !wr_line_valid[0]) begin
+            $display("[wb-dual-line] write line was not offered before command valid=%b wr=%b",
+                     cmd_valid, wr_line_valid);
             $fatal(1);
         end
         wr_line_ready = 2'b01;
-        wait (cmd_valid[0]);
-        stage = 2;
-        if (cmd_valid !== 2'b01 || !cmd_write[0] ||
-            cmd_line_addr[0 +: LINE_ADDR_W] !== 25'h0000002) begin
-            $display("[wb-dual-line] ch0 write command mismatch valid=%b write=%b line0=%h",
-                     cmd_valid, cmd_write, cmd_line_addr[0 +: LINE_ADDR_W]);
-            $fatal(1);
-        end
-
+        wait (wr_line_valid[0]);
         #1;
         if (wr_line_valid !== 2'b01) begin
             $display("[wb-dual-line] write line valid mismatch valid=%b",
@@ -142,6 +136,16 @@ module tb_wb_dual_channel_line;
         if (wr_line_mask[55:52] !== 4'b0001) begin
             $display("[wb-dual-line] write mask placement mismatch got=%b",
                      wr_line_mask[55:52]);
+            $fatal(1);
+        end
+
+        @(negedge clk);
+        wait (cmd_valid[0]);
+        stage = 2;
+        if (cmd_valid !== 2'b01 || !cmd_write[0] ||
+            cmd_line_addr[0 +: LINE_ADDR_W] !== 25'h0000002) begin
+            $display("[wb-dual-line] ch0 write command mismatch valid=%b write=%b line0=%h",
+                     cmd_valid, cmd_write, cmd_line_addr[0 +: LINE_ADDR_W]);
             $fatal(1);
         end
 

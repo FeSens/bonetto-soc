@@ -66,6 +66,7 @@ module ddr3_wb_line_channel_wrapper (
         .i_xfer_start(xfer_start),
         .o_phy_wr_line_valid(wr_line_valid),
         .i_phy_wr_line_ready(wr_line_ready),
+        .i_phy_wr_line_loaded(wr_line_ready),
         .o_phy_wr_line_data(wr_line_data),
         .o_phy_wr_line_mask(wr_line_mask),
         .o_phy_rd_line_ready(rd_line_ready),
@@ -192,7 +193,13 @@ module ddr3_wb_line_channel_wrapper (
             end
 
             if (f_past_valid && $past(wb_accept)) begin
-                assert(cmd_write == $past(m_we));
+                if ($past(m_we)) begin
+                    assert(wr_line_valid);
+                    assert(!cmd_valid);
+                end else begin
+                    assert(cmd_valid);
+                    assert(!cmd_write);
+                end
                 assert(cmd_line_addr ==
                        $past(m_adr[WB_ADDR_W-1:WORD_INDEX_W]));
             end
@@ -205,13 +212,10 @@ module ddr3_wb_line_channel_wrapper (
                     assert(!wr_line_valid);
             end
 
-            if (cmd_valid && cmd_write)
-                assert(wr_line_ready);
-
             if (wr_line_valid) begin
-                assert(cmd_valid);
-                assert(cmd_ready);
-                assert(cmd_write);
+                assert(f_pending);
+                assert(f_pending_write);
+                assert(!cmd_valid);
                 for (i = 0; i < LINE_BYTES; i = i + 1) begin
                     assert(wr_line_data[i * 8 +: 8] ==
                            expected_write_byte(i));
@@ -225,7 +229,7 @@ module ddr3_wb_line_channel_wrapper (
                 assert(cmd_line_addr == f_pending_line_addr);
                 f_pending <= 1'b0;
                 if (f_pending_write) begin
-                    assert(wr_line_valid);
+                    assert(!wr_line_valid);
                 end else begin
                     f_wait_read_xfer <= 1'b1;
                     f_read_word_index <= f_pending_word_index;

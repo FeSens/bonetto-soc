@@ -25,6 +25,7 @@ module ddr3_line_burst_phy #(
 
     input wire [CHANNELS-1:0]               i_wr_line_valid,
     output wire [CHANNELS-1:0]              o_wr_line_ready,
+    output reg [CHANNELS-1:0]               o_wr_line_loaded,
     input wire [(CHANNELS*LINE_DATA_W)-1:0] i_wr_line_data,
     input wire [(CHANNELS*LINE_BYTES)-1:0]  i_wr_line_mask,
     input wire [CHANNELS-1:0]               i_start_write,
@@ -84,6 +85,8 @@ module ddr3_line_burst_phy #(
     reg [PHY_LANES-1:0] phy_error_sync;
     reg [PHY_LANES-1:0] phy_busy_meta;
     reg [PHY_LANES-1:0] phy_busy_sync;
+    reg [PHY_LANES-1:0] phy_wr_loaded_meta;
+    reg [PHY_LANES-1:0] phy_wr_loaded_sync;
 
     wire [PHY_LANES-1:0] phy_error_async = bridge_phy_error | seq_error;
     wire [PHY_LANES-1:0] phy_busy_async =
@@ -197,11 +200,15 @@ module ddr3_line_burst_phy #(
             phy_error_sync <= {PHY_LANES{1'b0}};
             phy_busy_meta <= {PHY_LANES{1'b0}};
             phy_busy_sync <= {PHY_LANES{1'b0}};
+            phy_wr_loaded_meta <= {PHY_LANES{1'b0}};
+            phy_wr_loaded_sync <= {PHY_LANES{1'b0}};
         end else begin
             phy_error_meta <= phy_error_async;
             phy_error_sync <= phy_error_meta;
             phy_busy_meta <= phy_busy_async;
             phy_busy_sync <= phy_busy_meta;
+            phy_wr_loaded_meta <= seq_wr_loaded;
+            phy_wr_loaded_sync <= phy_wr_loaded_meta;
 
             for (seq_ch_i = 0; seq_ch_i < CHANNELS;
                  seq_ch_i = seq_ch_i + 1) begin
@@ -224,9 +231,12 @@ module ddr3_line_burst_phy #(
     always @(*) begin
         o_error = lane_rd_err_seen | lane_phy_error_seen;
         o_busy = {CHANNELS{1'b0}};
+        o_wr_line_loaded = {CHANNELS{1'b0}};
 
         for (comb_ch_i = 0; comb_ch_i < CHANNELS;
              comb_ch_i = comb_ch_i + 1) begin
+            o_wr_line_loaded[comb_ch_i] = 1'b1;
+
             for (comb_lane_i = 0; comb_lane_i < LANES;
                  comb_lane_i = comb_lane_i + 1) begin
                 comb_phy_i = (comb_ch_i * LANES) + comb_lane_i;
@@ -236,6 +246,9 @@ module ddr3_line_burst_phy #(
                 o_busy[comb_ch_i] = o_busy[comb_ch_i] ||
                     bridge_ctrl_busy[comb_phy_i] ||
                     phy_busy_sync[comb_phy_i];
+                o_wr_line_loaded[comb_ch_i] =
+                    o_wr_line_loaded[comb_ch_i] &&
+                    phy_wr_loaded_sync[comb_phy_i];
             end
         end
     end

@@ -18,6 +18,7 @@ module tb_line_burst_phy;
 
     reg [CHANNELS-1:0] wr_line_valid = {CHANNELS{1'b0}};
     wire [CHANNELS-1:0] wr_line_ready;
+    wire [CHANNELS-1:0] wr_line_loaded;
     reg [(CHANNELS*LINE_DATA_W)-1:0] wr_line_data =
         {(CHANNELS*LINE_DATA_W){1'b0}};
     reg [(CHANNELS*LINE_BYTES)-1:0] wr_line_mask =
@@ -64,6 +65,7 @@ module tb_line_burst_phy;
         .i_phy_rst(phy_rst),
         .i_wr_line_valid(wr_line_valid),
         .o_wr_line_ready(wr_line_ready),
+        .o_wr_line_loaded(wr_line_loaded),
         .i_wr_line_data(wr_line_data),
         .i_wr_line_mask(wr_line_mask),
         .i_start_write(start_write),

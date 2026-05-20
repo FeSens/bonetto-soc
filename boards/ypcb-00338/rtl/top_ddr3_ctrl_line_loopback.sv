@@ -299,6 +299,7 @@ module top_ddr3_ctrl_line_loopback #(
 
     wire [CHANNELS-1:0] phy_wr_line_valid;
     wire [CHANNELS-1:0] phy_wr_line_ready;
+    wire [CHANNELS-1:0] phy_wr_line_loaded;
     wire [CHANNELS*LINE_DATA_W-1:0] phy_wr_line_data;
     wire [CHANNELS*LINE_BYTES-1:0] phy_wr_line_mask;
     wire [CHANNELS-1:0] phy_rd_line_ready;
@@ -372,6 +373,7 @@ module top_ddr3_ctrl_line_loopback #(
         .o_ddr_addr(ddr_addr_w),
         .o_phy_wr_line_valid(phy_wr_line_valid),
         .i_phy_wr_line_ready(phy_wr_line_ready),
+        .i_phy_wr_line_loaded(phy_wr_line_loaded),
         .o_phy_wr_line_data(phy_wr_line_data),
         .o_phy_wr_line_mask(phy_wr_line_mask),
         .o_phy_start_write(phy_start_write),
@@ -390,6 +392,8 @@ module top_ddr3_ctrl_line_loopback #(
     genvar ch;
     generate
         if (USE_LINE_LANE_PHY) begin : gen_line_lane_phy_loopback
+            assign phy_wr_line_loaded = {CHANNELS{1'b1}};
+
             wire [CHANNELS-1:0] line_lane_channel_busy;
             wire [CHANNELS-1:0] line_lane_channel_error;
             wire [CHANNELS-1:0] line_lane_lane_error_any;
@@ -612,6 +616,8 @@ module top_ddr3_ctrl_line_loopback #(
                 &{1'b0, line_lane_channel_busy, line_lane_lane_busy,
                   phy_clk_bridge_ctrl_busy, phy_clk_bridge_phy_busy, 1'b0};
         end else if (USE_LINE_TO_LANES) begin : gen_lane_loopback
+            assign phy_wr_line_loaded = {CHANNELS{1'b1}};
+
             wire [PHY_LANES-1:0] lane_wr_valid;
             wire [PHY_LANES-1:0] lane_wr_ready;
             wire [PHY_LANES*8-1:0] lane_wr_data;
@@ -677,6 +683,8 @@ module top_ddr3_ctrl_line_loopback #(
             end
             assign phy_loop_error = {CHANNELS{1'b0}};
         end else begin : gen_line_loopback
+            assign phy_wr_line_loaded = {CHANNELS{1'b1}};
+
             for (ch = 0; ch < CHANNELS; ch = ch + 1) begin : gen_loopback
                 ddr3_line_loopback_phy #(
                     .LANES(LANES)

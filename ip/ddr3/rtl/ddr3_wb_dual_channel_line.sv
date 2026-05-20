@@ -47,6 +47,7 @@ module ddr3_wb_dual_channel_line #(
 
     output wire [CHANNELS-1:0]         o_phy_wr_line_valid,
     input wire [CHANNELS-1:0]          i_phy_wr_line_ready,
+    input wire [CHANNELS-1:0]          i_phy_wr_line_loaded,
     output wire [(CHANNELS*LINE_DATA_W)-1:0] o_phy_wr_line_data,
     output wire [(CHANNELS*LINE_BYTES)-1:0]  o_phy_wr_line_mask,
 
@@ -150,6 +151,7 @@ module ddr3_wb_dual_channel_line #(
         .i_xfer_start(i_xfer_start[0]),
         .o_phy_wr_line_valid(o_phy_wr_line_valid[0]),
         .i_phy_wr_line_ready(i_phy_wr_line_ready[0]),
+        .i_phy_wr_line_loaded(i_phy_wr_line_loaded[0]),
         .o_phy_wr_line_data(o_phy_wr_line_data[0 +: LINE_DATA_W]),
         .o_phy_wr_line_mask(o_phy_wr_line_mask[0 +: LINE_BYTES]),
         .o_phy_rd_line_ready(o_phy_rd_line_ready[0]),
@@ -183,6 +185,7 @@ module ddr3_wb_dual_channel_line #(
         .i_xfer_start(i_xfer_start[1]),
         .o_phy_wr_line_valid(o_phy_wr_line_valid[1]),
         .i_phy_wr_line_ready(i_phy_wr_line_ready[1]),
+        .i_phy_wr_line_loaded(i_phy_wr_line_loaded[1]),
         .o_phy_wr_line_data(o_phy_wr_line_data[LINE_DATA_W +: LINE_DATA_W]),
         .o_phy_wr_line_mask(o_phy_wr_line_mask[LINE_BYTES +: LINE_BYTES]),
         .o_phy_rd_line_ready(o_phy_rd_line_ready[1]),

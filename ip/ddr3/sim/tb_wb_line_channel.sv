@@ -66,6 +66,7 @@ module tb_wb_line_channel;
         .i_xfer_start(xfer_start),
         .o_phy_wr_line_valid(wr_line_valid),
         .i_phy_wr_line_ready(wr_line_ready),
+        .i_phy_wr_line_loaded(1'b1),
         .o_phy_wr_line_data(wr_line_data),
         .o_phy_wr_line_mask(wr_line_mask),
         .o_phy_rd_line_ready(rd_line_ready),
@@ -125,21 +126,17 @@ module tb_wb_line_channel;
         cmd_ready = 1'b1;
         wr_line_ready = 1'b0;
         @(negedge clk);
-        if (cmd_valid !== 1'b0 || wr_line_valid !== 1'b0) begin
-            $display("[wb-line] command issued before write line ready");
+        if (cmd_valid !== 1'b0 || wr_line_valid !== 1'b1) begin
+            $display("[wb-line] write line was not offered before command cmd=%0b wr_valid=%0b",
+                     cmd_valid, wr_line_valid);
             $fatal(1);
         end
 
         wr_line_ready = 1'b1;
-        wait (cmd_valid);
-        if (!cmd_write || cmd_line_addr !== 4'h2) begin
-            $display("[wb-line] write command mismatch write=%0b line=%h",
-                     cmd_write, cmd_line_addr);
-            $fatal(1);
-        end
+        wait (wr_line_valid);
         #1;
-        if (!cmd_valid || !wr_line_valid || !cmd_write) begin
-            $display("[wb-line] write command/line did not issue together");
+        if (cmd_valid || !wr_line_valid) begin
+            $display("[wb-line] command issued before write line loaded");
             $fatal(1);
         end
         if (wr_line_data[52*8 +: 32] !== 32'hc0de_55aa) begin
@@ -150,6 +147,18 @@ module tb_wb_line_channel;
         if (wr_line_mask[55:52] !== 4'b0100) begin
             $display("[wb-line] write mask mismatch got=%b",
                      wr_line_mask[55:52]);
+            $fatal(1);
+        end
+        @(negedge clk);
+        wait (cmd_valid);
+        if (!cmd_write || cmd_line_addr !== 4'h2) begin
+            $display("[wb-line] write command mismatch write=%0b line=%h",
+                     cmd_write, cmd_line_addr);
+            $fatal(1);
+        end
+        #1;
+        if (!cmd_valid || wr_line_valid || !cmd_write) begin
+            $display("[wb-line] write command did not wait for preload");
             $fatal(1);
         end
         wait (wb_ack);

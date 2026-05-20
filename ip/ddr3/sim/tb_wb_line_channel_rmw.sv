@@ -67,6 +67,7 @@ module tb_wb_line_channel_rmw;
         .i_xfer_start(xfer_start),
         .o_phy_wr_line_valid(wr_line_valid),
         .i_phy_wr_line_ready(wr_line_ready),
+        .i_phy_wr_line_loaded(1'b1),
         .o_phy_wr_line_data(wr_line_data),
         .o_phy_wr_line_mask(wr_line_mask),
         .o_phy_rd_line_ready(rd_line_ready),
@@ -159,10 +160,11 @@ module tb_wb_line_channel_rmw;
         rd_line_valid = 1'b0;
 
         wr_line_ready = 1'b1;
-        wait (cmd_valid);
-        if (!cmd_write || cmd_line_addr !== 4'h2 || wb_ack) begin
-            $display("[wb-line-rmw] second command should be WRITE line=%h write=%0b ack=%0b",
-                     cmd_line_addr, cmd_write, wb_ack);
+        wait (wr_line_valid);
+        #1;
+        if (cmd_valid || wb_ack) begin
+            $display("[wb-line-rmw] write command issued before RMW line loaded cmd=%0b ack=%0b",
+                     cmd_valid, wb_ack);
             $fatal(1);
         end
         if (wr_line_mask !== {LINE_BYTES{1'b0}}) begin
@@ -177,6 +179,14 @@ module tb_wb_line_channel_rmw;
                          line_byte(expected_line, i));
                 $fatal(1);
             end
+        end
+        @(negedge clk);
+
+        wait (cmd_valid);
+        if (!cmd_write || cmd_line_addr !== 4'h2 || wb_ack) begin
+            $display("[wb-line-rmw] second command should be WRITE line=%h write=%0b ack=%0b",
+                     cmd_line_addr, cmd_write, wb_ack);
+            $fatal(1);
         end
 
         @(negedge clk);

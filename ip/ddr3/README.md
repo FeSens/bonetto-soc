@@ -163,11 +163,13 @@ What these mean today:
   unit simulation checks address decode, active-high DDR3 DM mask placement
   from Wishbone byte enables, write data placement, and read word selection.
 - The line-level Wishbone proof checks that write command acceptance is gated
-  until the complete 512-bit/64-mask BL8 line is available, and that reads wait
-  for transfer-start plus a complete returned line before acknowledging the bus.
-  The no-DM variant first reads the target BL8 line, merges the selected
-  Wishbone bytes, and then writes a full all-active line so boards without DM
-  pins do not corrupt neighboring bytes.
+  until the complete 512-bit/64-mask BL8 line has been accepted and reported
+  loaded by the PHY side, and that reads wait for transfer-start plus a
+  complete returned line before acknowledging the bus. This keeps the
+  scheduler's WR command from outrunning a fast DDR write-data preloader. The
+  no-DM variant first reads the target BL8 line, merges the selected Wishbone
+  bytes, and then writes a full all-active line so boards without DM pins do
+  not corrupt neighboring bytes.
 - The Wishbone-to-channel bridge proof connects that line bridge to the full
   eight-lane line packetizer. It checks that a Wishbone request emits the
   expected BL8 line command, holds that command stable under backpressure, maps
