@@ -1,4 +1,4 @@
-.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel formal-wb-dual-channel formal-channel-sched formal-ctrl sim sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-wb-dual-channel sim-channel-sched sim-ctrl sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read cocotb clean
+.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel formal-wb-dual-channel formal-channel-sched formal-ctrl sim sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-wb-dual-channel sim-channel-sched sim-ctrl sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
@@ -238,7 +238,7 @@ $(BUILD)/ctrl.proof: $(BUILD)/ctrl.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(CTRL_SMTBMC_DEPTH) $<
 	@touch $@
 
-sim: sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-wb-dual-channel sim-channel-sched sim-ctrl sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read
+sim: sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-wb-dual-channel sim-channel-sched sim-ctrl sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent
 
 cocotb:
 	@echo "[ddr3] cocotb disabled until Wishbone/runtime controller RTL exists; run 'make sim' for Micron init coverage."
@@ -336,6 +336,20 @@ sim-micron-single-write-read: $(SIM_BUILD)/micron_single_write_read.vvp
 		exit 1; \
 	fi
 
+sim-micron-x8-agent: $(SIM_BUILD)/micron_x8_phy_agent.vvp
+	@echo "[ddr3] sim: reusable x8 DQS/DQ timing agent against Micron model"
+	mkdir -p $(SIM_BUILD)/micron_model_data
+	$(VVP) $< +model_data+$(SIM_BUILD)/micron_model_data > $(SIM_BUILD)/micron_x8_phy_agent.log
+	cat $(SIM_BUILD)/micron_x8_phy_agent.log
+	@if grep -q "ERROR:" $(SIM_BUILD)/micron_x8_phy_agent.log; then \
+		echo "Micron model reported timing/protocol errors"; \
+		exit 1; \
+	fi
+	@if grep -q "WARNING:" $(SIM_BUILD)/micron_x8_phy_agent.log; then \
+		echo "Micron model reported timing/protocol warnings"; \
+		exit 1; \
+	fi
+
 $(SIM_BUILD)/micron_model_smoke.vvp: sim/tb_micron_model_smoke.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I sim/vendor \
 	  -Dden2048Mb -Dsg125 -Dx8 \
@@ -405,6 +419,12 @@ $(SIM_BUILD)/micron_single_write_read.vvp: rtl/ddr3_params.vh rtl/ddr3_init_seq.
 	  -Dden2048Mb -Dsg125 -Dx8 \
 	  -s tb_micron_single_write_read \
 	  -o $@ rtl/ddr3_init_seq.sv rtl/ddr3_single_write_read_seq.sv rtl/ddr3_byte_lane.sv sim/tb_micron_single_write_read.sv sim/vendor/ddr3.v
+
+$(SIM_BUILD)/micron_x8_phy_agent.vvp: rtl/ddr3_params.vh rtl/ddr3_init_seq.sv rtl/ddr3_byte_lane.sv sim/ddr3_x8_phy_agent.sv sim/tb_micron_x8_phy_agent.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl -I sim/vendor \
+	  -Dden2048Mb -Dsg125 -Dx8 \
+	  -s tb_micron_x8_phy_agent \
+	  -o $@ rtl/ddr3_init_seq.sv rtl/ddr3_byte_lane.sv sim/ddr3_x8_phy_agent.sv sim/tb_micron_x8_phy_agent.sv sim/vendor/ddr3.v
 
 clean:
 	rm -rf $(BUILD) $(SIM_BUILD) sim/sim_build sim/sim_build_* sim/build_micron

@@ -15,7 +15,7 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 |---|---|
 | Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, single-outstanding Wishbone-to-BL8 frontend, Wishbone-to-full-channel bridge, dual-channel Wishbone dispatch bridge, single-channel BL8 scheduler adapter, and an init-gated dual-channel controller shell; no controller-owned PHY |
 | Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, Wishbone frontend proof, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
-| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, and x8 write/read loopback target using the byte-lane packetizer |
+| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, and reusable x8 DQS/DQ/DM timing-agent coverage against the Micron model |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
 
@@ -88,11 +88,13 @@ What these mean today:
 - `sim` compiles the vendored Micron DDR3 model, runs a smoke bench, and runs a
   DDR3-800 reset/MRS/ZQ/REF reference script plus the RTL init sequencer against
   the model. It also runs the RTL init sequencer followed by one single-bank
-  READ command sequence and one single-bank WRITE/READ loopback through an
-  ideal x8 DQS/DQ testbench agent. Model errors, and warnings on the protocol
-  benches, are promoted to make failures. This is not board PHY validation yet;
-  it keeps the real Micron BFM, initialization assumptions, first runtime
-  command timing, and one byte-lane data loopback in the live gate.
+  READ command sequence, one single-bank WRITE/READ loopback, and a reusable x8
+  DQS/DQ/DM timing-agent bench that performs two writes with active-high DDR3
+  DM masking and reads the merged line back through the byte-lane packetizer.
+  Model errors, and warnings on the protocol benches, are promoted to make
+  failures. This is not board PHY validation yet; it keeps the real Micron BFM,
+  initialization assumptions, first runtime command timing, and byte-lane data
+  loopback coverage in the live gate.
 - `validate-jtag-bram` is still the hardware confidence check for JTAG/Wishbone.
 
 ## Directory Map
@@ -140,10 +142,12 @@ What these mean today:
 | `sim/tb_wb_dual_channel.sv` | Unit bench for channel-0 write dispatch and channel-1 read dispatch. |
 | `sim/tb_channel_sched.sv` | Unit bench for BL8 line requests issuing through the scheduler adapter. |
 | `sim/tb_ctrl.sv` | Unit bench for init-gated dual-channel controller integration through scheduler-issued RD/WR transfer starts. |
+| `sim/ddr3_x8_phy_agent.sv` | Simulation-only reusable x8 DQS/DQ/DM timing agent that bridges byte-lane packets to a Micron x8 model. |
 | `sim/tb_micron_model_smoke.sv` | Minimal Micron model compile/run smoke bench. |
 | `sim/tb_micron_init_script.sv` | Handwritten DDR3-800 reset/MRS/ZQ/REF script against the Micron model. |
 | `sim/tb_micron_init_seq.sv` | RTL init sequencer bench against the Micron model. |
 | `sim/tb_micron_single_read.sv` | RTL init plus single-bank READ command bench against the Micron model. |
 | `sim/tb_micron_single_write_read.sv` | RTL init plus single-bank WRITE/READ x8 loopback bench using the byte-lane packetizer and an ideal testbench DQS/DQ agent. |
+| `sim/tb_micron_x8_phy_agent.sv` | Regression for the reusable x8 timing agent, including active-high DM masked write merge through the Micron model. |
 | `docs/verification-plan.md` | Required formal and simulation ladder for new RTL. |
 | `docs/learning-notes.md` | Reference lessons from LiteDRAM and UberDDR3. |

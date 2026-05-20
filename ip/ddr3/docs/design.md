@@ -138,7 +138,10 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 17. One init-gated dual-channel controller shell. This exists now and is
     validated by a focused pre-init gate proof plus a post-init write/read
     scheduler integration simulation.
-18. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
+18. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing. A
+    reusable simulation-only x8 timing agent exists now to keep Micron DQS/DQ/DM
+    phasing and active-high DM merge behavior in regression while this RTL is
+    still pending.
 19. One 64-bit channel integrated through scheduler, frontend, and PHY.
 20. Two 64-bit channels with the dispatch bridge driving independent
     scheduler/PHY stacks.

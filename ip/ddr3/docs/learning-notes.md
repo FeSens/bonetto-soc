@@ -93,7 +93,9 @@ Required future simulation stages:
 10. Wishbone-to-full-channel bridge: one bus word request drives one full-width
    BL8 line transfer and scheduler-facing line command. This exists now.
 11. Controller-owned x8 PHY bridge: real DQS/DQ write and read timing, still
-   pending.
+   pending. A reusable simulation-only x8 timing agent now covers the Micron
+   pin phasing and active-high DM masked-write merge expected from the future
+   RTL bridge.
 12. Full channel: eight x8 models for 64-bit data, then optional ECC lane.
 13. Dual channel: two independent full-channel model stacks.
 

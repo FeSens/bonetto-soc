@@ -61,7 +61,9 @@ Current coverage:
   sequencer through the model. It also drives the RTL init sequencer into one
   single-bank READ command sequence and one single-bank WRITE/READ loopback
   using the byte-lane packetizer for one BL8 payload plus an ideal x8 DQS/DQ
-  testbench agent. It also runs a unit bench for the full-channel line
+  testbench agent. A reusable x8 DQS/DQ/DM timing-agent bench also performs two
+  writes with active-high DDR3 DM masking and reads the merged line back through
+  the byte-lane packetizer. It also runs a unit bench for the full-channel line
   packetizer with independent per-lane stalls, plus a unit bench for the
   Wishbone frontend address split, write data/mask placement, and read word
   selection. The Wishbone-to-channel unit bench drives one write and one read
@@ -119,6 +121,7 @@ Use the real Micron model for protocol validation:
 | Controller init | controller + one x8 model | controller init completes without model timing errors |
 | Single READ command | controller + one x8 model | ACT/READ/PRE/REF command sequence completes without model errors or warnings |
 | Single WRITE/READ command | controller + one x8 model + byte-lane packetizer + ideal DQS/DQ agent | deterministic BL8 x8 write/read pattern passes |
+| Reusable x8 timing agent | init sequencer + byte-lane packetizer + x8 DQS/DQ/DM timing agent + one x8 model | two writes with active-high DM masking merge correctly and read back through the byte-lane path |
 | Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
 | Wishbone channel unit | Wishbone frontend + full-channel line packetizer | one bus write and one bus read traverse all eight byte lanes with correct command and word mapping |
