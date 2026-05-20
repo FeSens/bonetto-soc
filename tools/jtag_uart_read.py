@@ -219,6 +219,7 @@ JWB_CMD_MPR_DIS   = 0xEC
 JWB_CMD_MPR_READ  = 0xED
 JWB_CMD_RDDBG_SEL = 0xEE
 JWB_CMD_CLEAR_RDDBG = 0xEF
+JWB_CMD_SET_SEL  = 0xF0
 
 
 def jwb_set_idelay(xvc, lane: int, tap: int, channel: int = 0):
@@ -275,6 +276,11 @@ def jwb_set_addr(xvc, addr: int, addr_hi: int = 0):
     jwb_cmd(xvc, JWB_CMD_SET_ADDR, addr & 0x7FFF)
 
 
+def jwb_set_sel(xvc, sel: int):
+    """Set byte enables for the next JTAG-Wishbone write."""
+    jwb_cmd(xvc, JWB_CMD_SET_SEL, sel & 0xF)
+
+
 def jwb_wait_idle(xvc, max_iters=20):
     """Poll status reg 0x10 until JWB_BUSY clears (one round-trip per iter)."""
     for _ in range(max_iters):
@@ -285,10 +291,11 @@ def jwb_wait_idle(xvc, max_iters=20):
     raise RuntimeError(f"jwb stuck busy: 0x{st:08x}")
 
 
-def jwb_wb_write(xvc, addr: int, data: int, addr_hi: int = 0):
+def jwb_wb_write(xvc, addr: int, data: int, addr_hi: int = 0, sel: int = 0xF):
     """Halt memtest, write data to addr, leave halt set so caller can probe."""
     jwb_cmd(xvc, JWB_CMD_HALT)
     jwb_set_addr(xvc, addr, addr_hi)
+    jwb_set_sel(xvc, sel)
     jwb_cmd(xvc, JWB_CMD_SET_DLO, data & 0xFFFF)
     jwb_cmd(xvc, JWB_CMD_SET_DHI, (data >> 16) & 0xFFFF)
     jwb_cmd(xvc, JWB_CMD_GO_WR)
@@ -490,6 +497,8 @@ def main():
                     help="set XVC TCK period in ns (default: server default)")
     ap.add_argument("--wb-write", nargs=2, metavar=("ADDR", "DATA"),
                     help="iter-7: WB write via JTAG-WB master (hex/dec ok)")
+    ap.add_argument("--wb-sel", type=lambda s: int(s, 0), default=0xF,
+                    help="byte-enable mask for --wb-write, bit 0 selects data[7:0]")
     ap.add_argument("--wb-read", metavar="ADDR",
                     help="iter-7: WB read via JTAG-WB master (hex/dec ok)")
     ap.add_argument("--wb-resume", action="store_true",
@@ -509,8 +518,10 @@ def main():
     if args.wb_write is not None:
         addr = int(args.wb_write[0], 0)
         data = int(args.wb_write[1], 0)
-        st = jwb_wb_write(xvc, addr, data)
-        print(f"WB write addr={addr:#06x} data={data:#010x} -> status={st:#010x}")
+        sel = args.wb_sel & 0xF
+        st = jwb_wb_write(xvc, addr, data, sel=sel)
+        print(f"WB write addr={addr:#06x} data={data:#010x} "
+              f"sel={sel:#03x} -> status={st:#010x}")
         xvc.close()
         return 0
 

@@ -79,6 +79,14 @@ def validate(args):
         require(low == 0x11112222 and high == 0x33334444,
                 "BRAM banks are not isolated by Wishbone decode bit 14")
 
+        # Byte-select proof for the JTAG-WB master and wb_memory write mask.
+        jwb_wb_write(xvc, 0x0020, 0x11223344)
+        jwb_wb_write(xvc, 0x0020, 0xAABBCCDD, sel=0x5)
+        partial = jwb_wb_read(xvc, 0x0020)
+        print(f"byte-select partial=0x{partial:08x} expected=0x11bb33dd")
+        require(partial == 0x11BB33DD,
+                "byte-select write did not preserve unselected BRAM bytes")
+
         final_status = read_status_reg(xvc, 0x10)
         print(f"final_jwb_status=0x{final_status:08x}")
         require((final_status >> 16) == 0xAB10,

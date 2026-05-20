@@ -17,6 +17,7 @@
 //   0xE6     HALT_OTHERS - assert o_halt_others (top.v pauses memtest_lite)
 //   0xE7     RESUME      - clear o_halt_others
 //   0xE8     SET_CAL     - payload[3:0]=lane, [12:8]=tap, [16]=channel
+//   0xF0     SET_SEL     - byte enables <= i_cmd_word[WB_DATA_W/8-1:0]
 //
 // Status outputs (consumed by top.v status mux at reg indices 0x10-0x15):
 //   o_busy        1 while a WB transaction is in flight
@@ -46,7 +47,7 @@ module jtag_wb_master #(
     output reg                      o_wb_we,
     output reg  [WB_ADDR_W-1:0]     o_wb_adr,
     output reg  [WB_DATA_W-1:0]     o_wb_dat,
-    output wire [WB_DATA_W/8-1:0]   o_wb_sel,
+    output reg  [WB_DATA_W/8-1:0]   o_wb_sel,
     input  wire                     i_wb_stall,
     input  wire                     i_wb_ack,
     input  wire [WB_DATA_W-1:0]     i_wb_dat,
@@ -76,8 +77,6 @@ module jtag_wb_master #(
     output reg                       o_phase_req,
     output reg                       o_phase_inc
 );
-    assign o_wb_sel = {(WB_DATA_W/8){1'b1}};
-
     localparam [1:0]
         S_IDLE    = 2'd0,
         S_WB_STB  = 2'd1,
@@ -103,8 +102,9 @@ module jtag_wb_master #(
         o_addr   = {WB_ADDR_W{1'b0}};
         o_addr_hi = 16'd0;
         o_data   = {WB_DATA_W{1'b0}};
+        o_wb_sel = {(WB_DATA_W/8){1'b1}};
         o_rd_data = {WB_DATA_W{1'b0}};
-        o_cal_load_lane = {9{1'b0}};
+        o_cal_load_lane = {NUM_BYTE_LANES{1'b0}};
         o_cal_tap = 5'b0;
         o_cal_channel = 1'b0;
         o_phase_req = 1'b0;
@@ -126,6 +126,7 @@ module jtag_wb_master #(
     // iter-11: 0xE9 = MMCM phase INC, 0xEA = MMCM phase DEC (no payload)
     wire       cmd_phase_inc = i_cmd_valid && (cmd == 8'hE9);
     wire       cmd_phase_dec = i_cmd_valid && (cmd == 8'hEA);
+    wire       cmd_set_sel  = i_cmd_valid && (cmd == 8'hF0);
 
     always @(posedge i_clk) begin
         if (i_rst) begin
@@ -135,6 +136,7 @@ module jtag_wb_master #(
             o_wb_we       <= 1'b0;
             o_wb_adr      <= {WB_ADDR_W{1'b0}};
             o_wb_dat      <= {WB_DATA_W{1'b0}};
+            o_wb_sel      <= {(WB_DATA_W/8){1'b1}};
             o_busy        <= 1'b0;
             o_last_ack    <= 1'b0;
             o_last_err    <= 1'b0;
@@ -176,6 +178,8 @@ module jtag_wb_master #(
                 if (cmd_set_addr_hi) o_addr_hi <= i_cmd_word[15:0];
                 if (cmd_set_dlo)  o_data[15:0]  <= i_cmd_word[15:0];
                 if (cmd_set_dhi)  o_data[31:16] <= i_cmd_word[15:0];
+                if (cmd_set_sel)
+                    o_wb_sel <= i_cmd_word[(WB_DATA_W/8)-1:0];
                 if (cmd_halt)     o_halt_others <= 1'b1;
                 if (cmd_resume)   o_halt_others <= 1'b0;
             end

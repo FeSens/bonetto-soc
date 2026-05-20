@@ -20,6 +20,7 @@ CMD_GO_RD    = 0xE5
 CMD_HALT     = 0xE6
 CMD_RESUME   = 0xE7
 CMD_SET_CAL  = 0xE8
+CMD_SET_SEL  = 0xF0
 
 
 def encode(cmd, payload):
@@ -75,16 +76,22 @@ async def set_then_write(dut):
     await fire_cmd(dut, CMD_SET_AHI, 0xCA5A)
     await fire_cmd(dut, CMD_SET_DLO, 0xDEAD)
     await fire_cmd(dut, CMD_SET_DHI, 0xBEEF)
+    await fire_cmd(dut, CMD_SET_SEL, 0x5)
     await ReadOnly()
     assert int(dut.o_addr.value) == 0x1234
     assert int(dut.o_addr_hi.value) == 0xCA5A
     assert int(dut.o_data.value) == 0xBEEFDEAD, \
         f"o_data want 0xBEEFDEAD got 0x{int(dut.o_data.value):08X}"
+    assert int(dut.o_wb_sel.value) == 0x5
     await RisingEdge(dut.i_clk)
 
     await fire_cmd(dut, CMD_GO_WR)
+    await ReadOnly()
+    assert int(dut.o_wb_cyc.value) and int(dut.o_wb_stb.value)
+    assert int(dut.o_wb_sel.value) == 0x5
     for _ in range(20):
         await RisingEdge(dut.i_clk)
+        await ReadOnly()
         if not int(dut.o_busy.value):
             break
     else:

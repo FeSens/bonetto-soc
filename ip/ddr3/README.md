@@ -134,11 +134,12 @@ What these mean today:
 - `ddr3-ctrl-line-cmdprobe-ddr800-bitstream` enables the next board-facing
   probe: reset, CKE, ODT, CK, command, bank, and address pins are driven on both
   physical DDR3 channels while DQ/DQS stay high-Z and read data returns through
-  the internal line loopback. This routes with `--timing-allow-fail` because
-  `nextpnr-xilinx` has one global frequency setting for both the real 50 MHz
-  SYS_CLK domain and the 400 MHz DDR command-pin domain. The latest route
-  reported `clk_dq` at 368.73 MHz against the artificial 400 MHz target, so this
-  is a command-path smoke gate, not a DDR3-800 timing signoff.
+  the internal line loopback. Since the board path has no DDR3 DM pins, this
+  image selects the no-DM read-modify-write line bridge and validates
+  byte-select writes through that path. This routes with `--timing-allow-fail`
+  because `nextpnr-xilinx` has one global frequency setting for both the real
+  50 MHz SYS_CLK domain and the 400 MHz DDR command-pin domain. It is a
+  command-path smoke gate, not a DDR3-800 timing signoff.
 - `program-ddr3-ctrl-line-cmdprobe-ddr800` and
   `validate-ddr3-ctrl-line-cmdprobe` are the current hardware gate for the
   clean controller plus board command-pin path. Passing them proves live

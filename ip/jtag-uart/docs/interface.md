@@ -1,4 +1,4 @@
-# jtag_uart — port interface (planned, iteration 2)
+# jtag_uart port interface
 
 Top module: `jtag_uart`
 
@@ -21,6 +21,22 @@ Same set as [wb_memory](../../wb-memory/docs/interface.md), with `WB_DATA_W=32` 
 
 Internal — uses `BSCANE2` with `JTAG_CHAIN=1` (USER1 instruction). Host-side tool drives the USER1 chain via openFPGALoader's XVC mode or an openocd Tcl script. See `verification/common/jtag_uart_host.py` once it exists.
 
-## Iteration 1 status
+## JTAG-Wishbone master commands
 
-Stub only — RTL is not yet implemented. The wb-memory IP is the verification template; jtag-uart fills in once that template is solid.
+`jtag_wb_master` consumes command words from the status-mux write path. The
+upper byte is the command and the lower 24 bits are payload.
+
+| Command | Name | Payload |
+|---|---|---|
+| `0xE0` | `SET_ADDR` | local Wishbone address in low bits |
+| `0xE1` | `SET_ADDR_HI` | board debug high-address bits `[15:0]` |
+| `0xE2` | `SET_DATA_LO` | write data `[15:0]` |
+| `0xE3` | `SET_DATA_HI` | write data `[31:16]` |
+| `0xE4` | `GO_WRITE` | issue a write with stored address/data/select |
+| `0xE5` | `GO_READ` | issue a read with stored address |
+| `0xE6` | `HALT_OTHERS` | request autonomous traffic to pause |
+| `0xE7` | `RESUME` | clear the pause request |
+| `0xE8` | `SET_CAL` | lane `[3:0]`, tap `[12:8]`, channel `[16]` |
+| `0xE9` | `PHASE_INC` | request one MMCM phase increment |
+| `0xEA` | `PHASE_DEC` | request one MMCM phase decrement |
+| `0xF0` | `SET_SEL` | byte enables in bits `[3:0]`; reset/default is `4'hf` |

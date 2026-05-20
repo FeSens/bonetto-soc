@@ -105,9 +105,9 @@ class Validator:
         ]}
         return regs
 
-    def write_ddr3(self, addr, data):
+    def write_ddr3(self, addr, data, sel=0xF):
         local, hi = ddr3_addr_parts(addr, self.addr_mask)
-        return jwb_wb_write(self.xvc, local, data & 0xFFFFFFFF, hi)
+        return jwb_wb_write(self.xvc, local, data & 0xFFFFFFFF, hi, sel=sel)
 
     def read_ddr3(self, addr):
         local, hi = ddr3_addr_parts(addr, self.addr_mask)
@@ -205,6 +205,52 @@ class Validator:
             (0x003105, 0xFF00FF00),
         ])
         return self.check("data_bit_and_byte_lanes", cases)
+
+    def byte_select_writes(self):
+        start = time.monotonic()
+        cases = [
+            (0x003200, 0x11223344, 0xAABBCCDD, 0x5, 0x11BB33DD),
+            (0x003201, 0x55667788, 0x01020304, 0xA, 0x01660388),
+            (0x003202, 0x89ABCDEF, 0x13579BDF, 0x3, 0x89AB9BDF),
+            (0x003203, 0x76543210, 0xCAFEBABE, 0xC, 0xCAFE3210),
+        ]
+        if self.addr_bits > 25:
+            cases.extend([
+                ((1 << 29) | 0x003200, 0x10203040, 0xDEADBEEF, 0x9,
+                 0xDE2030EF),
+                ((1 << 29) | 0x003201, 0x0F1E2D3C, 0x55667788, 0x6,
+                 0x0F66773C),
+            ])
+
+        first_fail = None
+        for addr, initial, partial, sel, expected in cases:
+            addr &= self.addr_mask
+            self.write_ddr3(addr, initial)
+            self.write_ddr3(addr, partial, sel=sel)
+            got = self.read_ddr3(addr)
+            if got != expected:
+                first_fail = {
+                    "addr": self.fmt_addr(addr),
+                    "sel": f"0x{sel:x}",
+                    "expected": f"0x{expected:08x}",
+                    "got": f"0x{got:08x}",
+                }
+                self.failures.append({"test": "byte_select_writes", **first_fail})
+                break
+
+        elapsed = time.monotonic() - start
+        ok = first_fail is None
+        self.results["byte_select_writes"] = {
+            "ok": ok,
+            "cases": len(cases),
+            "elapsed_s": round(elapsed, 3),
+            "first_fail": first_fail,
+        }
+        print(f"byte_select_writes: {'PASS' if ok else 'FAIL'} "
+              f"cases={len(cases)} elapsed={elapsed:.1f}s")
+        if first_fail:
+            print("  first_fail", first_fail)
+        return ok
 
     def contiguous_windows(self):
         cases = []
@@ -453,6 +499,7 @@ def main():
             v.deterministic_patterns(),
             v.address_walking(),
             v.data_bit_byte_lanes(),
+            v.byte_select_writes(),
             v.contiguous_windows(),
             v.checksum_sweep(
                 test_words if args.full_controller_checksum else args.checksum_words,

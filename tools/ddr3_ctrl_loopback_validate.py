@@ -54,9 +54,9 @@ def ddr3_addr_parts(word_addr):
     return DDR3_SELECT | (word_addr & DDR3_LOCAL_MASK), (word_addr >> 14) & 0xFFFF
 
 
-def ddr3_write(xvc, word_addr, data):
+def ddr3_write(xvc, word_addr, data, sel=0xF):
     local, hi = ddr3_addr_parts(word_addr)
-    st = jwb_wb_write(xvc, local, data, hi)
+    st = jwb_wb_write(xvc, local, data, hi, sel=sel)
     require(((st >> 2) & 1) == 1,
             f"write addr=0x{word_addr:08x} did not ack: status=0x{st:08x}")
     require(((st >> 1) & 1) == 0,
@@ -102,6 +102,25 @@ def bram_sanity(xvc):
         require(got == expected,
                 f"BRAM addr=0x{addr:04x} got=0x{got:08x} expected=0x{expected:08x}")
     print(f"bram_sanity: PASS cases={len(cases)}")
+
+
+def byte_select_cases(xvc):
+    cases = [
+        (0x00000220, 0x11223344, 0xAABBCCDD, 0x5, 0x11BB33DD),
+        (0x00000221, 0x55667788, 0x01020304, 0xA, 0x01660388),
+        (CH1_BIT | 0x00000220, 0x89ABCDEF, 0x13579BDF, 0x3, 0x89AB9BDF),
+        (CH1_BIT | 0x00000221, 0x76543210, 0xCAFEBABE, 0xC, 0xCAFE3210),
+    ]
+    for addr, initial, partial, sel, expected in cases:
+        ddr3_write(xvc, addr, initial)
+        ddr3_write(xvc, addr, partial, sel=sel)
+        got = ddr3_read(xvc, addr)
+        if got != expected:
+            raise RuntimeError(
+                f"byte_select_writes: addr=0x{addr:08x} sel=0x{sel:x} "
+                f"got=0x{got:08x} expected=0x{expected:08x}")
+
+    print(f"byte_select_writes: PASS cases={len(cases)}")
 
 
 def deterministic_cases():
@@ -199,6 +218,7 @@ def validate(args):
         bram_sanity(xvc)
         check_cases(xvc, "dual_channel_boundary_patterns", deterministic_cases())
         check_cases(xvc, "same_line_partial_writes", same_line_cases())
+        byte_select_cases(xvc)
         check_cases(xvc, "randomized_dual_channel_loopback",
                     random_cases(args.random_count, args.random_seed))
 

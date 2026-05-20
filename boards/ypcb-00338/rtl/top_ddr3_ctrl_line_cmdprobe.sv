@@ -2,8 +2,9 @@
 //
 // This wraps the hardware-validated line-controller loopback gate and enables
 // the board command/reset/CKE/ODT pins. DQ/DQS remain high-Z and data still
-// returns through the internal line-loopback PHY, so this is a command-path
-// hardware step toward a real PHY, not external DDR3 storage validation.
+// returns through the internal line-loopback PHY. The board has no exposed DDR3
+// DM pins, so this gate runs the Wishbone line bridge in no-DM read-modify-write
+// mode while still avoiding external DQ/DQS storage validation.
 
 `default_nettype none
 
@@ -44,8 +45,9 @@ module top_ddr3_ctrl_line_cmdprobe (
 );
     top_ddr3_ctrl_line_loopback #(
         .DRIVE_DDR3_COMMANDS(1),
-        .GATE_VERSION(32'hB07E_0D83),
-        .DEFAULT_MAGIC(24'hD3AD83)
+        .PHY_HAS_BYTE_MASK(0),
+        .GATE_VERSION(32'hB07E_0D84),
+        .DEFAULT_MAGIC(24'hD3AD84)
     ) u_top (
         .SYS_CLK(SYS_CLK),
         .SYS_RSTN(SYS_RSTN),

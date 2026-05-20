@@ -369,7 +369,7 @@ validate-ddr3-ctrl-line-loopback:
 	cd ../.. && python3 tools/ddr3_ctrl_loopback_validate.py --tck-ns 2000 --expected-version 0xB07E0D82 --gate-name DDR3_CTRL_LINE_LOOPBACK
 
 validate-ddr3-ctrl-line-cmdprobe:
-	cd ../.. && python3 tools/ddr3_ctrl_loopback_validate.py --tck-ns 2000 --expected-version 0xB07E0D83 --gate-name DDR3_CTRL_LINE_CMDPROBE
+	cd ../.. && python3 tools/ddr3_ctrl_loopback_validate.py --tck-ns 2000 --expected-version 0xB07E0D84 --gate-name DDR3_CTRL_LINE_CMDPROBE
 
 bram-echo:
 	cd ../.. && python3 tools/jtag_bram_echo.py

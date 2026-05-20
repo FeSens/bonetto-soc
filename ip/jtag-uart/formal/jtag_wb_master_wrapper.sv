@@ -101,8 +101,20 @@ module jtag_wb_master_wrapper (
 
     // J1: jtag_wb_master never has more than 1 outstanding request
     //     (state machine waits for ack before issuing next).
+    reg [DW/8-1:0] f_expected_sel;
+
     always @(posedge clk) begin
-        if (!rst) assert(f_outstanding <= 1);
+        if (rst) begin
+            f_expected_sel <= {(DW/8){1'b1}};
+        end else begin
+            if (!busy && !wb_cyc && cmd_valid &&
+                    (cmd_word[31:24] == 8'hF0)) begin
+                f_expected_sel <= cmd_word[(DW/8)-1:0];
+            end
+            assert(f_outstanding <= 1);
+            if (wb_cyc && wb_stb)
+                assert(wb_sel == f_expected_sel);
+        end
     end
 
     // (J2 candidate "state != S_IDLE implies busy" doesn't actually hold

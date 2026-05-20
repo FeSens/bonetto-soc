@@ -20,6 +20,7 @@
 
 module top_ddr3_ctrl_line_loopback #(
     parameter integer DRIVE_DDR3_COMMANDS = 0,
+    parameter integer PHY_HAS_BYTE_MASK = 1,
     parameter [31:0] GATE_VERSION = 32'hB07E_0D82,
     parameter [23:0] DEFAULT_MAGIC = 24'hD3AD82
 ) (
@@ -326,7 +327,8 @@ module top_ddr3_ctrl_line_loopback #(
         .T_FAW(div_ceil(`DDR3_800_TFAW_CYCLES, CTRL_DIV)),
         .T_CCD(div_ceil(`DDR3_800_TCCD_CYCLES, CTRL_DIV)),
         .T_REFI(div_ceil(`DDR3_800_TREFI_CYCLES, CTRL_DIV)),
-        .T_MARGIN(div_ceil(`DDR3_800_REFRESH_MARGIN_CYCLES, CTRL_DIV))
+        .T_MARGIN(div_ceil(`DDR3_800_REFRESH_MARGIN_CYCLES, CTRL_DIV)),
+        .PHY_HAS_BYTE_MASK(PHY_HAS_BYTE_MASK)
     ) u_ctrl (
         .i_clk(ctrl_clk),
         .i_rst(ctrl_rst),
@@ -636,7 +638,8 @@ module top_ddr3_ctrl_line_loopback #(
             8'h01: status_word = state_bits;
             8'h02: status_word = {8'h00, heartbeat};
             8'h03: status_word = loop_total;
-            8'h04: status_word = {16'hAB04, 15'd0,
+            8'h04: status_word = {16'hAB04, 14'd0,
+                                   (PHY_HAS_BYTE_MASK != 0),
                                    (DRIVE_DDR3_COMMANDS != 0)};
             8'h08: status_word = loop_rd_count[0 +: 32] + loop_rd_count[32 +: 32];
             8'h10: status_word = {16'hAB10, 12'd0,

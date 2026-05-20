@@ -66,11 +66,14 @@ high-Z and the DDR3 devices are held in reset.
 
 The command-probe gate is the next pre-PHY step. It drives reset, CKE, ODT, CK,
 command, bank, and address pins on both physical DDR3 channels while keeping
-DQ/DQS high-Z and returning data through the internal line loopback. Passing it
-proves the controller command stream reaches the board-facing pin domain, but
-it is still not external-memory validation. Do not call DDR3-800 validated until
-the DQ/DQS PHY is connected, the 400 MHz paths close without waivers, and the
-JTAG/Wishbone validator reads data back from real DDR3 storage.
+DQ/DQS high-Z and returning data through the internal line loopback. On
+YPCB-00338 this gate selects the no-DM read-modify-write line bridge, so
+byte-select Wishbone writes are preserved without relying on missing external
+DM pins. Passing it proves the controller command stream reaches the
+board-facing pin domain, but it is still not external-memory validation. Do not
+call DDR3-800 validated until the DQ/DQS PHY is connected, the 400 MHz paths
+close without waivers, and the JTAG/Wishbone validator reads data back from real
+DDR3 storage.
 
 Real external-memory hardware gates must cover boundaries, address walking,
 every data bit, every byte lane, contiguous windows, checksum sweep,

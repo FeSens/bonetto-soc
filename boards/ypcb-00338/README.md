@@ -15,12 +15,13 @@ and command/address pins from per-channel init/refresh sequencers, and exposes
 status over USER1 JTAG. DQ/DQS are intentionally high-Z in this image, so it is an
 init/clock/constraint probe only, not a memory read/write validator.
 
-The next fresh DDR3 hardware gate is `top_ddr3_ctrl_loopback`. It keeps the
-full CH0 + CH1 DDR3 pinout constrained but holds the external DDR3 devices in
-reset and validates JTAG/Wishbone writes and reads through the clean
+The next fresh DDR3 hardware gates are `top_ddr3_ctrl_loopback` and
+`top_ddr3_ctrl_line_cmdprobe`. They keep the full CH0 + CH1 DDR3 pinout
+constrained and validate JTAG/Wishbone writes and reads through the clean
 dual-channel DDR3 controller, scheduler, and BL8 line packetizer using an
-internal loopback PHY. This target runs that fabric path at 50 MHz because it
-is a controller sanity image, not a DDR3 bus timing image.
+internal loopback PHY. The command-probe variant drives reset/CKE/ODT and
+command/address pins and uses the no-DM read-modify-write line bridge because
+the board constraints expose DQ/DQS but no DDR3 DM pins.
 
 ## Historical DDR3 Configuration
 
@@ -82,10 +83,12 @@ make -C boards/ypcb-00338 validate-ddr3-ctrl-loopback
 ```
 
 That validator requires version `0xB07E0D81`, loopback init done, PLL lock,
-BRAM sanity, deterministic dual-channel write/read patterns, same-line partial
+BRAM sanity, deterministic dual-channel write/read patterns, byte-select
 writes, randomized dual-channel write/read patterns, and nonzero loopback
-counters on both channels. It deliberately does not validate external DDR3
-storage because DQ/DQS remain disconnected from the controller.
+counters on both channels. The command-probe validator requires version
+`0xB07E0D84` and runs the same data checks with DDR3 command pins enabled and
+the no-DM RMW path selected. Neither gate validates external DDR3 storage
+because DQ/DQS remain disconnected from the controller.
 
 `ddr3-init-ddr800-bitstream` routes with nextpnr's single global `--freq 400`
 check and `--timing-allow-fail`. Read the route log per clock: the DDR launch
@@ -208,11 +211,12 @@ Key DDR3 controller-loopback registers:
 | `0x00` | Controller-loopback status flags, magic `0xB07E`; bits 15 and 11 mean loopback/init done |
 | `0x01` | packed CH1/CH0 init states plus refresh flags and heartbeat bits |
 | `0x03` | total loopback read/write transaction count |
+| `0x04` | board gate flags: bit 1 means PHY byte-mask path, bit 0 means command pins driven |
 | `0x10`..`0x13` | JTAG-WB status, address echo, data echo, and read data |
 | `0x20`..`0x21` | CH0/CH1 loopback write counts |
 | `0x22`..`0x23` | CH0/CH1 loopback read counts |
 | `0x24`..`0x25` | CH0/CH1 last loopback line address |
-| `0xFE` | DDR3 controller-loopback version, `0xB07E0D81` |
+| `0xFE` | DDR3 controller-loopback version, `0xB07E0D81`; command-probe version, `0xB07E0D84` |
 
 ## LEDs
 

@@ -149,6 +149,7 @@ Use the real Micron model for protocol validation:
 | Reusable x8 timing agent | init sequencer + byte-lane packetizer + x8 DQS/DQ/DM timing agent + one x8 model | two writes with active-high DM masking merge correctly and read back through the byte-lane path |
 | Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
+| JTAG-Wishbone byte-select gate | `jtag_wb_master` plus BRAM or DDR3 loopback target | host-driven `SET_SEL` preserves unselected bytes before no-DM DDR3 RMW is trusted in hardware |
 | Wishbone channel unit | line-level Wishbone bridge + full-channel line packetizer | one bus write and one bus read traverse all eight byte lanes with correct command and word mapping |
 | Wishbone line channel unit | line-level Wishbone bridge | command acceptance is gated by write-line readiness; read acknowledgement waits for transfer-start and returned line |
 | Wishbone dual-channel unit | address decoder + two Wishbone channel bridges | channel-0 write and channel-1 read dispatch to independent command/data ports |
