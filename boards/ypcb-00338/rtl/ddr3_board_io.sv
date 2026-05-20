@@ -257,6 +257,130 @@ module ddr3_cmd_cdc_7series #(
     wire _unused = &{1'b0, i_rst_dq, 1'b0};
 endmodule
 
+module ddr3_dq_dqs_io_7series #(
+    parameter integer LANES = 9,
+    parameter integer DQ_PER_LANE = 8
+) (
+    input  wire                              i_clk_dq,
+    input  wire                              i_rst,
+
+    input  wire [LANES-1:0]                 i_dq_oe,
+    input  wire [LANES-1:0]                 i_dqs_oe,
+    input  wire [(LANES*DQ_PER_LANE)-1:0]   i_dq_rise,
+    input  wire [(LANES*DQ_PER_LANE)-1:0]   i_dq_fall,
+    input  wire [LANES-1:0]                 i_dqs_rise,
+    input  wire [LANES-1:0]                 i_dqs_fall,
+
+    output wire [(LANES*DQ_PER_LANE)-1:0]   o_dq_rise,
+    output wire [(LANES*DQ_PER_LANE)-1:0]   o_dq_fall,
+    output wire [LANES-1:0]                 o_dqs_rise,
+    output wire [LANES-1:0]                 o_dqs_fall,
+
+    inout  wire [(LANES*DQ_PER_LANE)-1:0]   io_dq,
+    inout  wire [LANES-1:0]                 io_dqs_p,
+    inout  wire [LANES-1:0]                 io_dqs_n
+);
+    localparam integer DQ_BITS = LANES * DQ_PER_LANE;
+
+    wire [DQ_BITS-1:0] dq_out;
+    wire [DQ_BITS-1:0] dq_in;
+    wire [LANES-1:0] dqs_out;
+    wire [LANES-1:0] dqs_in;
+
+    genvar lane_i;
+    genvar bit_i;
+    generate
+        for (lane_i = 0; lane_i < LANES; lane_i = lane_i + 1) begin : gen_lane
+            localparam integer DQ_BASE = lane_i * DQ_PER_LANE;
+
+            for (bit_i = 0; bit_i < DQ_PER_LANE; bit_i = bit_i + 1) begin : gen_dq
+                localparam integer DQ_IDX = DQ_BASE + bit_i;
+
+                (* keep = "true", DONT_TOUCH = "true" *)
+                ODDR #(
+                    .DDR_CLK_EDGE("SAME_EDGE"),
+                    .INIT(1'b0),
+                    .SRTYPE("SYNC")
+                ) u_dq_oddr (
+                    .Q(dq_out[DQ_IDX]),
+                    .C(i_clk_dq),
+                    .CE(1'b1),
+                    .D1(i_dq_rise[DQ_IDX]),
+                    .D2(i_dq_fall[DQ_IDX]),
+                    .R(i_rst),
+                    .S(1'b0)
+                );
+
+                (* keep = "true", DONT_TOUCH = "true" *)
+                IOBUF #(
+                    .SLEW("FAST")
+                ) u_dq_iobuf (
+                    .O(dq_in[DQ_IDX]),
+                    .IO(io_dq[DQ_IDX]),
+                    .I(dq_out[DQ_IDX]),
+                    .T(!i_dq_oe[lane_i])
+                );
+
+                (* keep = "true", DONT_TOUCH = "true" *)
+                IDDR #(
+                    .DDR_CLK_EDGE("SAME_EDGE"),
+                    .INIT_Q1(1'b0),
+                    .INIT_Q2(1'b0),
+                    .SRTYPE("SYNC")
+                ) u_dq_iddr (
+                    .Q1(o_dq_rise[DQ_IDX]),
+                    .Q2(o_dq_fall[DQ_IDX]),
+                    .C(i_clk_dq),
+                    .CE(1'b1),
+                    .D(dq_in[DQ_IDX]),
+                    .R(i_rst),
+                    .S(1'b0)
+                );
+            end
+
+            (* keep = "true", DONT_TOUCH = "true" *)
+            ODDR #(
+                .DDR_CLK_EDGE("SAME_EDGE"),
+                .INIT(1'b0),
+                .SRTYPE("SYNC")
+            ) u_dqs_oddr (
+                .Q(dqs_out[lane_i]),
+                .C(i_clk_dq),
+                .CE(1'b1),
+                .D1(i_dqs_rise[lane_i]),
+                .D2(i_dqs_fall[lane_i]),
+                .R(i_rst),
+                .S(1'b0)
+            );
+
+            (* keep = "true", DONT_TOUCH = "true" *)
+            IOBUFDS u_dqs_iobuf (
+                .O(dqs_in[lane_i]),
+                .IO(io_dqs_p[lane_i]),
+                .IOB(io_dqs_n[lane_i]),
+                .I(dqs_out[lane_i]),
+                .T(!i_dqs_oe[lane_i])
+            );
+
+            (* keep = "true", DONT_TOUCH = "true" *)
+            IDDR #(
+                .DDR_CLK_EDGE("SAME_EDGE"),
+                .INIT_Q1(1'b0),
+                .INIT_Q2(1'b0),
+                .SRTYPE("SYNC")
+            ) u_dqs_iddr (
+                .Q1(o_dqs_rise[lane_i]),
+                .Q2(o_dqs_fall[lane_i]),
+                .C(i_clk_dq),
+                .CE(1'b1),
+                .D(dqs_in[lane_i]),
+                .R(i_rst),
+                .S(1'b0)
+            );
+        end
+    endgenerate
+endmodule
+
 module ddr3_hiz_lanes_7series (
     inout wire [71:0] io_dq,
     inout wire [8:0]  io_dqs_p,

@@ -194,6 +194,15 @@ Those pieces should remain in slow fabric. The fast domain should eventually
 contain only the minimum 7-series I/O shell: DQ/DQS output/input registers,
 delay/calibration, and tightly local per-bit capture/launch logic.
 
+`../../boards/ypcb-00338/rtl/ddr3_board_io.sv` now includes that first minimum
+board-local shell as `ddr3_dq_dqs_io_7series`. It wraps one channel of DQ/DQS
+pins with DQ `ODDR`/`IDDR`/`IOBUF` and DQS `ODDR`/`IDDR`/`IOBUFDS` primitives
+while leaving calibration, delay taps, DQS-gated capture, bitslip, and
+controller data scheduling outside the module. The route-only
+`top_ddr3_dq_dqs_iobuf_probe` target instantiates the shell for both physical
+channels with the DDR3 devices held in reset. That target is a timing proof for
+the tiny I/O primitive boundary, not a memory read/write path.
+
 ## Debug/Status
 
 Expose status registers through the board JTAG/Wishbone path before relying on

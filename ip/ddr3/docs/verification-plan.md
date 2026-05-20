@@ -115,9 +115,9 @@ Current coverage:
 
 Current non-coverage:
 
-- no board-level 7-series DQ/DQS primitive wrapper, calibration, or hardware
-  memory data path exists yet;
-- no PHY, board DQS/DQ, leveling, or hardware DDR3 path is validated by these
+- no calibrated board-level 7-series DQ/DQS read/write PHY or hardware memory
+  data path exists yet;
+- no PHY leveling, delay calibration, or hardware DDR3 storage path is validated by these
   gates.
 
 Hardware note: the DDR3-800 full-pin init probe was routed, programmed, and
@@ -162,6 +162,15 @@ architecture split: keep the controller, full-line assembly, and lane timing
 state in slow fabric, and put only a tiny 7-series DQ/DQS I/O shell in the fast
 clock domain.
 
+Hardware note: the YPCB-00338 route-only DQ/DQS I/O-shell probe now instantiates
+the tiny fast-domain shell for both physical DDR3 channels with the full board
+DQ/DQS pinout constrained. The 2026-05-20 seed-1 target
+`ddr3-dq-dqs-iobuf-ddr800-bitstream` completed without `--timing-allow-fail`;
+post-route reported `clk_dq` at about 1424 MHz, passing the 400 MHz DDR3-800
+bit-clock target. The shell includes DQ `ODDR`/`IDDR`/`IOBUF` and DQS
+`ODDR`/`IDDR`/`IOBUFDS`, but DDR3 reset remains asserted and CKE low, so this
+is a fast-I/O route proof, not memory storage validation.
+
 The first post-init-probe RTL slice, `rtl/ddr3_wb_line_channel.sv`, is now wired
 under both `rtl/ddr3_wb_channel.sv` and
 `rtl/ddr3_wb_dual_channel_line.sv`. `rtl/ddr3_ctrl_line.sv` exposes that
@@ -184,6 +193,12 @@ latency, and read byte reassembly. It intentionally stops short of Xilinx
 lane PHY timing cores from complete controller lines and explicit scheduler
 transfer-start pulses. It gives the future board wrapper one clean abstract
 DQ/DQS/DM contract, but it still is not an external DDR3 read/write path.
+
+`../../boards/ypcb-00338/rtl/ddr3_board_io.sv` contains the board-local
+primitive shell for that next wrapper. The first `ddr3_dq_dqs_io_7series`
+version is intentionally small: output/input DDR registers and I/O buffers
+only. The remaining missing pieces are delay control, DQS-centered read
+capture, calibration, and the slow-fabric-to-fast-I/O data handoff.
 
 ## Formal Ladder
 
