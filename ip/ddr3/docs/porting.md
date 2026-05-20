@@ -31,6 +31,9 @@ Use this checklist when the clean-sheet controller is wired into a board.
 ## 5. Constrain And Route
 
 - Import command/address, CK, CKE, ODT, reset, DQ, DQS, and optional DM pins.
+- If the board does not expose DM pins, set the line bridge for no-DM
+  read-modify-write behavior before validating byte-select Wishbone writes in
+  hardware.
 - Record route seed and final timing lines.
 - Do not call a speed grade validated until the board is programmed and the
   JTAG/Wishbone validator passes.

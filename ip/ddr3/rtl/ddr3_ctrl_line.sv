@@ -15,6 +15,7 @@ module ddr3_ctrl_line #(
     parameter integer BANK_BITS = `DDR3_BANK_BITS,
     parameter integer COL_BITS = `DDR3_COL_BITS,
     parameter integer ADDR_BITS = `DDR3_ADDR_BITS,
+    parameter integer PHY_HAS_BYTE_MASK = 1,
     localparam integer CHANNELS = 2,
     parameter integer LINE_ADDR_W = ROW_BITS + BANK_BITS + (COL_BITS - 3),
     parameter integer LOCAL_LINE_ADDR_W = LINE_ADDR_W,
@@ -138,7 +139,8 @@ module ddr3_ctrl_line #(
 
     ddr3_wb_dual_channel_line #(
         .LANES(LANES),
-        .WB_DATA_W(WB_DATA_W)
+        .WB_DATA_W(WB_DATA_W),
+        .PHY_HAS_BYTE_MASK(PHY_HAS_BYTE_MASK)
     ) u_wb (
         .i_clk(i_clk),
         .i_rst(i_rst),

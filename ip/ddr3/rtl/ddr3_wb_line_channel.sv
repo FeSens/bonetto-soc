@@ -12,6 +12,7 @@ module ddr3_wb_line_channel #(
     parameter integer WB_ADDR_W  = 8,
     parameter integer LANES      = 8,
     parameter integer WB_DATA_W  = 32,
+    parameter integer PHY_HAS_BYTE_MASK = 1,
     localparam integer LINE_BYTES     = LANES * 8,
     localparam integer LINE_DATA_W    = LINE_BYTES * 8,
     localparam integer WORDS_PER_LINE = LINE_BYTES / (WB_DATA_W / 8),
@@ -51,13 +52,14 @@ module ddr3_wb_line_channel #(
 );
     localparam integer WB_BYTES = WB_DATA_W / 8;
 
-    localparam [1:0]
-        ST_IDLE         = 2'd0,
-        ST_CMD          = 2'd1,
-        ST_WAIT_RD_XFER = 2'd2,
-        ST_WAIT_RD_DATA = 2'd3;
+    localparam [2:0]
+        ST_IDLE         = 3'd0,
+        ST_CMD          = 3'd1,
+        ST_WAIT_RD_XFER = 3'd2,
+        ST_WAIT_RD_DATA = 3'd3,
+        ST_RMW_CMD      = 3'd4;
 
-    reg [1:0] state;
+    reg [2:0] state;
     reg req_write;
     reg [LINE_ADDR_W-1:0] req_line_addr;
     reg [WORD_INDEX_W-1:0] req_word_index;
@@ -65,17 +67,21 @@ module ddr3_wb_line_channel #(
     reg [LINE_BYTES-1:0] req_wr_mask;
 
     wire wb_accept = i_wb_cyc && i_wb_stb && !o_wb_stall;
-    wire cmd_can_issue = !req_write || i_phy_wr_line_ready;
+    wire cmd_is_write = (state == ST_RMW_CMD) ||
+        ((state == ST_CMD) && req_write && (PHY_HAS_BYTE_MASK != 0));
+    wire cmd_can_issue = !cmd_is_write || i_phy_wr_line_ready;
     wire cmd_accept = o_cmd_valid && i_cmd_ready;
 
     assign o_wb_stall = (state != ST_IDLE);
-    assign o_cmd_valid = (state == ST_CMD) && cmd_can_issue;
-    assign o_cmd_write = req_write;
+    assign o_cmd_valid =
+        ((state == ST_CMD) || (state == ST_RMW_CMD)) && cmd_can_issue;
+    assign o_cmd_write = cmd_is_write;
     assign o_cmd_line_addr = req_line_addr;
 
-    assign o_phy_wr_line_valid = cmd_accept && req_write;
+    assign o_phy_wr_line_valid = cmd_accept && cmd_is_write;
     assign o_phy_wr_line_data = req_wr_data;
-    assign o_phy_wr_line_mask = req_wr_mask;
+    assign o_phy_wr_line_mask = (PHY_HAS_BYTE_MASK != 0)
+        ? req_wr_mask : {LINE_BYTES{1'b0}};
 
     assign o_phy_rd_line_ready = (state == ST_WAIT_RD_DATA) && i_wb_cyc;
 
@@ -107,6 +113,23 @@ module ddr3_wb_line_channel #(
         input [WORD_INDEX_W-1:0] word_index;
         begin
             pick_word_data = data[word_index * WB_DATA_W +: WB_DATA_W];
+        end
+    endfunction
+
+    function [LINE_DATA_W-1:0] merge_word_data;
+        input [LINE_DATA_W-1:0] old_line;
+        input [WB_DATA_W-1:0] data;
+        input [(WB_DATA_W/8)-1:0] sel;
+        input [WORD_INDEX_W-1:0] word_index;
+        integer i;
+        begin
+            merge_word_data = old_line;
+            for (i = 0; i < WB_BYTES; i = i + 1) begin
+                if (sel[i])
+                    merge_word_data[(word_index * WB_DATA_W) +
+                                    (i * 8) +: 8] =
+                        data[(i * 8) +: 8];
+            end
         end
     endfunction
 
@@ -144,8 +167,13 @@ module ddr3_wb_line_channel #(
                         state <= ST_IDLE;
                     end else if (cmd_accept) begin
                         if (req_write) begin
-                            o_wb_ack <= 1'b1;
-                            state <= ST_IDLE;
+                            if (PHY_HAS_BYTE_MASK != 0) begin
+                                o_wb_ack <= 1'b1;
+                                state <= ST_IDLE;
+                            end else begin
+                                state <= i_xfer_start ? ST_WAIT_RD_DATA
+                                                       : ST_WAIT_RD_XFER;
+                            end
                         end else begin
                             state <= i_xfer_start ? ST_WAIT_RD_DATA
                                                    : ST_WAIT_RD_XFER;
@@ -164,10 +192,36 @@ module ddr3_wb_line_channel #(
                     if (!i_wb_cyc) begin
                         state <= ST_IDLE;
                     end else if (i_phy_rd_line_valid) begin
+                        if (req_write && (PHY_HAS_BYTE_MASK == 0)) begin
+                            if (i_phy_rd_line_err) begin
+                                o_wb_ack <= 1'b1;
+                                o_wb_err <= 1'b1;
+                                state <= ST_IDLE;
+                            end else begin
+                                req_wr_data <= merge_word_data(
+                                    i_phy_rd_line_data, req_wr_data[
+                                        req_word_index * WB_DATA_W +: WB_DATA_W],
+                                    ~req_wr_mask[
+                                        req_word_index * WB_BYTES +: WB_BYTES],
+                                    req_word_index);
+                                req_wr_mask <= {LINE_BYTES{1'b0}};
+                                state <= ST_RMW_CMD;
+                            end
+                        end else begin
+                            o_wb_ack <= 1'b1;
+                            o_wb_err <= i_phy_rd_line_err;
+                            o_wb_dat <= pick_word_data(
+                                i_phy_rd_line_data, req_word_index);
+                            state <= ST_IDLE;
+                        end
+                    end
+                end
+
+                ST_RMW_CMD: begin
+                    if (!i_wb_cyc) begin
+                        state <= ST_IDLE;
+                    end else if (cmd_accept) begin
                         o_wb_ack <= 1'b1;
-                        o_wb_err <= i_phy_rd_line_err;
-                        o_wb_dat <= pick_word_data(
-                            i_phy_rd_line_data, req_word_index);
                         state <= ST_IDLE;
                     end
                 end

@@ -123,11 +123,11 @@ Every new RTL slice should add or extend one of these harnesses:
 | Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer, with write-line data captured before command acceptance. First proof exists. |
-| Wishbone line channel | One Wishbone word request maps to one scheduler command while write data is presented as a complete 64-byte line before command accept; reads wait for a full returned line. First proof exists. |
+| Wishbone line channel | One Wishbone word request maps to one scheduler command while write data is presented as a complete 64-byte line before command accept; reads wait for a full returned line. First proof exists. The no-DM RMW mode proves a write becomes read-old-line, merge selected bytes, then write an all-active line. |
 | Channel scheduler adapter | One BL8 line command is accepted by the scheduler, then starts data only when the matching RD/WR command issues. First proof exists. |
 | Line-level dual channel decode | Channel select bit routes to exactly one channel and preserves local address while exposing complete PHY lines. First proof exists through `ddr3_wb_dual_channel_line`. |
 | Controller shell | Wishbone is gated until both init sequencers finish, then requests flow through two scheduler adapters. Gate proofs and scheduler-connected unit simulations exist for both the packetized compatibility shell and line-level shell. |
-| Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation now uses active-high DDR3 DM polarity; downstream merge or mask-preserving PHY write is still pending. |
+| Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation uses active-high DDR3 DM polarity; `ddr3_wb_line_channel` now also has a focused no-DM read-modify-write proof and unit test for YPCB-00338-style PHYs without exposed DM pins. |
 | Dual channel decode | Channel select bit routes to exactly one channel and preserves local address. First proof exists through `ddr3_wb_dual_channel`. |
 
 The command timing monitor in `formal/ddr3_cmd_timing_monitor.sv` is the first

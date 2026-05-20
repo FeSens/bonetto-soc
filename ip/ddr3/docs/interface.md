@@ -138,10 +138,13 @@ The controller-side logical PHY boundary is a complete BL8 channel line:
 
 For the 32-bit Wishbone frontend, reads select one word from the BL8 line. With
 the final 64-bit channel line this means one of sixteen 32-bit words from a
-512-bit line. The current frontend emits a byte mask for the selected word;
-downstream logic must either preserve that byte mask through a proven PHY write
-path or perform read-modify-write before partial writes are exposed as hardware
-validated.
+512-bit line. The current frontend emits a byte mask for the selected word. A
+PHY with DDR3 DM support can preserve that mask directly. On YPCB-00338, the
+active constraints expose DQ/DQS but no DM pins, so the line bridge also has a
+`PHY_HAS_BYTE_MASK=0` mode: writes issue a read of the target BL8 line, merge
+the selected Wishbone bytes into the returned 512-bit line, then issue a full
+all-active write. This mode is the intended path before masked Wishbone writes
+are exposed as hardware validated on the board.
 
 `rtl/ddr3_byte_lane.sv` implements the first x8 slice of this boundary: one
 64-bit BL8 byte lane with eight write mask bits and an ordered read-capture
@@ -152,9 +155,11 @@ bits, with per-lane compatibility handshakes still visible until the Xilinx
 `rtl/ddr3_wb_channel.sv` captures the complete line before scheduler command
 acceptance, then waits for the scheduler adapter's transfer-start pulse before
 driving the packet flow. `rtl/ddr3_wb_dual_channel.sv` replicates that
-packetized compatibility boundary once per channel. `rtl/ddr3_wb_dual_channel_line.sv`
-and `rtl/ddr3_ctrl_line.sv` expose the same line contract directly as the
-intended top-level boundary for the real DQS/DQ PHY.
+packetized compatibility boundary once per channel. `rtl/ddr3_wb_line_channel.sv`
+owns the mask-preserving and no-DM RMW line contracts.
+`rtl/ddr3_wb_dual_channel_line.sv` and `rtl/ddr3_ctrl_line.sv` expose that
+line contract directly as the intended top-level boundary for the real DQS/DQ
+PHY.
 
 ## Debug/Status
 

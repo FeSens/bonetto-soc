@@ -12,6 +12,7 @@
 module ddr3_wb_dual_channel_line #(
     parameter integer LANES     = 8,
     parameter integer WB_DATA_W = 32,
+    parameter integer PHY_HAS_BYTE_MASK = 1,
     localparam integer CHANNELS = 2,
     localparam integer CHANNEL_BITS = 1,
     localparam integer WORD_INDEX_BITS = 4,
@@ -127,7 +128,8 @@ module ddr3_wb_dual_channel_line #(
     ddr3_wb_line_channel #(
         .WB_ADDR_W(LOCAL_WORD_ADDR_W),
         .LANES(LANES),
-        .WB_DATA_W(WB_DATA_W)
+        .WB_DATA_W(WB_DATA_W),
+        .PHY_HAS_BYTE_MASK(PHY_HAS_BYTE_MASK)
     ) u_ch0 (
         .i_clk(i_clk),
         .i_rst(i_rst),
@@ -159,7 +161,8 @@ module ddr3_wb_dual_channel_line #(
     ddr3_wb_line_channel #(
         .WB_ADDR_W(LOCAL_WORD_ADDR_W),
         .LANES(LANES),
-        .WB_DATA_W(WB_DATA_W)
+        .WB_DATA_W(WB_DATA_W),
+        .PHY_HAS_BYTE_MASK(PHY_HAS_BYTE_MASK)
     ) u_ch1 (
         .i_clk(i_clk),
         .i_rst(i_rst),
