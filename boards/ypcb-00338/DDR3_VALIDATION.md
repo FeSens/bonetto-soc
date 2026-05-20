@@ -1,5 +1,104 @@
 # YPCB-00338 DDR3 Validation
 
+## Clean-Sheet DDR3 Line-Controller Loopback Evidence
+
+Validation date: 2026-05-20
+
+This is a hardware validation of the clean DDR3 line-controller fabric path:
+
+- DLC10/XVC/USER1 JTAG transport
+- JTAG-driven Wishbone master
+- BRAM sanity writes and reads through the same JTAG/Wishbone bridge
+- Wishbone writes and reads through the line-level dual-channel DDR3 controller
+- DDR3 scheduler command generation for both logical channels
+- complete 512-bit BL8 write/read line boundary with 64 byte-mask bits
+- both logical DDR3 channels through an internal line-loopback PHY
+
+The line-controller loopback image intentionally runs the controller, JTAG
+bridge, Wishbone bus, scheduler, and internal loopback PHY in the 50 MHz
+board-clock domain. The full CH0 + CH1 DDR3 board pinout is constrained, the
+DDR CK generator is present, and DQ/DQS pins stay high-Z, but the external DDR3
+devices are held in reset. This image does not validate external DDR3 command
+timing, DQ/DQS timing, read/write leveling, or real memory storage, so it is
+not a DDR3-800 speed-grade signoff.
+
+### Build And Timing Evidence
+
+Build command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 ddr3-ctrl-line-loopback-ddr800-bitstream
+```
+
+Route log:
+
+```text
+boards/ypcb-00338/build/ddr3_ctrl_line_loopback_sys50_seed1_route.log
+```
+
+Final nextpnr clock estimates:
+
+```text
+ctrl_clk                  72.09 MHz (PASS at 50.00 MHz)
+u_jtag_uart.bscan_drck   634.92 MHz (PASS at 50.00 MHz)
+u_jtag_uart.bscan_update 1092.90 MHz (PASS at 50.00 MHz)
+clk_sys                 1557.63 MHz (PASS at 50.00 MHz)
+clk_ddr                 1557.63 MHz (PASS at 50.00 MHz)
+clk_dq                  1557.63 MHz (PASS at 50.00 MHz)
+```
+
+### Hardware Status Evidence
+
+Program command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 program-ddr3-ctrl-line-loopback-ddr800
+```
+
+Programming completed with FPGA DONE asserted:
+
+```text
+USB alternate interface 1 not present; keeping current setting
+Shift IR 75
+ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+```
+
+XVC command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 xvc
+```
+
+Validation command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 validate-ddr3-ctrl-line-loopback
+```
+
+Final summary:
+
+```text
+connected to localhost:3721 - xvcServer_v1.0:1048576
+settck(2000 ns) -> 2000 ns
+version=0xb07e0d82
+status=0xb07e8831 magic=0xb07e cal_done=1 cal_error=0 cal_ecode=0(no error) init_done=1 init_error=0 init_ecode=0 mmcm_locked=1 idelay_ready=1 por_rst=0 mpr_busy=0 mtest_any_err=0 hb=1
+state=0x023103b2
+clk_sys=0xc151c003 clk_ddr=0xc152c017 clk_dq=0xc153c025 clk_ref=0xc150c013
+bram_sanity: PASS cases=4
+dual_channel_boundary_patterns: PASS cases=28
+same_line_partial_writes: PASS cases=32
+randomized_dual_channel_loopback: PASS cases=128
+loop_counts ch0_wr=86 ch1_wr=102 ch0_rd=86 ch1_rd=102
+last_lines ch0=0x00000000 ch1=0x00000061
+final_jwb_status=0xab100005
+DDR3_CTRL_LINE_LOOPBACK_VALIDATE_SUMMARY ok=1
+```
+
+This proves the live JTAG/Wishbone path can drive real writes and reads through
+the clean dual-channel line controller and scheduled BL8 line boundary in FPGA
+fabric. The next DDR3 hardware gate must replace the internal line loopback
+with a real DQ/DQS PHY and validate external memory reads and writes.
+
 ## Clean-Sheet DDR3 Controller Loopback Evidence
 
 Validation date: 2026-05-20

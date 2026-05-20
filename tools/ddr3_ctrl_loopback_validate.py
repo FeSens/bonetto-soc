@@ -184,8 +184,9 @@ def validate(args):
         print(f"clk_sys=0x{clk_sys:08x} clk_ddr=0x{clk_ddr:08x} "
               f"clk_dq=0x{clk_dq:08x} clk_ref=0x{clk_ref:08x}")
 
-        require(version == VERSION,
-                f"expected controller-loopback version 0x{VERSION:08x}, got 0x{version:08x}")
+        require(version == args.expected_version,
+                f"expected {args.gate_name} version "
+                f"0x{args.expected_version:08x}, got 0x{version:08x}")
         require((status >> 16) == 0xB07E,
                 f"status magic mismatch: 0x{status:08x}")
         require(((status >> 15) & 1) == 1, "loopback cal_done is not asserted")
@@ -225,7 +226,7 @@ def validate(args):
         if args.resume:
             jwb_cmd(xvc, JWB_CMD_RESUME)
 
-        print("DDR3_CTRL_LOOPBACK_VALIDATE_SUMMARY ok=1")
+        print(f"{args.gate_name}_VALIDATE_SUMMARY ok=1")
     finally:
         xvc.close()
 
@@ -239,6 +240,9 @@ def main():
     parser.add_argument("--random-seed", type=lambda s: int(s, 0),
                         default=0xD3D38101)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--expected-version", type=lambda s: int(s, 0),
+                        default=VERSION)
+    parser.add_argument("--gate-name", default="DDR3_CTRL_LOOPBACK")
     args = parser.parse_args()
     validate(args)
     return 0

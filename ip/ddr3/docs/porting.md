@@ -45,14 +45,19 @@ make -C ip/ddr3 sim
 make validate-jtag-bram BOARD=ypcb-00338
 ```
 
-Future controller gates:
+Pre-PHY YPCB-00338 controller gate:
 
 ```sh
-make -C ip/ddr3 sim-init
-make -C ip/ddr3 sim-runtime
-make -C ip/ddr3 sim-channel
-make -C ip/ddr3 formal-controller
+make -C boards/ypcb-00338 ddr3-ctrl-line-loopback-ddr800-bitstream
+make -C boards/ypcb-00338 program-ddr3-ctrl-line-loopback-ddr800
+make -C boards/ypcb-00338 validate-ddr3-ctrl-line-loopback
 ```
 
-Hardware gates must cover boundaries, address walking, every data bit, every
-byte lane, contiguous windows, checksum sweep, randomized accesses, and soak.
+The line-controller loopback proves the live JTAG/Wishbone path through the
+clean controller, scheduler, and complete BL8 line boundary in FPGA fabric. It
+does not prove external DDR3 storage because the board DQ/DQS pins remain
+high-Z and the DDR3 devices are held in reset.
+
+Real external-memory hardware gates must cover boundaries, address walking,
+every data bit, every byte lane, contiguous windows, checksum sweep,
+randomized accesses, and soak.

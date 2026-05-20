@@ -6,8 +6,11 @@ The previous controller/PHY RTL was intentionally removed. Keep this directory
 small and verification-first until the new design has a proven command core,
 Micron-model simulation, and hardware evidence at each speed step.
 
-The active board-level hardware baseline remains the BRAM-only JTAG/Wishbone
-proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
+The active board-level hardware baseline is now the YPCB-00338 line-controller
+loopback image. It keeps the BRAM-only JTAG/Wishbone proof alive, then routes
+JTAG/Wishbone traffic through the clean dual-channel DDR3 line controller,
+scheduler, and a fabric BL8 line-loopback PHY. External DDR3 DQ/DQS is still
+not connected.
 
 ## Status
 
@@ -17,7 +20,7 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 | Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, Wishbone frontend proof, line-level Wishbone proof, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
 | Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
-| Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
+| Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback; not external DDR3 storage |
 
 ## Live Gates
 
@@ -27,6 +30,9 @@ Run these from the repo root:
 make -C ip/ddr3 formal
 make -C ip/ddr3 sim
 make validate-jtag-bram BOARD=ypcb-00338
+make -C boards/ypcb-00338 ddr3-ctrl-line-loopback-ddr800-bitstream
+make -C boards/ypcb-00338 program-ddr3-ctrl-line-loopback-ddr800
+make -C boards/ypcb-00338 validate-ddr3-ctrl-line-loopback
 ```
 
 What these mean today:
@@ -105,7 +111,19 @@ What these mean today:
   failures. This is not board PHY validation yet; it keeps the real Micron BFM,
   initialization assumptions, runtime command timing, and full-width data
   loopback coverage in the live gate.
-- `validate-jtag-bram` is still the hardware confidence check for JTAG/Wishbone.
+- `validate-jtag-bram` remains the narrow hardware confidence check for
+  JTAG/Wishbone and the board BRAM target.
+- `ddr3-ctrl-line-loopback-ddr800-bitstream` routes the clean line-controller
+  board image with the full CH0 + CH1 DDR3 pinout constrained. The controller,
+  scheduler, JTAG bridge, Wishbone bus, and fabric loopback PHY run in the
+  50 MHz board-clock domain; CK is generated, DQ/DQS are high-Z, and external
+  DDR3 reset is held low.
+- `program-ddr3-ctrl-line-loopback-ddr800` and
+  `validate-ddr3-ctrl-line-loopback` are the current hardware gate for the
+  clean controller fabric path. Passing them proves live JTAG/Wishbone writes
+  and reads through the two-channel line controller and scheduled BL8 line
+  boundary. It is not DDR3-800 speed signoff because no external DQ/DQS PHY or
+  real memory storage is validated yet.
 
 ## Directory Map
 
@@ -127,6 +145,8 @@ What these mean today:
 | `rtl/ddr3_wb_channel.sv` | Integration slice tying the line-level Wishbone bridge to the full-channel line packetizer and exposing one BL8 line command. |
 | `rtl/ddr3_wb_dual_channel.sv` | Full-capacity dual-channel Wishbone dispatch bridge built from two channel bridges and the global address decoder. |
 | `rtl/ddr3_ctrl.sv` | Init-gated dual-channel controller shell connecting Wishbone dispatch, two init sequencers, two scheduler adapters, command pins, and packetized PHY-side data ports. |
+| `rtl/ddr3_wb_dual_channel_line.sv` | Line-level dual-channel Wishbone dispatch bridge for a controller-owned BL8 line PHY boundary. |
+| `rtl/ddr3_ctrl_line.sv` | Init-gated dual-channel controller shell that exposes complete BL8 write/read lines instead of byte-lane DQ/DQS packets. |
 | `formal/ddr3_cmd_timing_monitor.sv` | Reusable JEDEC command/timing assertion block. |
 | `formal/addr_decode_wrapper.sv` | Formal harness for the full-capacity two-channel address map and alias checks. |
 | `formal/timing_monitor_wrapper.sv` | Self-check harness for the timing monitor. |
@@ -145,6 +165,7 @@ What these mean today:
 | `formal/wb_dual_channel_wrapper.sv` | Formal harness for global Wishbone channel selection and local address preservation. |
 | `formal/channel_sched_wrapper.sv` | Formal harness for BL8 line request acceptance, scheduler command issue, and transfer-start timing. |
 | `formal/ctrl_wrapper.sv` | Formal harness for the controller-level init gate and pre-init Wishbone/data quiescence. |
+| `formal/ctrl_line_wrapper.sv` | Formal harness for the line-level controller init gate and pre-init PHY-line quiescence. |
 | `sim/vendor/` | Vendored Micron DDR3 model and parameters. |
 | `sim/tb_addr_decode.sv` | Unit bench for boundary and mixed full-capacity address decoding. |
 | `sim/tb_byte_lane.sv` | Unit bench for the byte-lane packetizer. |
@@ -155,6 +176,7 @@ What these mean today:
 | `sim/tb_wb_dual_channel.sv` | Unit bench for channel-0 write dispatch and channel-1 read dispatch. |
 | `sim/tb_channel_sched.sv` | Unit bench for BL8 line requests issuing through the scheduler adapter. |
 | `sim/tb_ctrl.sv` | Unit bench for init-gated dual-channel controller integration through scheduler-issued RD/WR transfer starts. |
+| `sim/tb_ctrl_line.sv` | Unit bench for init-gated line-level controller integration through scheduler-issued RD/WR transfer starts. |
 | `sim/ddr3_x8_phy_agent.sv` | Simulation-only reusable x8 DQS/DQ/DM timing agent that bridges byte-lane packets to a Micron x8 model. |
 | `sim/tb_micron_model_smoke.sv` | Minimal Micron model compile/run smoke bench. |
 | `sim/tb_micron_init_script.sv` | Handwritten DDR3-800 reset/MRS/ZQ/REF script against the Micron model. |
