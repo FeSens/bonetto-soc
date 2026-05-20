@@ -1,4 +1,4 @@
-.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-dual-channel formal-channel-sched formal-ctrl sim sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-dual-channel sim-channel-sched sim-ctrl sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel cocotb clean
+.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line sim sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
@@ -22,7 +22,7 @@ VVP          ?= vvp
 # keep verification infrastructure live while the clean-sheet controller is
 # designed.
 
-formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-dual-channel formal-channel-sched formal-ctrl
+formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line
 
 formal-addr-decode: $(BUILD)/addr_decode.proof
 
@@ -54,9 +54,13 @@ formal-wb-line-channel: $(BUILD)/wb_line_channel.proof
 
 formal-wb-dual-channel: $(BUILD)/wb_dual_channel.proof
 
+formal-wb-dual-channel-line: $(BUILD)/wb_dual_channel_line.proof
+
 formal-channel-sched: $(BUILD)/channel_sched.proof
 
 formal-ctrl: $(BUILD)/ctrl.proof
+
+formal-ctrl-line: $(BUILD)/ctrl_line.proof
 
 $(BUILD):
 	mkdir -p $@
@@ -154,6 +158,12 @@ $(BUILD)/wb_dual_channel.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/dd
 	  prep -top ddr3_wb_dual_channel_wrapper; \
 	  write_smt2 -wires $@"
 
+$(BUILD)/wb_dual_channel_line.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_wb_dual_channel_line.sv ../../formal/vendor/fwb_slave.v formal/wb_dual_channel_line_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_wb_dual_channel_line.sv ../../formal/vendor/fwb_slave.v formal/wb_dual_channel_line_wrapper.sv; \
+	  prep -top ddr3_wb_dual_channel_line_wrapper; \
+	  write_smt2 -wires $@"
+
 $(BUILD)/channel_sched.smt2: rtl/ddr3_params.vh rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv formal/ddr3_cmd_timing_monitor.sv formal/channel_sched_wrapper.sv | $(BUILD)
 	$(YOSYS) -q -p "\
 	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv formal/ddr3_cmd_timing_monitor.sv formal/channel_sched_wrapper.sv; \
@@ -164,6 +174,12 @@ $(BUILD)/ctrl.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq
 	$(YOSYS) -q -p "\
 	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv formal/ctrl_wrapper.sv; \
 	  prep -top ddr3_ctrl_wrapper; \
+	  write_smt2 -wires $@"
+
+$(BUILD)/ctrl_line.smt2: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_wb_dual_channel_line.sv rtl/ddr3_ctrl_line.sv formal/ctrl_line_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -Irtl -formal -sv -DFORMAL rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_wb_dual_channel_line.sv rtl/ddr3_ctrl_line.sv formal/ctrl_line_wrapper.sv; \
+	  prep -top ddr3_ctrl_line_wrapper; \
 	  write_smt2 -wires $@"
 
 $(BUILD)/addr_decode.proof: $(BUILD)/addr_decode.smt2
@@ -241,6 +257,11 @@ $(BUILD)/wb_dual_channel.proof: $(BUILD)/wb_dual_channel.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(WB_DUAL_CHANNEL_SMTBMC_DEPTH) $<
 	@touch $@
 
+$(BUILD)/wb_dual_channel_line.proof: $(BUILD)/wb_dual_channel_line.smt2
+	@echo "[ddr3] formal: DDR3 line-level dual-channel Wishbone dispatch, depth=$(WB_DUAL_CHANNEL_SMTBMC_DEPTH), solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(WB_DUAL_CHANNEL_SMTBMC_DEPTH) $<
+	@touch $@
+
 $(BUILD)/channel_sched.proof: $(BUILD)/channel_sched.smt2
 	@echo "[ddr3] formal: DDR3 BL8 line scheduler adapter, depth=$(CHANNEL_SCHED_SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(CHANNEL_SCHED_SMTBMC_DEPTH) $<
@@ -251,7 +272,12 @@ $(BUILD)/ctrl.proof: $(BUILD)/ctrl.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(CTRL_SMTBMC_DEPTH) $<
 	@touch $@
 
-sim: sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-dual-channel sim-channel-sched sim-ctrl sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel
+$(BUILD)/ctrl_line.proof: $(BUILD)/ctrl_line.smt2
+	@echo "[ddr3] formal: DDR3 init-gated line-level controller shell, depth=$(CTRL_SMTBMC_DEPTH), solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(CTRL_SMTBMC_DEPTH) $<
+	@touch $@
+
+sim: sim-addr-decode sim-byte-lane sim-channel-line sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel
 
 cocotb:
 	@echo "[ddr3] cocotb disabled until Wishbone/runtime controller RTL exists; run 'make sim' for Micron init coverage."
@@ -289,12 +315,20 @@ sim-wb-dual-channel: $(SIM_BUILD)/wb_dual_channel.vvp
 	@echo "[ddr3] sim: DDR3 dual-channel Wishbone dispatch"
 	$(VVP) $<
 
+sim-wb-dual-channel-line: $(SIM_BUILD)/wb_dual_channel_line.vvp
+	@echo "[ddr3] sim: DDR3 line-level dual-channel Wishbone dispatch"
+	$(VVP) $<
+
 sim-channel-sched: $(SIM_BUILD)/channel_sched.vvp
 	@echo "[ddr3] sim: DDR3 BL8 line scheduler adapter"
 	$(VVP) $<
 
 sim-ctrl: $(SIM_BUILD)/ctrl.vvp
 	@echo "[ddr3] sim: DDR3 init-gated dual-channel controller shell"
+	$(VVP) $<
+
+sim-ctrl-line: $(SIM_BUILD)/ctrl_line.vvp
+	@echo "[ddr3] sim: DDR3 init-gated line-level controller shell"
 	$(VVP) $<
 
 sim-micron-init: $(SIM_BUILD)/micron_init_script.vvp
@@ -422,6 +456,11 @@ $(SIM_BUILD)/wb_dual_channel.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl
 	  -s tb_wb_dual_channel \
 	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv sim/tb_wb_dual_channel.sv
 
+$(SIM_BUILD)/wb_dual_channel_line.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_wb_dual_channel_line.sv sim/tb_wb_dual_channel_line.sv | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl \
+	  -s tb_wb_dual_channel_line \
+	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_wb_dual_channel_line.sv sim/tb_wb_dual_channel_line.sv
+
 $(SIM_BUILD)/channel_sched.vvp: rtl/ddr3_params.vh rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv sim/tb_channel_sched.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_channel_sched \
@@ -431,6 +470,11 @@ $(SIM_BUILD)/ctrl.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_ctrl \
 	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_byte_lane.sv rtl/ddr3_channel_line.sv rtl/ddr3_wb_channel.sv rtl/ddr3_wb_dual_channel.sv rtl/ddr3_ctrl.sv sim/tb_ctrl.sv
+
+$(SIM_BUILD)/ctrl_line.vvp: rtl/ddr3_params.vh rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_wb_dual_channel_line.sv rtl/ddr3_ctrl_line.sv sim/tb_ctrl_line.sv | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl \
+	  -s tb_ctrl_line \
+	  -o $@ rtl/ddr3_addr_decode.sv rtl/ddr3_init_seq.sv rtl/ddr3_refresh.sv rtl/ddr3_bank.sv rtl/ddr3_scheduler.sv rtl/ddr3_channel_sched.sv rtl/ddr3_wb_line_channel.sv rtl/ddr3_wb_dual_channel_line.sv rtl/ddr3_ctrl_line.sv sim/tb_ctrl_line.sv
 
 $(SIM_BUILD)/micron_init_script.vvp: sim/tb_micron_init_script.sv sim/vendor/ddr3.v sim/vendor/ddr3/2048Mb_ddr3_parameters.vh | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I sim/vendor \

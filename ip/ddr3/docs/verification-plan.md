@@ -47,14 +47,16 @@ Current coverage:
   The dual-channel dispatch proof composes two channel bridges behind the
   global address decoder and checks that each accepted request selects exactly
   one channel while preserving `global[28:4]` as that channel's BL8 line
-  address. The BL8 line scheduler-adapter proof connects one channel command
+  address. The line-level dual-channel dispatch proof checks the same global
+  routing contract while exposing complete 512-bit write/read lines directly to
+  the PHY boundary. The BL8 line scheduler-adapter proof connects one channel command
   port to the refresh requester plus scheduler and checks that request
   acceptance is separate from the RD/WR transfer-start pulse, that the transfer
   starts only for the matching pending request, and that issued command bank and
   column fields match the accepted line address. The controller shell proof
   checks the top-level init gate: before both init sequencers are done,
   Wishbone requests remain stalled, no response is produced, refresh/scheduler
-  traffic is quiet, and no PHY-side packet transfer starts.
+  traffic is quiet, and no PHY-side packet or line transfer starts.
 - `sim`: runs a unit bench for the full-capacity address map, then compiles and
   runs the vendored Micron x8 2Gb DDR3 model at a valid DDR3-800 clock. It
   drives both a handwritten reset/MRS/ZQ/REF reference script and the RTL init
@@ -69,12 +71,14 @@ Current coverage:
   selection. The Wishbone-to-channel unit bench drives one write and one read
   from the bus through all eight byte lanes. The dual-channel dispatch unit
   bench drives a channel-0 write and a channel-1 read through independent
-  command/data ports. The scheduler-adapter unit bench issues write/read/write
-  line requests across different rows and banks and checks that `o_xfer_start`
-  coincides with the expected RD/WR command. The controller shell unit bench
-  waits for both init sequencers, then runs a channel-0 write and channel-1
-  read through scheduler-issued DDR3 WR/RD commands and the full-channel packet
-  data path. The controller-level Micron bench then wires both channels through
+  command/data ports. The line-level dual-channel bench repeats that routing
+  check against complete 512-bit line ports. The scheduler-adapter unit bench
+  issues write/read/write line requests across different rows and banks and
+  checks that `o_xfer_start` coincides with the expected RD/WR command. The
+  controller shell unit benches wait for both init sequencers, then run a
+  channel-0 write and channel-1 read through scheduler-issued DDR3 WR/RD
+  commands across both the packetized compatibility path and the line-level
+  PHY boundary. The controller-level Micron bench then wires both channels through
   sixteen x8 models and performs one full-width write/read loopback per channel.
   The protocol benches fail if the model reports timing or protocol errors or
   warnings. The line-level Wishbone bridge bench checks the next hardware-facing
@@ -95,10 +99,11 @@ lock, generated-clock liveness, both channel init sequencers, refresh liveness,
 and USER1 JTAG status. It deliberately does not cover memory reads/writes.
 
 The first post-init-probe RTL slice, `rtl/ddr3_wb_line_channel.sv`, is now wired
-under `rtl/ddr3_wb_channel.sv`. The controller still exposes the existing
-per-lane packetized compatibility boundary, but scheduler command acceptance now
-sits behind a provable line-level contract suitable for real DDR3 write/read
-timing.
+under both `rtl/ddr3_wb_channel.sv` and
+`rtl/ddr3_wb_dual_channel_line.sv`. `rtl/ddr3_ctrl_line.sv` exposes that
+provable line-level contract at the controller boundary intended for real DDR3
+write/read timing, while `rtl/ddr3_ctrl.sv` keeps the packetized compatibility
+boundary alive for the existing Micron-agent regression.
 
 ## Formal Ladder
 
@@ -118,7 +123,8 @@ Every new RTL slice should add or extend one of these harnesses:
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer, with write-line data captured before command acceptance. First proof exists. |
 | Wishbone line channel | One Wishbone word request maps to one scheduler command while write data is presented as a complete 64-byte line before command accept; reads wait for a full returned line. First proof exists. |
 | Channel scheduler adapter | One BL8 line command is accepted by the scheduler, then starts data only when the matching RD/WR command issues. First proof exists. |
-| Controller shell | Wishbone is gated until both init sequencers finish, then requests flow through two scheduler adapters. First gate proof and scheduler-connected unit simulation exist. |
+| Line-level dual channel decode | Channel select bit routes to exactly one channel and preserves local address while exposing complete PHY lines. First proof exists through `ddr3_wb_dual_channel_line`. |
+| Controller shell | Wishbone is gated until both init sequencers finish, then requests flow through two scheduler adapters. Gate proofs and scheduler-connected unit simulations exist for both the packetized compatibility shell and line-level shell. |
 | Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation now uses active-high DDR3 DM polarity; downstream merge or mask-preserving PHY write is still pending. |
 | Dual channel decode | Channel select bit routes to exactly one channel and preserves local address. First proof exists through `ddr3_wb_dual_channel`. |
 
@@ -145,7 +151,9 @@ Use the real Micron model for protocol validation:
 | Wishbone line channel unit | line-level Wishbone bridge | command acceptance is gated by write-line readiness; read acknowledgement waits for transfer-start and returned line |
 | Wishbone dual-channel unit | address decoder + two Wishbone channel bridges | channel-0 write and channel-1 read dispatch to independent command/data ports |
 | Channel scheduler unit | scheduler adapter + refresh requester + scheduler | line requests produce matching RD/WR command issue and transfer-start pulses |
+| Wishbone line dual-channel unit | address decoder + two line-level Wishbone bridges | channel-0 write and channel-1 read dispatch to independent complete-line PHY ports |
 | Controller shell unit | init + dual-channel Wishbone dispatch + two scheduler adapters + packetized compatibility data ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR |
+| Controller line shell unit | init + line-level dual-channel Wishbone dispatch + two scheduler adapters + line-level PHY ports | pre-init bus stall plus post-init channel-0 write and channel-1 read through scheduler-issued RD/WR and complete PHY lines |
 | Controller Micron dual-channel | init + dual-channel Wishbone dispatch + two scheduler adapters + sixteen x8 timing agents/models | channel-0 and channel-1 full-width write/read loopbacks pass without Micron model errors or warnings |
 | Runtime x8 | controller + one x8 model | controller-owned DQS/DQ write/read patterns pass |
 | Full channel | controller + eight x8 models | every 64 data bits and byte lane pass |

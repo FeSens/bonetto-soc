@@ -1,8 +1,10 @@
 # DDR3 Interface Contract
 
-`rtl/ddr3_ctrl.sv` is now the active pre-PHY controller shell. This file
-defines the interface it exposes today and the remaining board/PHY contract
-that still must be implemented before DDR3 hardware validation.
+`rtl/ddr3_ctrl.sv` is the packetized compatibility controller shell.
+`rtl/ddr3_ctrl_line.sv` is the line-level pre-PHY controller shell intended for
+the real board DQ/DQS PHY. This file defines the interfaces exposed today and
+the remaining board/PHY contract that still must be implemented before DDR3
+hardware validation.
 
 ## Wishbone Slave
 
@@ -79,6 +81,11 @@ channel 1. It intentionally allows only one global Wishbone request outstanding
 at a time; throughput pipelining should wait until scheduler and PHY timing are
 hardware-proven.
 
+`rtl/ddr3_wb_dual_channel_line.sv` is the hardware-facing version of that same
+global bus slice. It wraps two `ddr3_wb_line_channel` instances directly, so
+the selected channel exposes a complete write line and byte mask at request
+acceptance and waits for a complete read line before responding.
+
 `rtl/ddr3_channel_sched.sv` is the first scheduler-side adapter for one
 channel. It consumes `{write, line_addr}`, decodes `{bank, row, column[9:3]}`,
 feeds the refresh requester plus scheduler, reports request acceptance through
@@ -92,6 +99,12 @@ controller stalls Wishbone and drives each channel's DDR3 command pins from its
 init sequencer. After init, the scheduler adapters own the runtime command pins
 and start the packetized line data path only when a matching RD/WR command
 issues. This is still a controller/PHY boundary, not a pin-level DQS/DQ PHY.
+
+`rtl/ddr3_ctrl_line.sv` keeps the same init and scheduler ownership, but swaps
+the bus dispatch block for `ddr3_wb_dual_channel_line`. A write request is
+accepted only after the line-level PHY side can capture the full 512-bit BL8
+payload and 64-bit mask. A read request does not acknowledge Wishbone until the
+PHY side returns the full 512-bit captured line.
 
 ## DDR3 Command Pins
 
@@ -138,10 +151,10 @@ bits, with per-lane compatibility handshakes still visible until the Xilinx
 7-series DQS/DQ PHY replaces that simulation-facing packetizer.
 `rtl/ddr3_wb_channel.sv` captures the complete line before scheduler command
 acceptance, then waits for the scheduler adapter's transfer-start pulse before
-driving the packet flow. `rtl/ddr3_wb_dual_channel.sv` replicates that boundary
-once per channel and keeps the two channel PHY-facing interfaces independent.
-`rtl/ddr3_ctrl.sv` preserves that same packetized compatibility boundary at the
-top level while the real DQS/DQ PHY is still pending.
+driving the packet flow. `rtl/ddr3_wb_dual_channel.sv` replicates that
+packetized compatibility boundary once per channel. `rtl/ddr3_wb_dual_channel_line.sv`
+and `rtl/ddr3_ctrl_line.sv` expose the same line contract directly as the
+intended top-level boundary for the real DQS/DQ PHY.
 
 ## Debug/Status
 

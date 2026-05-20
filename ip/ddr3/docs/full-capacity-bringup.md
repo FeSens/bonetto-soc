@@ -48,16 +48,17 @@ must wait for the explicit transfer-start pulse.
 request model, but exposes the complete 64-byte BL8 channel line before a write
 command can be accepted by the scheduler. Reads wait for both the scheduler
 transfer-start pulse and a complete returned line before acknowledging the bus.
-The current top-level still uses the existing per-lane packetized compatibility
-ports for simulation; the future board DQ/DQS PHY should consume this captured
-line contract instead of stretching one byte-lane beat per controller cycle into
-a DDR3 data window.
+`rtl/ddr3_wb_dual_channel_line.sv` now exposes that same contract across both
+channels behind the full-capacity address decoder, without the old per-lane
+packetized compatibility ports.
 
-`rtl/ddr3_ctrl.sv` is the current pre-PHY top-level controller boundary. It
-combines the dual-channel Wishbone dispatch bridge, two init sequencers, and
-two scheduler adapters. The live unit bench checks the first integrated path:
-pre-init Wishbone stalls, then a channel-0 write and channel-1 read pass
-through scheduler-issued WR/RD commands into the full-channel packet ports.
+`rtl/ddr3_ctrl.sv` is the packetized compatibility top-level controller
+boundary. `rtl/ddr3_ctrl_line.sv` is the hardware-facing line-level top-level
+controller boundary. Both combine dual-channel Wishbone dispatch, two init
+sequencers, and two scheduler adapters. The line-level unit bench checks the
+first integrated path that a real PHY should consume: pre-init Wishbone stalls,
+a channel-0 write captures a complete 512-bit line before the eventual WR
+command, and a channel-1 read acknowledges only after a complete returned line.
 
 `boards/ypcb-00338/rtl/top_ddr3_init_probe.sv` is the first fresh hardware
 integration step. It runs per-channel init/refresh sequencers in the 100 MHz

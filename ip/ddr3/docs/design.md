@@ -36,8 +36,10 @@ describes the target architecture, not an existing implementation.
 | `ddr3_channel_line` | Full 64-bit-channel BL8 line packetizer that composes eight x8 byte lanes into one 512-bit line plus 64 byte-mask bits. This exists now. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 word packing, byte-mask generation, and read word selection. This exists now as a single-outstanding frontend slice. |
 | `ddr3_wb_channel` | Bus/data integration slice tying the line-level Wishbone bridge to the full-channel line packetizer and emitting one scheduler-facing BL8 line command. This exists now, presents a complete write line before scheduler command acceptance, and waits for an explicit transfer-start pulse before launching the data packetizer. |
-| `ddr3_wb_dual_channel` | Full-capacity bus-facing dispatch slice tying the global address decoder to two full-channel Wishbone bridges. This exists now as a single-outstanding dual-channel slice. |
-| `ddr3_ctrl` | Init-gated dual-channel controller shell. This exists now and connects the global Wishbone dispatch bridge to two init sequencers and two scheduler adapters, with packetized PHY-side data ports but no DQS/DQ PHY. |
+| `ddr3_wb_dual_channel` | Full-capacity bus-facing dispatch slice tying the global address decoder to two full-channel Wishbone bridges. This exists now as a single-outstanding dual-channel compatibility slice. |
+| `ddr3_wb_dual_channel_line` | Full-capacity bus-facing dispatch slice with the hardware-facing line-level PHY contract: one 512-bit write line plus 64 mask bits per accepted write, and one 512-bit returned line per read. This exists now. |
+| `ddr3_ctrl` | Init-gated dual-channel controller shell. This exists now and connects the global Wishbone dispatch bridge to two init sequencers and two scheduler adapters, with packetized PHY-side data ports for compatibility benches. |
+| `ddr3_ctrl_line` | Init-gated dual-channel controller shell with the line-level PHY boundary intended for the real Xilinx 7-series DQ/DQS PHY. This exists now. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
 
 The scheduler emits one command per controller cycle. The PHY decides how that
@@ -73,24 +75,26 @@ The low word-index bits intentionally match `ddr3_wb_line_channel` and
 `ddr3_wb_channel`: consecutive 32-bit Wishbone addresses fill one 64-byte BL8
 line before the BL8 column address increments.
 
-`rtl/ddr3_wb_dual_channel.sv` is the first live user of this map. It decodes
+`rtl/ddr3_wb_dual_channel.sv` is the compatibility user of this map. It decodes
 the global address, routes the request to exactly one of two
 `ddr3_wb_channel` instances, and presents the selected channel's response on
-the global Wishbone bus. It is deliberately single-outstanding until the
-controller has a real scheduler/PHY path and hardware data evidence.
+the global Wishbone bus. `rtl/ddr3_wb_dual_channel_line.sv` uses the same map
+but routes each channel into `ddr3_wb_line_channel` directly, making the 512-bit
+BL8 line contract explicit for a real PHY. Both slices are deliberately
+single-outstanding until hardware data evidence exists.
 
 `rtl/ddr3_channel_sched.sv` consumes the same `{bank, row, column[9:3]}` line
 address. It accepts a line request when the scheduler accepts the bank request,
 then later pulses `o_xfer_start` when the matching RD or WR command actually
 issues on the DDR3 command bus.
 
-`rtl/ddr3_ctrl.sv` is the current pre-PHY integration boundary. It holds the
-Wishbone slave stalled until both channel init sequencers report done, muxes
-init commands onto each channel's DDR3 command pins before handoff, then lets
-the two scheduler adapters own runtime ACT/RD/WR/PRE/REF commands. The data
-side is line-backed internally and remains exposed as per-lane packetized
-valid/ready beats only as a compatibility boundary until the Xilinx 7-series
-DQS/DQ PHY lands.
+`rtl/ddr3_ctrl.sv` is the packetized compatibility integration boundary.
+`rtl/ddr3_ctrl_line.sv` is the hardware-facing pre-PHY boundary. Both hold the
+Wishbone slave stalled until both channel init sequencers report done, mux init
+commands onto each channel's DDR3 command pins before handoff, then let the two
+scheduler adapters own runtime ACT/RD/WR/PRE/REF commands. The line-level
+controller presents complete write lines when a request is accepted and waits
+for complete read lines after the scheduler reaches the RD data window.
 
 ## Timing Contract
 
@@ -136,11 +140,12 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
     channel owns a PHY.
 16. One single-channel BL8 scheduler adapter. This exists now and proves that
     scheduler acceptance and RD/WR data-transfer start are separate events.
-17. One init-gated dual-channel controller shell. This exists now and is
-    validated by a focused pre-init gate proof plus a post-init write/read
-    scheduler integration simulation. A Micron regression also runs the shell
-    through sixteen x8 models, one full 64-bit write/read loopback per channel,
-    using the simulation-only x8 timing agents.
+17. One init-gated dual-channel controller shell. This exists now in both the
+    packetized compatibility form and the line-level hardware-facing form. Both
+    have focused pre-init gate proofs and post-init write/read scheduler
+    integration simulations. A Micron regression also runs the compatibility
+    shell through sixteen x8 models, one full 64-bit write/read loopback per
+    channel, using the simulation-only x8 timing agents.
 18. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing. A
     reusable simulation-only x8 timing agent exists now to keep Micron DQS/DQ/DM
     phasing and active-high DM merge behavior in regression while this RTL is
