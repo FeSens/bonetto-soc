@@ -27,6 +27,7 @@ module tb_wb_dual_channel;
     reg [CHANNELS-1:0]          cmd_ready = {CHANNELS{1'b0}};
     wire [CHANNELS-1:0]         cmd_write;
     wire [(CHANNELS*LINE_ADDR_W)-1:0] cmd_line_addr;
+    reg [CHANNELS-1:0]          xfer_start = {CHANNELS{1'b0}};
     wire [CHANNELS-1:0]         line_done;
     wire [CHANNELS-1:0]         line_rd_valid;
 
@@ -62,6 +63,7 @@ module tb_wb_dual_channel;
         .i_cmd_ready(cmd_ready),
         .o_cmd_write(cmd_write),
         .o_cmd_line_addr(cmd_line_addr),
+        .i_xfer_start(xfer_start),
         .o_busy(),
         .o_line_done(line_done),
         .o_line_rd_valid(line_rd_valid),
@@ -196,7 +198,11 @@ module tb_wb_dual_channel;
         cmd_ready = 2'b00;
         @(negedge clk);
         cmd_ready = 2'b01;
+        xfer_start = 2'b01;
         phy_wr_ready[0 +: LANES] = {LANES{1'b1}};
+        @(negedge clk);
+        cmd_ready = 2'b00;
+        xfer_start = 2'b00;
 
         wait (wb_ack);
         if (wb_err) begin
@@ -232,8 +238,10 @@ module tb_wb_dual_channel;
 
         @(negedge clk);
         cmd_ready = 2'b10;
+        xfer_start = 2'b10;
         @(negedge clk);
         cmd_ready = 2'b00;
+        xfer_start = 2'b00;
 
         wait (phy_rd_ready[LANES +: LANES] == {LANES{1'b1}});
         if (phy_rd_ready[0 +: LANES] !== {LANES{1'b0}}) begin

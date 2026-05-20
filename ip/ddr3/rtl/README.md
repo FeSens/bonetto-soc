@@ -22,6 +22,10 @@ The active RTL slices are deliberately small and scheduler-facing:
 - `ddr3_refresh.sv`: periodic tREFI requester that raises refresh requests
   early enough to give the scheduler a drain/close margin before the JEDEC
   deadline;
+- `ddr3_channel_sched.sv`: single-channel adapter that feeds BL8 line requests
+  into the refresh requester plus scheduler, reports scheduler request
+  acceptance, and emits an explicit transfer-start pulse when the matching
+  RD/WR command issues;
 - `ddr3_byte_lane.sv`: controller-side x8 BL8 packetizer that emits ordered
   write data/mask beats and captures ordered read data beats;
 - `ddr3_channel_line.sv`: full 64-bit-channel BL8 line packetizer that composes
@@ -32,18 +36,20 @@ The active RTL slices are deliberately small and scheduler-facing:
   byte masks into a BL8 line, and selects read words from backend response
   lines;
 - `ddr3_wb_channel.sv`: first integration slice connecting the Wishbone
-  frontend to the full-channel BL8 line packetizer and exposing a
-  scheduler-facing line command;
+  frontend to the full-channel BL8 line packetizer, exposing a scheduler-facing
+  line command, and keeping scheduler request acceptance separate from the
+  later data-transfer start;
 - `ddr3_wb_dual_channel.sv`: full-capacity dual-channel dispatch slice that
   decodes the global word address and routes one Wishbone request to exactly
   one full-channel bridge.
 
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with the byte-lane packetizer feeding an ideal
-testbench DQS/DQ agent. The bank machine, scheduler, and refresh requester are
-the first scheduler-owned blocks, and the refresh requester now has idle plus
-focused active-traffic deadline proofs. The data boundary has one x8 lane, one
-full 64-bit-channel line packetizer, and a first Wishbone-to-channel bridge.
+testbench DQS/DQ agent. The bank machine, scheduler, refresh requester, and
+single-channel scheduler adapter are the first scheduler-owned blocks, and the
+refresh requester now has idle plus focused active-traffic deadline proofs. The
+data boundary has one x8 lane, one full 64-bit-channel line packetizer, and a
+first Wishbone-to-channel bridge.
 The full-capacity address map is explicit and formally checked. There is still
 no pin-level controller-owned DQS/DQ PHY, integrated controller, calibration,
 or hardware-validated DDR3 path.
@@ -61,5 +67,7 @@ Recommended first RTL slices:
 - typed mode-register field helpers,
 - a real controller-owned PHY bridge from the byte-lane packet stream to DQS/DQ
   timing against one Micron x8 model,
-- a backend merge/read-modify-write path connecting the Wishbone channel bridge
-  to scheduler requests and byte-lane packets.
+- a controller integration shell connecting the dual-channel Wishbone bridge to
+  two scheduler adapters and future PHY data paths,
+- a backend merge/read-modify-write path before partial writes are exposed as
+  hardware validated.

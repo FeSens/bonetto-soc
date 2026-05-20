@@ -38,6 +38,11 @@ requests into channel 0 or channel 1, with formal and simulation coverage for
 single-outstanding channel dispatch. This is still pre-PHY and pre-hardware; it
 only proves the bus-facing channel split.
 
+`rtl/ddr3_channel_sched.sv` is the first scheduler-side consumer of the same
+line address. It proves the next boundary: a BL8 line request can be accepted
+by the scheduler before the matching RD/WR command issues, and the data path
+must wait for the explicit transfer-start pulse.
+
 ## Speed Ladder
 
 Do not skip rungs:

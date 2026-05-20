@@ -55,10 +55,19 @@ calibration, and status integration are still separate work.
 
 `rtl/ddr3_wb_channel.sv` is the first integrated bus/data slice. It composes
 the Wishbone frontend with `ddr3_channel_line`, emits one scheduler-facing BL8
-line command `{write, line_addr}`, starts the full-channel data packetizer when
-that command is accepted, and returns completed read lines to the frontend for
-32-bit word selection. It still does not own a DDR3 command scheduler, row
-machine selection, PHY timing, calibration, or partial-write read-modify-write.
+line command `{write, line_addr}`, and returns completed read lines to the
+frontend for 32-bit word selection. Its scheduler-facing handshake deliberately
+uses two events:
+
+- `i_cmd_ready` accepts and removes the line request from the Wishbone side.
+- `i_xfer_start` launches the full-channel data packetizer when the matching
+  RD/WR command has actually issued.
+
+This separation matters because an open-row miss, bank timing wait, refresh
+window, or write-to-read turnaround can delay the RD/WR command after the
+Wishbone request has already been accepted. The channel bridge still does not
+own a DDR3 command scheduler, row machine selection, PHY timing, calibration,
+or partial-write read-modify-write.
 
 `rtl/ddr3_wb_dual_channel.sv` is the first integrated global bus slice. It
 wraps two `ddr3_wb_channel` instances behind `ddr3_addr_decode`, uses
@@ -67,6 +76,12 @@ channel, and exposes independent command/data packet ports for channel 0 and
 channel 1. It intentionally allows only one global Wishbone request outstanding
 at a time; throughput pipelining should wait until scheduler and PHY timing are
 hardware-proven.
+
+`rtl/ddr3_channel_sched.sv` is the first scheduler-side adapter for one
+channel. It consumes `{write, line_addr}`, decodes `{bank, row, column[9:3]}`,
+feeds the refresh requester plus scheduler, reports request acceptance through
+`o_cmd_ready`, and pulses `o_xfer_start` only when the scheduler emits the
+matching RD or WR command.
 
 ## DDR3 Command Pins
 
@@ -111,10 +126,10 @@ response. `rtl/ddr3_channel_line.sv` composes eight of those lanes into the
 full 64-bit-channel packet boundary: one 512-bit BL8 line plus 64 byte-mask
 bits, with per-lane PHY handshakes still visible for the future Xilinx 7-series
 DQS/DQ bridge. `rtl/ddr3_wb_channel.sv` currently drives that packet boundary
-from Wishbone requests and exposes the line command that the future scheduler
-must pair with ACT/RD/WR/PRE timing. `rtl/ddr3_wb_dual_channel.sv` replicates
-that boundary once per channel and keeps the two channel PHY-facing interfaces
-independent.
+from Wishbone requests and waits for the scheduler adapter's transfer-start
+pulse before driving the write or read packet flow. `rtl/ddr3_wb_dual_channel.sv`
+replicates that boundary once per channel and keeps the two channel PHY-facing
+interfaces independent.
 
 ## Debug/Status
 

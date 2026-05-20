@@ -31,10 +31,11 @@ describes the target architecture, not an existing implementation.
 | `ddr3_bank` | One bank's open-row state and local timing waits. This exists now for one request at a time and supports command backpressure plus close requests from the scheduler. |
 | `ddr3_scheduler` | Cross-bank arbitration, tRRD/tFAW/tCCD/tWTR command issue, and request-driven refresh after all banks are precharged. A first slice exists now. |
 | `ddr3_refresh` | Periodic tREFI accounting and early refresh requests into the scheduler. Idle and focused active-traffic deadline proofs exist now. |
+| `ddr3_channel_sched` | Single-channel adapter from BL8 line requests into refresh plus scheduler command issue. This exists now and separates request acceptance from the later RD/WR data-transfer start. |
 | `ddr3_byte_lane` | Controller-side x8 BL8 data packetizer. This exists now and proves write data/mask ordering plus read capture ordering before a board-specific DQS/DQ PHY is added. |
 | `ddr3_channel_line` | Full 64-bit-channel BL8 line packetizer that composes eight x8 byte lanes into one 512-bit line plus 64 byte-mask bits. This exists now. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 word packing, byte-mask generation, and read word selection. This exists now as a single-outstanding frontend slice. |
-| `ddr3_wb_channel` | First bus/data integration slice tying the Wishbone frontend to the full-channel line packetizer and emitting one scheduler-facing BL8 line command. This exists now. |
+| `ddr3_wb_channel` | First bus/data integration slice tying the Wishbone frontend to the full-channel line packetizer and emitting one scheduler-facing BL8 line command. This exists now and waits for an explicit transfer-start pulse before launching the data packetizer. |
 | `ddr3_wb_dual_channel` | Full-capacity bus-facing dispatch slice tying the global address decoder to two full-channel Wishbone bridges. This exists now as a single-outstanding dual-channel slice. |
 | `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
@@ -78,6 +79,11 @@ the global address, routes the request to exactly one of two
 the global Wishbone bus. It is deliberately single-outstanding until the
 controller has a real scheduler/PHY path and hardware data evidence.
 
+`rtl/ddr3_channel_sched.sv` consumes the same `{bank, row, column[9:3]}` line
+address. It accepts a line request when the scheduler accepts the bank request,
+then later pulses `o_xfer_start` when the matching RD or WR command actually
+issues on the DDR3 command bus.
+
 ## Timing Contract
 
 The command scheduler must never issue a command that violates:
@@ -120,8 +126,10 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 15. One full-capacity dual-channel Wishbone dispatch bridge. This exists now
     and proves channel selection plus local address preservation before either
     channel owns a PHY.
-16. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
-17. One 64-bit channel integrated through scheduler, frontend, and PHY.
-18. Two 64-bit channels with the dispatch bridge driving independent
+16. One single-channel BL8 scheduler adapter. This exists now and proves that
+    scheduler acceptance and RD/WR data-transfer start are separate events.
+17. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
+18. One 64-bit channel integrated through scheduler, frontend, and PHY.
+19. Two 64-bit channels with the dispatch bridge driving independent
     scheduler/PHY stacks.
-19. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+20. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.

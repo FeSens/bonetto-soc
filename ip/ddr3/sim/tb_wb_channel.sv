@@ -27,6 +27,7 @@ module tb_wb_channel;
     reg                     cmd_ready = 1'b0;
     wire                    cmd_write;
     wire [LINE_ADDR_W-1:0]  cmd_line_addr;
+    reg                     xfer_start = 1'b0;
     wire                    line_done;
     wire                    line_rd_valid;
 
@@ -65,6 +66,7 @@ module tb_wb_channel;
         .i_cmd_ready(cmd_ready),
         .o_cmd_write(cmd_write),
         .o_cmd_line_addr(cmd_line_addr),
+        .i_xfer_start(xfer_start),
         .o_busy(),
         .o_line_done(line_done),
         .o_line_rd_valid(line_rd_valid),
@@ -195,7 +197,11 @@ module tb_wb_channel;
         cmd_ready = 1'b0;
         @(negedge clk);
         cmd_ready = 1'b1;
+        xfer_start = 1'b1;
         phy_wr_ready = {LANES{1'b1}};
+        @(negedge clk);
+        cmd_ready = 1'b0;
+        xfer_start = 1'b0;
 
         wait (wb_ack);
         if (wb_err) begin
@@ -229,8 +235,10 @@ module tb_wb_channel;
 
         @(negedge clk);
         cmd_ready = 1'b1;
+        xfer_start = 1'b1;
         @(negedge clk);
         cmd_ready = 1'b0;
+        xfer_start = 1'b0;
 
         wait (phy_rd_ready == {LANES{1'b1}});
         for (beat = 0; beat < 8; beat = beat + 1)

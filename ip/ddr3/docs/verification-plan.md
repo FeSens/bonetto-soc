@@ -47,7 +47,11 @@ Current coverage:
   The dual-channel dispatch proof composes two channel bridges behind the
   global address decoder and checks that each accepted request selects exactly
   one channel while preserving `global[28:4]` as that channel's BL8 line
-  address.
+  address. The BL8 line scheduler-adapter proof connects one channel command
+  port to the refresh requester plus scheduler and checks that request
+  acceptance is separate from the RD/WR transfer-start pulse, that the transfer
+  starts only for the matching pending request, and that issued command bank and
+  column fields match the accepted line address.
 - `sim`: runs a unit bench for the full-capacity address map, then compiles and
   runs the vendored Micron x8 2Gb DDR3 model at a valid DDR3-800 clock. It
   drives both a handwritten reset/MRS/ZQ/REF reference script and the RTL init
@@ -60,8 +64,10 @@ Current coverage:
   selection. The Wishbone-to-channel unit bench drives one write and one read
   from the bus through all eight byte lanes. The dual-channel dispatch unit
   bench drives a channel-0 write and a channel-1 read through independent
-  command/data ports. The protocol benches fail if the model reports timing or
-  protocol errors or warnings.
+  command/data ports. The scheduler-adapter unit bench issues write/read/write
+  line requests across different rows and banks and checks that `o_xfer_start`
+  coincides with the expected RD/WR command. The protocol benches fail if the
+  model reports timing or protocol errors or warnings.
 
 Current non-coverage:
 
@@ -87,6 +93,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer. First proof exists. |
+| Channel scheduler adapter | One BL8 line command is accepted by the scheduler, then starts data only when the matching RD/WR command issues. First proof exists. |
 | Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation exists; downstream merge or mask-preserving PHY write is still pending. |
 | Dual channel decode | Channel select bit routes to exactly one channel and preserves local address. First proof exists through `ddr3_wb_dual_channel`. |
 
@@ -110,6 +117,7 @@ Use the real Micron model for protocol validation:
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
 | Wishbone channel unit | Wishbone frontend + full-channel line packetizer | one bus write and one bus read traverse all eight byte lanes with correct command and word mapping |
 | Wishbone dual-channel unit | address decoder + two Wishbone channel bridges | channel-0 write and channel-1 read dispatch to independent command/data ports |
+| Channel scheduler unit | scheduler adapter + refresh requester + scheduler | line requests produce matching RD/WR command issue and transfer-start pulses |
 | Runtime x8 | controller + one x8 model | controller-owned DQS/DQ write/read patterns pass |
 | Full channel | controller + eight x8 models | every 64 data bits and byte lane pass |
 | Dual channel | two full-channel stacks | both channels pass independent and interleaved traffic |

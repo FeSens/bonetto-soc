@@ -42,6 +42,7 @@ module ddr3_wb_dual_channel #(
     input wire [CHANNELS-1:0]          i_cmd_ready,
     output wire [CHANNELS-1:0]         o_cmd_write,
     output wire [(CHANNELS*LINE_ADDR_W)-1:0] o_cmd_line_addr,
+    input wire [CHANNELS-1:0]          i_xfer_start,
 
     output wire [CHANNELS-1:0]         o_busy,
     output wire [CHANNELS-1:0]         o_line_done,
@@ -148,6 +149,7 @@ module ddr3_wb_dual_channel #(
         .i_cmd_ready(i_cmd_ready[0]),
         .o_cmd_write(o_cmd_write[0]),
         .o_cmd_line_addr(o_cmd_line_addr[0 +: LINE_ADDR_W]),
+        .i_xfer_start(i_xfer_start[0]),
         .o_busy(o_busy[0]),
         .o_line_done(o_line_done[0]),
         .o_line_rd_valid(o_line_rd_valid[0]),
@@ -182,6 +184,7 @@ module ddr3_wb_dual_channel #(
         .i_cmd_ready(i_cmd_ready[1]),
         .o_cmd_write(o_cmd_write[1]),
         .o_cmd_line_addr(o_cmd_line_addr[LINE_ADDR_W +: LINE_ADDR_W]),
+        .i_xfer_start(i_xfer_start[1]),
         .o_busy(o_busy[1]),
         .o_line_done(o_line_done[1]),
         .o_line_rd_valid(o_line_rd_valid[1]),

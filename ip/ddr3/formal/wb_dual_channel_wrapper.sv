@@ -30,6 +30,7 @@ module ddr3_wb_dual_channel_wrapper (
     wire [CHANNELS-1:0]          cmd_ready = {CHANNELS{1'b1}};
     wire [CHANNELS-1:0]          cmd_write;
     wire [(CHANNELS*LINE_ADDR_W)-1:0] cmd_line_addr;
+    wire [CHANNELS-1:0]          xfer_start = cmd_valid & cmd_ready;
     wire [CHANNELS-1:0]          line_done;
     wire [CHANNELS-1:0]          line_rd_valid;
     wire [(CHANNELS*LANES)-1:0]  phy_wr_valid;
@@ -58,6 +59,7 @@ module ddr3_wb_dual_channel_wrapper (
         .i_cmd_ready(cmd_ready),
         .o_cmd_write(cmd_write),
         .o_cmd_line_addr(cmd_line_addr),
+        .i_xfer_start(xfer_start),
         .o_busy(),
         .o_line_done(line_done),
         .o_line_rd_valid(line_rd_valid),

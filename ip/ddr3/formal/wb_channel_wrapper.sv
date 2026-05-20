@@ -33,6 +33,7 @@ module ddr3_wb_channel_wrapper (
     wire                    cmd_valid;
     wire                    cmd_write;
     wire [LINE_ADDR_W-1:0]  cmd_line_addr;
+    wire                    xfer_start;
     wire                    line_done;
     wire                    line_rd_valid;
     wire [LANES-1:0]        phy_wr_valid;
@@ -62,6 +63,7 @@ module ddr3_wb_channel_wrapper (
         .i_cmd_ready(cmd_ready),
         .o_cmd_write(cmd_write),
         .o_cmd_line_addr(cmd_line_addr),
+        .i_xfer_start(xfer_start),
         .o_busy(),
         .o_line_done(line_done),
         .o_line_rd_valid(line_rd_valid),
@@ -113,6 +115,12 @@ module ddr3_wb_channel_wrapper (
     reg [WB_DATA_W-1:0] f_pending_data = {WB_DATA_W{1'b0}};
     reg [(WB_DATA_W/8)-1:0] f_pending_sel = {(WB_DATA_W/8){1'b0}};
 
+    reg f_xfer_pending = 1'b0;
+    reg f_xfer_write = 1'b0;
+    reg [WORD_INDEX_W-1:0] f_xfer_word_index = {WORD_INDEX_W{1'b0}};
+    reg [WB_DATA_W-1:0] f_xfer_data = {WB_DATA_W{1'b0}};
+    reg [(WB_DATA_W/8)-1:0] f_xfer_sel = {(WB_DATA_W/8){1'b0}};
+
     reg f_write_active = 1'b0;
     reg [WORD_INDEX_W-1:0] f_write_word_index = {WORD_INDEX_W{1'b0}};
     reg [WB_DATA_W-1:0] f_write_data = {WB_DATA_W{1'b0}};
@@ -129,6 +137,7 @@ module ddr3_wb_channel_wrapper (
 
     wire wb_accept = m_cyc && m_stb && !s_stall;
     wire cmd_accept = cmd_valid && cmd_ready;
+    assign xfer_start = f_xfer_pending && !f_write_active && !f_read_active;
 
     initial assume(rst);
 
@@ -209,6 +218,11 @@ module ddr3_wb_channel_wrapper (
             f_pending_word_index <= {WORD_INDEX_W{1'b0}};
             f_pending_data <= {WB_DATA_W{1'b0}};
             f_pending_sel <= {(WB_DATA_W/8){1'b0}};
+            f_xfer_pending <= 1'b0;
+            f_xfer_write <= 1'b0;
+            f_xfer_word_index <= {WORD_INDEX_W{1'b0}};
+            f_xfer_data <= {WB_DATA_W{1'b0}};
+            f_xfer_sel <= {(WB_DATA_W/8){1'b0}};
             f_write_active <= 1'b0;
             f_write_word_index <= {WORD_INDEX_W{1'b0}};
             f_write_data <= {WB_DATA_W{1'b0}};
@@ -227,7 +241,7 @@ module ddr3_wb_channel_wrapper (
                 cmd_wait <= 3'd0;
             end
 
-            if (f_pending || f_write_active || f_read_active)
+            if (f_pending || f_xfer_pending || f_write_active || f_read_active)
                 assume(m_cyc);
 
             if (f_write_active)
@@ -262,16 +276,30 @@ module ddr3_wb_channel_wrapper (
                 assert(cmd_write == f_pending_write);
                 assert(cmd_line_addr == f_pending_line_addr);
                 f_pending <= 1'b0;
+                f_xfer_pending <= 1'b1;
+                f_xfer_write <= f_pending_write;
+                f_xfer_word_index <= f_pending_word_index;
+                f_xfer_data <= f_pending_data;
+                f_xfer_sel <= f_pending_sel;
+            end
 
-                if (cmd_write) begin
+            if (xfer_start) begin
+                assert(f_xfer_pending || cmd_accept);
+                assert(!f_write_active);
+                assert(!f_read_active);
+                f_xfer_pending <= 1'b0;
+
+                if (cmd_accept ? f_pending_write : f_xfer_write) begin
                     f_write_active <= 1'b1;
-                    f_write_word_index <= f_pending_word_index;
-                    f_write_data <= f_pending_data;
-                    f_write_sel <= f_pending_sel;
+                    f_write_word_index <= cmd_accept ?
+                        f_pending_word_index : f_xfer_word_index;
+                    f_write_data <= cmd_accept ? f_pending_data : f_xfer_data;
+                    f_write_sel <= cmd_accept ? f_pending_sel : f_xfer_sel;
                     f_wr_index <= {(LANES*3){1'b0}};
                 end else begin
                     f_read_active <= 1'b1;
-                    f_read_word_index <= f_pending_word_index;
+                    f_read_word_index <= cmd_accept ?
+                        f_pending_word_index : f_xfer_word_index;
                     f_read_line <= {(LINE_BYTES*8){1'b0}};
                     f_rd_index <= {(LANES*3){1'b0}};
                 end
@@ -332,6 +360,7 @@ module ddr3_wb_channel_wrapper (
             end
 
             cover(cmd_accept && cmd_write);
+            cover(xfer_start && (f_xfer_pending || cmd_accept));
             cover(s_ack && f_read_active);
         end
     end

@@ -13,9 +13,9 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 
 | Area | State |
 |---|---|
-| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, single-outstanding Wishbone-to-BL8 frontend, a Wishbone-to-full-channel bridge, and a dual-channel Wishbone dispatch bridge; no controller-owned PHY |
-| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, Wishbone frontend proof, Wishbone-to-channel bridge proof, and dual-channel dispatch proof |
-| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, dual-channel dispatch unit test, reference init, RTL init, RTL single-read command, and x8 write/read loopback target using the byte-lane packetizer |
+| Controller RTL | Full-capacity two-channel address decoder, DDR3-800 init sequencer, temporary single-bank command slices, one-bank row/timing machine, global scheduler timing/refresh slice, periodic refresh requester, controller-side x8 BL8 byte-lane packetizer, full 64-bit-channel BL8 line packetizer, single-outstanding Wishbone-to-BL8 frontend, a Wishbone-to-full-channel bridge, a dual-channel Wishbone dispatch bridge, and a single-channel BL8 scheduler adapter; no controller-owned PHY |
+| Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, Wishbone frontend proof, Wishbone-to-channel bridge proof, dual-channel dispatch proof, and BL8 line scheduler-adapter proof |
+| Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, reference init, RTL init, RTL single-read command, and x8 write/read loopback target using the byte-lane packetizer |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
 
@@ -74,6 +74,12 @@ What these mean today:
   29-bit local address as the scheduler-facing BL8 line address. Its unit
   simulation drives a channel-0 write and a channel-1 read through independent
   command/data ports.
+- The BL8 line scheduler-adapter proof connects one channel command port to the
+  refresh requester plus scheduler. It checks that request acceptance is
+  separate from the data-transfer start, that `o_xfer_start` only pulses when
+  the matching RD/WR command issues, and that bank/column command fields match
+  the accepted line address. Its unit simulation drives write/read/write
+  traffic through different banks and rows.
 - `sim` compiles the vendored Micron DDR3 model, runs a smoke bench, and runs a
   DDR3-800 reset/MRS/ZQ/REF reference script plus the RTL init sequencer against
   the model. It also runs the RTL init sequencer followed by one single-bank
@@ -96,6 +102,7 @@ What these mean today:
 | `rtl/ddr3_bank.sv` | Reusable one-bank open-row and local timing machine. |
 | `rtl/ddr3_scheduler.sv` | First global command scheduler slice for cross-bank timing gates and request-driven refresh. |
 | `rtl/ddr3_refresh.sv` | Periodic tREFI refresh requester that feeds the scheduler. |
+| `rtl/ddr3_channel_sched.sv` | Single-channel adapter from BL8 line requests into refresh plus scheduler command issue, with an explicit transfer-start pulse. |
 | `rtl/ddr3_byte_lane.sv` | Controller-side x8 BL8 byte-lane packetizer for ordered write/read data beats. |
 | `rtl/ddr3_channel_line.sv` | Full 64-bit-channel BL8 line packetizer composed from eight x8 byte lanes. |
 | `rtl/ddr3_wb_frontend.sv` | Single-outstanding Wishbone-to-BL8 frontend for 32-bit word packing, byte masks, and read word selection. |
@@ -116,6 +123,7 @@ What these mean today:
 | `formal/wb_frontend_wrapper.sv` | Formal harness for Wishbone protocol, backend request stability, and BL8 word mapping. |
 | `formal/wb_channel_wrapper.sv` | Formal harness for the Wishbone-to-full-channel bridge command/data mapping. |
 | `formal/wb_dual_channel_wrapper.sv` | Formal harness for global Wishbone channel selection and local address preservation. |
+| `formal/channel_sched_wrapper.sv` | Formal harness for BL8 line request acceptance, scheduler command issue, and transfer-start timing. |
 | `sim/vendor/` | Vendored Micron DDR3 model and parameters. |
 | `sim/tb_addr_decode.sv` | Unit bench for boundary and mixed full-capacity address decoding. |
 | `sim/tb_byte_lane.sv` | Unit bench for the byte-lane packetizer. |
@@ -123,6 +131,7 @@ What these mean today:
 | `sim/tb_wb_frontend.sv` | Unit bench for the Wishbone-to-BL8 frontend. |
 | `sim/tb_wb_channel.sv` | Unit bench for the Wishbone-to-full-channel bridge. |
 | `sim/tb_wb_dual_channel.sv` | Unit bench for channel-0 write dispatch and channel-1 read dispatch. |
+| `sim/tb_channel_sched.sv` | Unit bench for BL8 line requests issuing through the scheduler adapter. |
 | `sim/tb_micron_model_smoke.sv` | Minimal Micron model compile/run smoke bench. |
 | `sim/tb_micron_init_script.sv` | Handwritten DDR3-800 reset/MRS/ZQ/REF script against the Micron model. |
 | `sim/tb_micron_init_seq.sv` | RTL init sequencer bench against the Micron model. |
