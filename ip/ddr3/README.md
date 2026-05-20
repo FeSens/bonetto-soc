@@ -389,8 +389,10 @@ What these mean today:
 - `ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream` is the first live
   init-only board image with the controller-to-SERDES full x9 shell present.
   It drives DDR3 reset/CKE/ODT/CK/address/command pins and blocks DDR Wishbone
-  access so uncalibrated external storage traffic cannot be launched. The
-  2026-05-20 seed-1 route generated a bitstream with 162 OSERDESE2,
+  access so uncalibrated external storage traffic cannot be launched. Its XVC
+  validator requires the block flag and performs one blocked DDR write/read
+  check, expecting `ack+err` and the blocked-read sentinel. The 2026-05-20
+  seed-1 route generated a bitstream with 162 OSERDESE2,
   162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF, 18 DQS IOBUFDS, and
   6 IDELAYCTRL cells. Post-route max frequencies were `SYS_CLK` 118.11 MHz,
   `clk_sys` 137.48 MHz, `clk_idelay_ref` 747.94 MHz, `clk_dq` 664.45 MHz, and

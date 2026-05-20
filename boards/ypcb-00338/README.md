@@ -155,9 +155,9 @@ make -C boards/ypcb-00338 validate-ddr3-ctrl-line-serdes-init
 
 That validator requires version `0xB07E0D89`, live generated clocks, both
 channel init sequencers done, no late refresh, command pins enabled, the SERDES
-PHY flag set, and the DDR Wishbone block flag set. This gate is still not a
-DDR3 storage validator; it deliberately returns an error for DDR Wishbone
-accesses.
+PHY flag set, and the DDR Wishbone block flag set. It also attempts one DDR
+Wishbone write and read and requires both to return `ack+err` with the blocked
+read sentinel. This gate is still not a DDR3 storage validator.
 
 `ddr3-init-ddr800-bitstream` routes with nextpnr's single global `--freq 400`
 check and `--timing-allow-fail`. Read the route log per clock: the DDR launch

@@ -14,7 +14,11 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 from jtag_uart_read import (  # noqa: E402
+    JWB_CMD_RESUME,
     XVC,
+    jwb_cmd,
+    jwb_wb_read,
+    jwb_wb_write,
     read_status_reg,
     select_user1,
     tap_reset_to_rti,
@@ -22,6 +26,8 @@ from jtag_uart_read import (  # noqa: E402
 
 
 PROBE_VERSION = 0xB07E0D80
+DDR3_SELECT_ADDR = 0x4000
+DDR3_BLOCKED_READ_DATA = 0xD15AB1ED
 
 
 def require(cond, msg):
@@ -31,6 +37,39 @@ def require(cond, msg):
 
 def bit(value, index):
     return (value >> index) & 1
+
+
+def require_jwb_result(status, name, expect_err):
+    require((status >> 16) == 0xAB10,
+            f"{name} JWB status magic mismatch: 0x{status:08x}")
+    require(bit(status, 3) == 0,
+            f"{name} JWB transaction is still busy: 0x{status:08x}")
+    require(bit(status, 2) == 1,
+            f"{name} JWB transaction did not ack: 0x{status:08x}")
+    require(bit(status, 1) == int(expect_err),
+            f"{name} JWB err bit mismatch: 0x{status:08x}")
+
+
+def check_ddr_wishbone_block(xvc, addr):
+    write_status = jwb_wb_write(xvc, addr, 0xA5A55A5A)
+    read_data = jwb_wb_read(xvc, addr)
+    read_status = read_status_reg(xvc, 0x10)
+    print(f"blocked_ddr_write_status=0x{write_status:08x}")
+    print(f"blocked_ddr_read_status=0x{read_status:08x} "
+          f"read_data=0x{read_data:08x}")
+    require_jwb_result(write_status, "blocked DDR write", expect_err=True)
+    require_jwb_result(read_status, "blocked DDR read", expect_err=True)
+    require(read_data == DDR3_BLOCKED_READ_DATA,
+            f"blocked DDR read returned 0x{read_data:08x}, "
+            f"expected 0x{DDR3_BLOCKED_READ_DATA:08x}")
+
+    # Clear the sticky JTAG-Wishbone error latch with a known-good BRAM read so
+    # the board is left in a less surprising debug state after validation.
+    bram_data = jwb_wb_read(xvc, 0x0000)
+    clear_status = read_status_reg(xvc, 0x10)
+    print(f"post_block_bram_read_status=0x{clear_status:08x} "
+          f"read_data=0x{bram_data:08x}")
+    require_jwb_result(clear_status, "post-block BRAM read", expect_err=False)
 
 
 def validate(args):
@@ -101,9 +140,14 @@ def validate(args):
                     f"SERDES PHY bit is not set: 0x{config:08x}")
             require(bit(config, 0) == 1,
                     f"DDR command-drive bit is not set: 0x{config:08x}")
+            check_ddr_wishbone_block(xvc, args.ddr_wb_block_addr)
 
         print(f"{args.gate_name}_VALIDATE_SUMMARY ok=1")
     finally:
+        try:
+            jwb_cmd(xvc, JWB_CMD_RESUME)
+        except Exception:
+            pass
         xvc.close()
 
 
@@ -116,6 +160,8 @@ def main():
                         default=PROBE_VERSION)
     parser.add_argument("--gate-name", default="DDR3_INIT")
     parser.add_argument("--require-ddr-wb-blocked", action="store_true")
+    parser.add_argument("--ddr-wb-block-addr", type=lambda s: int(s, 0),
+                        default=DDR3_SELECT_ADDR)
     args = parser.parse_args()
     validate(args)
     return 0
