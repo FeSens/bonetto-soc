@@ -63,7 +63,11 @@ Current coverage:
   stable under backpressure. The x8 burst clock-bridge proof checks the narrow
   slow/fast boundary intended to feed that sequencer: one 64-bit x8 payload plus
   8 mask bits crosses intact, start pulses arrive in order, and one returned
-  read burst reaches the slow side without spurious error flags.
+  read burst reaches the slow side without spurious error flags. The
+  line-to-fast-burst PHY shell proof then composes the slow line-to-burst
+  adapter, one narrow clock bridge, and one fast-domain x8 burst sequencer for
+  a representative lane, checking write launch mapping, read-burst return, and
+  synchronized error status for a legal sequence.
   The scheduler and line-controller checks now also preserve transfer type so
   the future PHY receives mutually exclusive write/read start pulses aligned to
   the issued WR/RD command.
@@ -101,7 +105,11 @@ Current coverage:
   smaller preloaded-payload interface that should feed the board I/O shell
   instead of moving wide lane arbitration into `clk_dq`. The x8 burst
   clock-bridge unit bench runs the real dual-clock case for that narrow payload
-  and start/read-return path. The line-to-lane PHY bridge unit bench runs the
+  and start/read-return path. The line-to-fast-burst PHY shell unit bench runs
+  a real slow/fast two-clock integration with two channels and two lanes per
+  channel, checking selected-channel write launch, selected-channel read
+  sampling, complete-line reassembly, and final idle/error state. The
+  line-to-lane PHY bridge unit bench runs the
   full two-channel, sixteen-lane integration over abstract DQ/DQS/DM timing
   signals before any Xilinx primitive wrapper is connected. The
   controller-to-PHY clock bridge unit bench runs the real dual-clock case, with
@@ -268,6 +276,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | X8 lane PHY timing core | One BL8 x8 write stream becomes four DDR rise/fall pin-data pairs with DQ/DM/DQS output enables, and four sampled read pairs become eight lane read beats. First bounded proof and unit simulation exist. |
 | X8 fast burst I/O sequencer | One preloaded 64-bit x8 BL8 payload emits four ordered DDR rise/fall DQ pairs with DQS strobes, and four sampled read pairs reassemble into one 64-bit payload. First bounded proof and unit simulation exist. |
 | X8 burst clock bridge | One preloaded x8 payload, start pulses, and one returned read payload cross between slow fabric and fast sequencer clocks without data loss. First same-clock protocol proof and dual-clock simulation exist. |
+| Line-to-fast-burst PHY shell | Complete channel lines split into preloaded x8 bursts in slow fabric, cross narrow per-lane bridges, launch through fast x8 sequencers, and reassemble read bursts into complete lines. First focused proof and dual-clock unit simulation exist. |
 | Line-to-lane PHY bridge | Complete channel lines feed one x8 lane PHY timing core per physical lane, with queued scheduler transfer-start pulses and abstract DQ/DQS/DM timing signals. First focused write/read sequencing proofs and full two-channel unit simulation exist. |
 | Controller-to-PHY clock bridge | Slow controller line handshakes cross to a faster PHY-side clock without changing payloads or dropping one legal single-outstanding read/write transaction. First dual-clock simulation and same-clock bounded protocol proof exist. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
@@ -302,6 +311,7 @@ Use the real Micron model for protocol validation:
 | X8 lane PHY unit | one lane stream + synthesizable timing core | BL8 write preload, four DDR write rise/fall pairs, DQ/DM/DQS output enables, four sampled read pairs, and eight returned lane bytes pass |
 | X8 fast burst I/O unit | one preloaded x8 burst + fast-domain sequencer | 64-bit write payload launches as four DDR pairs, four sampled read pairs return as one 64-bit payload, and ready/valid state returns idle |
 | X8 burst clock bridge unit | slow controller clock + fast PHY clock | 64-bit write payload plus mask, start pulses, and read payload cross the bridge without error and return to idle |
+| Line-to-fast-burst PHY unit | complete channel lines + per-lane burst bridges and fast sequencers | line-to-burst mapping, slow/fast bridge handshakes, selected-channel write launch, read sampling, and complete-line return pass |
 | Line-to-lane PHY unit | two complete channel line ports + sixteen x8 lane PHY timing cores | queued transfer starts, all-lane write launch mapping, DQ/DQS/DM pin-pair checks, read sampling, and complete line reassembly pass |
 | Controller-to-PHY clock bridge unit | slow controller clock + fast PHY clock | write payload, start pulses, and read payload cross the bridge without error and return to idle |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
