@@ -36,7 +36,7 @@ upper byte is the command and the lower 24 bits are payload.
 | `0xE5` | `GO_READ` | issue a read with stored address |
 | `0xE6` | `HALT_OTHERS` | request autonomous traffic to pause |
 | `0xE7` | `RESUME` | clear the pause request |
-| `0xE8` | `SET_CAL` | lane `[3:0]`, tap `[12:8]`, channel `[16]` |
+| `0xE8` | `SET_CAL` | lane in low `$clog2(NUM_BYTE_LANES)` bits, tap `[12:8]`, channel `[16]` |
 | `0xE9` | `PHASE_INC` | request one MMCM phase increment |
 | `0xEA` | `PHASE_DEC` | request one MMCM phase decrement |
 | `0xF0` | `SET_SEL` | byte enables in bits `[3:0]`; reset/default is `4'hf` |

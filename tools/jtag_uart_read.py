@@ -208,7 +208,7 @@ JWB_CMD_GO_WR    = 0xE4
 JWB_CMD_GO_RD    = 0xE5
 JWB_CMD_HALT     = 0xE6
 JWB_CMD_RESUME   = 0xE7
-# iter-10: payload[3:0]=lane, payload[12:8]=tap
+# iter-10: payload low bits=lane, payload[12:8]=tap
 JWB_CMD_SET_CAL  = 0xE8
 # iter-11: MMCM clk_dq phase shift on CLKOUT2 (DQS-out launch clock).
 JWB_CMD_PHASE_INC = 0xE9
@@ -224,7 +224,7 @@ JWB_CMD_SET_SEL  = 0xF0
 
 def jwb_set_idelay(xvc, lane: int, tap: int, channel: int = 0):
     """Pulse the FPGA's IDELAYE2 load on `lane`/`channel` with `tap`."""
-    payload = ((channel & 1) << 16) | ((tap & 0x1F) << 8) | (lane & 0xF)
+    payload = ((channel & 1) << 16) | ((tap & 0x1F) << 8) | (lane & 0x1F)
     jwb_cmd(xvc, JWB_CMD_SET_CAL, payload)
 
 

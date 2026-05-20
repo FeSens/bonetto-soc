@@ -170,6 +170,37 @@ DDR3_CTRL_LINE_PHYCLKLOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv \
     ../../ip/ddr3/rtl/ddr3_line_phy_clock_bridge.sv
 
+DDR3_CTRL_LINE_SERDES_RTL := \
+    rtl/top_ddr3_ctrl_line_serdes.sv \
+    rtl/top_ddr3_ctrl_line_loopback.sv \
+    rtl/ddr3_board_io.sv \
+    rtl/ddr3_serdes_io.sv \
+    rtl/ddr3_pinpair_timing_probe.sv \
+    rtl/ddr3_pinpair_loopback_phy.sv \
+    rtl/ddr3_line_loopback_phy.sv \
+    rtl/ddr3_ctrl_loopback_phy.sv \
+    rtl/clk_liveness.v \
+    ../../ip/wb-memory/rtl/wb_memory.v \
+    ../../ip/jtag-uart/rtl/jtag_uart.v \
+    ../../ip/jtag-uart/rtl/jtag_wb_master.v \
+    ../../ip/ddr3/rtl/ddr3_addr_decode.sv \
+    ../../ip/ddr3/rtl/ddr3_init_seq.sv \
+    ../../ip/ddr3/rtl/ddr3_refresh.sv \
+    ../../ip/ddr3/rtl/ddr3_bank.sv \
+    ../../ip/ddr3/rtl/ddr3_scheduler.sv \
+    ../../ip/ddr3/rtl/ddr3_channel_sched.sv \
+    ../../ip/ddr3/rtl/ddr3_wb_line_channel.sv \
+    ../../ip/ddr3/rtl/ddr3_wb_dual_channel_line.sv \
+    ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
+    ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
+    ../../ip/ddr3/rtl/ddr3_x8_lane_phy.sv \
+    ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv \
+    ../../ip/ddr3/rtl/ddr3_line_phy_clock_bridge.sv \
+    ../../ip/ddr3/rtl/ddr3_line_to_bursts.sv \
+    ../../ip/ddr3/rtl/ddr3_x8_burst_clock_bridge.sv \
+    ../../ip/ddr3/rtl/ddr3_x8_serdes_burst_lane.sv \
+    ../../ip/ddr3/rtl/ddr3_line_serdes_phy.sv
+
 DDR3_DQ_DQS_IO_PROBE_RTL := \
     rtl/top_ddr3_dq_dqs_iobuf_probe.sv \
     rtl/ddr3_board_io.sv
@@ -215,6 +246,7 @@ DDR3_DEFINES_FILE := $(BUILD)/$(PROJECT).defines.txt
 .PHONY: bitstream program detect memtest xvc validate-jtag-bram bram-echo bram-transform ddr3-init-ddr800-json ddr3-init-ddr800-bitstream program-ddr3-init-ddr800 validate-ddr3-init ddr3-ctrl-loopback-ddr800-json ddr3-ctrl-loopback-ddr800-bitstream program-ddr3-ctrl-loopback-ddr800 validate-ddr3-ctrl-loopback ddr3-ctrl-line-loopback-ddr800-json ddr3-ctrl-line-loopback-ddr800-bitstream program-ddr3-ctrl-line-loopback-ddr800 validate-ddr3-ctrl-line-loopback ddr3-ctrl-line-cmdprobe-ddr800-json ddr3-ctrl-line-cmdprobe-ddr800-bitstream program-ddr3-ctrl-line-cmdprobe-ddr800 validate-ddr3-ctrl-line-cmdprobe ddr3-ctrl-line-laneloop-ddr800-json ddr3-ctrl-line-laneloop-ddr800-bitstream program-ddr3-ctrl-line-laneloop-ddr800 validate-ddr3-ctrl-line-laneloop ddr3-ctrl-line-cmdlaneloop-ddr800-json ddr3-ctrl-line-cmdlaneloop-ddr800-bitstream program-ddr3-ctrl-line-cmdlaneloop-ddr800 validate-ddr3-ctrl-line-cmdlaneloop validate-ddr3 validate-ddr3-ratio8-ch0 validate-ddr3-full-ch0 validate-ddr3-full-2ch jtag-bram-bitstream program-jtag-bram ratio8-ch0-ddr800-bitstream ratio8-ch0-oddrwr-ddr800-bitstream full-ch0-json full-ch0-ddr800-bitstream full-ch0-oddrwr-ddr800-bitstream full-2ch-json full-2ch-serdescmd-json full-2ch-iserdes-json full-2ch-serdescmd-iserdes-json full-2ch-iserdes-bufio-json full-2ch-ddr800-bitstream full-2ch-ddr1600-bitstream full-2ch-ddr1600-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-bitstream full-2ch-ddr1600-serdescmd-jtagonly-lateflat-json full-2ch-ddr1600-serdescmd-jtagonly-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-nrdata-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-lateflat-bitstream full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat-bitstream program-full-2ch-ddr1600-serdescmd-jtagonly-reqbuf-rmwpatch-ctrlreq-topreq-router1-lateflat full-2ch-ddr1600-serdescmd-jtagdirect-bitstream full-2ch-ddr1600-serdescmd-ddronly-json full-2ch-ddr1600-serdescmd-ddronly-bitstream full-2ch-ddr1600-serdescmd-iserdes-jtagonly-bitstream full-2ch-ddr1600-iserdes-bufio-jtagonly-bitstream full-2ch-ddr1600-jtagdirect-bitstream clean help
 .PHONY: ddr3-ctrl-line-phytimingloop-ddr800-json ddr3-ctrl-line-phytimingloop-ddr800-bitstream program-ddr3-ctrl-line-phytimingloop-ddr800 validate-ddr3-ctrl-line-phytimingloop
 .PHONY: ddr3-ctrl-line-phyclkloop-ddr800-json ddr3-ctrl-line-phyclkloop-ddr800-bitstream program-ddr3-ctrl-line-phyclkloop-ddr800 validate-ddr3-ctrl-line-phyclkloop
+.PHONY: ddr3-ctrl-line-serdes-ddr800-json ddr3-ctrl-line-serdes-router1-ddr800-bitstream
 .PHONY: ddr3-dq-dqs-iobuf-ddr800-json ddr3-dq-dqs-iobuf-ddr800-bitstream
 .PHONY: ddr3-dq-dqs-burst-ddr800-json ddr3-dq-dqs-burst-ddr800-bitstream
 .PHONY: ddr3-dq-dqs-serdes-lane0-ddr800-json ddr3-dq-dqs-serdes-lane0-ddr800-bitstream
@@ -408,6 +440,26 @@ ddr3-ctrl-line-phyclkloop-ddr800-bitstream:
 	  NEXTPNR_FREQ=400 \
 	  NEXTPNR_ARGS="--seed 1 --timing-allow-fail --log build/ddr3_ctrl_line_phyclkloop_ddr800_seed1_route.log" \
 	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_phyclkloop_ddr800.bit
+
+ddr3-ctrl-line-serdes-ddr800-json:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_ddr800 \
+	  TOP=top_ddr3_ctrl_line_serdes \
+	  RTL="$(DDR3_CTRL_LINE_SERDES_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_ddr800.json
+
+ddr3-ctrl-line-serdes-router1-ddr800-bitstream:
+	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_router1_ddr800 \
+	  TOP=top_ddr3_ctrl_line_serdes \
+	  RTL="$(DDR3_CTRL_LINE_SERDES_RTL)" \
+	  XDC_FILES="constraints/ypcb003381p1_active.xdc constraints/ddr3_ch0.xdc constraints/ddr3_ch1.xdc" \
+	  DDR3_ACTIVE_DQ_MAX=71 \
+	  DDR3_ACTIVE_DQS_MAX=8 \
+	  NEXTPNR_FREQ=50 \
+	  NEXTPNR_ARGS="--router router1 --seed 1 --log build/ddr3_ctrl_line_serdes_router1_ddr800_seed1_route.log" \
+	  build/bonetto_soc_ypcb00338_ddr3_ctrl_line_serdes_router1_ddr800.bit
 
 ddr3-dq-dqs-iobuf-ddr800-json:
 	$(MAKE) PROJECT=bonetto_soc_ypcb00338_ddr3_dq_dqs_iobuf_ddr800 \
@@ -992,6 +1044,7 @@ help:
 	@echo "  make ddr3-ctrl-line-phyclkloop-ddr800-bitstream  route timing-failed PHY-clock experiment"
 	@echo "  make program-ddr3-ctrl-line-phyclkloop-ddr800    refused unless ALLOW_TIMING_FAILED_DDR3_EXPERIMENT=1"
 	@echo "  make validate-ddr3-ctrl-line-phyclkloop          debug-only immediate readback through PHY-clock probe"
+	@echo "  make ddr3-ctrl-line-serdes-router1-ddr800-bitstream  route-only controller-to-SERDES full x9 CH0+CH1 boundary"
 	@echo "  make ddr3-dq-dqs-iobuf-ddr800-bitstream         route-only tiny DQ/DQS I/O-shell probe"
 	@echo "  make ddr3-dq-dqs-burst-ddr800-bitstream         route-only x8 burst sequencer plus DQ/DQS shell"
 	@echo "  make ddr3-dq-dqs-serdes-lane0-tight-ddr800-bitstream         route-only lane0 bidirectional SERDES probe"

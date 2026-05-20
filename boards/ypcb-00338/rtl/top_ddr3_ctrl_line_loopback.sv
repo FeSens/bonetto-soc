@@ -22,6 +22,7 @@ module top_ddr3_ctrl_line_loopback #(
     parameter integer PHY_HAS_BYTE_MASK = 1,
     parameter integer USE_LINE_TO_LANES = 0,
     parameter integer USE_LINE_LANE_PHY = 0,
+    parameter integer USE_LINE_SERDES_PHY = 0,
     parameter integer USE_PHY_CLOCK_BRIDGE = 0,
     parameter integer USE_PINPAIR_TIMING_PROBE = 0,
     parameter [31:0] GATE_VERSION = 32'hB07E_0D82,
@@ -70,7 +71,7 @@ module top_ddr3_ctrl_line_loopback #(
     endfunction
 
     localparam integer CHANNELS = 2;
-    localparam integer LANES = 8;
+    localparam integer LANES = (USE_LINE_SERDES_PHY != 0) ? 9 : 8;
     localparam integer WB_DATA_W = 32;
     localparam integer JWB_ADDR_W = 15;
     localparam integer GLOBAL_WORD_ADDR_W = 30;
@@ -95,6 +96,7 @@ module top_ddr3_ctrl_line_loopback #(
     wire clk_sys;
     wire clk_ddr;
     wire clk_dq;
+    wire clk_idelay_ref;
     wire pll_locked;
 
     ddr3_800_clocking u_clocking (
@@ -103,9 +105,22 @@ module top_ddr3_ctrl_line_loopback #(
         .o_clk_sys(clk_sys),
         .o_clk_ddr(clk_ddr),
         .o_clk_dq(clk_dq),
-        .o_clk_idelay_ref(),
+        .o_clk_idelay_ref(clk_idelay_ref),
         .o_locked(pll_locked)
     );
+
+    wire idelay_ready;
+    generate
+        if (USE_LINE_SERDES_PHY) begin : gen_line_serdes_idelayctrl
+            ddr3_idelayctrl_7series u_idelayctrl (
+                .i_clk_ref(clk_idelay_ref),
+                .i_rst(por_rst || !pll_locked),
+                .o_ready(idelay_ready)
+            );
+        end else begin : gen_no_line_serdes_idelayctrl
+            assign idelay_ready = 1'b1;
+        end
+    endgenerate
 
     wire ctrl_clk = SYS_CLK;
     wire cmd_pin_clk = DRIVE_DDR3_COMMANDS ? clk_dq : ctrl_clk;
@@ -139,6 +154,15 @@ module top_ddr3_ctrl_line_loopback #(
             cmd_pin_rst_sr <= {cmd_pin_rst_sr[3:0], 1'b0};
     end
     wire cmd_pin_rst = cmd_pin_rst_sr[4];
+
+    reg [4:0] line_serdes_rst_sr = 5'b1_1111;
+    always @(posedge clk_sys) begin
+        if (por_rst || !pll_locked || !idelay_ready)
+            line_serdes_rst_sr <= 5'b1_1111;
+        else
+            line_serdes_rst_sr <= {line_serdes_rst_sr[3:0], 1'b0};
+    end
+    wire line_serdes_rst = line_serdes_rst_sr[4];
 
     reg [23:0] heartbeat = 24'd0;
     always @(posedge ctrl_clk) begin
@@ -389,10 +413,55 @@ module top_ddr3_ctrl_line_loopback #(
     wire [CHANNELS*32-1:0] loop_rd_count;
     wire [CHANNELS*LINE_ADDR_W-1:0] loop_last_line_addr;
     wire [CHANNELS-1:0] phy_loop_error;
+    wire [PHY_LANES*64-1:0] line_serdes_dq_bits;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_bits;
+    wire [PHY_LANES*4-1:0] line_serdes_dq_oe;
+    wire [PHY_LANES*4-1:0] line_serdes_dqs_oe;
+    wire [PHY_LANES*64-1:0] line_serdes_dq_in_bits;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_in_bits;
 
     genvar ch;
     generate
-        if (USE_LINE_LANE_PHY) begin : gen_line_lane_phy_loopback
+        if (USE_LINE_SERDES_PHY) begin : gen_line_serdes_phy
+            wire [CHANNELS-1:0] line_serdes_error;
+            wire [CHANNELS-1:0] line_serdes_busy;
+
+            ddr3_line_serdes_phy #(
+                .CHANNELS(CHANNELS),
+                .LANES(LANES)
+            ) u_line_serdes_phy (
+                .i_ctrl_clk(ctrl_clk),
+                .i_ctrl_rst(ctrl_rst),
+                .i_phy_clk(clk_sys),
+                .i_phy_rst(line_serdes_rst),
+                .i_wr_line_valid(phy_wr_line_valid),
+                .o_wr_line_ready(phy_wr_line_ready),
+                .o_wr_line_loaded(phy_wr_line_loaded),
+                .i_wr_line_data(phy_wr_line_data),
+                .i_wr_line_mask(phy_wr_line_mask),
+                .i_start_write(phy_start_write),
+                .i_start_read(phy_start_read),
+                .i_rd_line_ready(phy_rd_line_ready),
+                .o_rd_line_valid(phy_rd_line_valid),
+                .o_rd_line_data(phy_rd_line_data),
+                .o_rd_line_err(phy_rd_line_err),
+                .o_error(line_serdes_error),
+                .o_busy(line_serdes_busy),
+                .o_serdes_dq_bits(line_serdes_dq_bits),
+                .o_serdes_dqs_bits(line_serdes_dqs_bits),
+                .o_serdes_dq_oe(line_serdes_dq_oe),
+                .o_serdes_dqs_oe(line_serdes_dqs_oe),
+                .i_serdes_dq_bits(line_serdes_dq_in_bits)
+            );
+
+            assign loop_wr_count = {(CHANNELS*32){1'b0}};
+            assign loop_rd_count = {(CHANNELS*32){1'b0}};
+            assign loop_last_line_addr = {(CHANNELS*LINE_ADDR_W){1'b0}};
+            assign phy_loop_error = line_serdes_error;
+
+            wire _line_serdes_phy_unused =
+                &{1'b0, line_serdes_busy, 1'b0};
+        end else if (USE_LINE_LANE_PHY) begin : gen_line_lane_phy_loopback
             assign phy_wr_line_loaded = {CHANNELS{1'b1}};
 
             wire [CHANNELS-1:0] line_lane_channel_busy;
@@ -846,17 +915,97 @@ module top_ddr3_ctrl_line_loopback #(
         .o_ck_n(ddr3_ch1_ck_n)
     );
 
-    ddr3_hiz_lanes_7series u_ch0_hiz (
-        .io_dq(ddr3_dq),
-        .io_dqs_p(ddr3_dqs_p),
-        .io_dqs_n(ddr3_dqs_n)
-    );
+    genvar serdes_lane;
+    generate
+        if (USE_LINE_SERDES_PHY) begin : gen_line_serdes_pins
+            for (serdes_lane = 0; serdes_lane < PHY_LANES;
+                 serdes_lane = serdes_lane + 1) begin : gen_serdes_lane
+                localparam integer SERDES_CH = serdes_lane / LANES;
+                localparam integer SERDES_BYTE = serdes_lane % LANES;
 
-    ddr3_hiz_lanes_7series u_ch1_hiz (
-        .io_dq(ddr3_ch1_dq),
-        .io_dqs_p(ddr3_ch1_dqs_p),
-        .io_dqs_n(ddr3_ch1_dqs_n)
-    );
+                if (SERDES_CH == 0) begin : gen_ch0_serdes
+                    ddr3_x8_serdes_io_7series u_serdes_io (
+                        .i_clk_serdes(clk_dq),
+                        .i_clk_div(clk_sys),
+                        .i_rst(line_serdes_rst),
+                        .i_dq_bits(
+                            line_serdes_dq_bits[serdes_lane*64 +: 64]),
+                        .i_dqs_bits(
+                            line_serdes_dqs_bits[serdes_lane*8 +: 8]),
+                        .i_dq_oe(
+                            line_serdes_dq_oe[serdes_lane*4 +: 4]),
+                        .i_dqs_oe(
+                            line_serdes_dqs_oe[serdes_lane*4 +: 4]),
+                        .i_bitslip(1'b0),
+                        .o_dq_bits(
+                            line_serdes_dq_in_bits[serdes_lane*64 +: 64]),
+                        .o_dqs_bits(
+                            line_serdes_dqs_in_bits[serdes_lane*8 +: 8]),
+                        .io_dq(ddr3_dq[SERDES_BYTE*8 +: 8]),
+                        .io_dqs_p(ddr3_dqs_p[SERDES_BYTE]),
+                        .io_dqs_n(ddr3_dqs_n[SERDES_BYTE])
+                    );
+                end else begin : gen_ch1_serdes
+                    ddr3_x8_serdes_io_7series u_serdes_io (
+                        .i_clk_serdes(clk_dq),
+                        .i_clk_div(clk_sys),
+                        .i_rst(line_serdes_rst),
+                        .i_dq_bits(
+                            line_serdes_dq_bits[serdes_lane*64 +: 64]),
+                        .i_dqs_bits(
+                            line_serdes_dqs_bits[serdes_lane*8 +: 8]),
+                        .i_dq_oe(
+                            line_serdes_dq_oe[serdes_lane*4 +: 4]),
+                        .i_dqs_oe(
+                            line_serdes_dqs_oe[serdes_lane*4 +: 4]),
+                        .i_bitslip(1'b0),
+                        .o_dq_bits(
+                            line_serdes_dq_in_bits[serdes_lane*64 +: 64]),
+                        .o_dqs_bits(
+                            line_serdes_dqs_in_bits[serdes_lane*8 +: 8]),
+                        .io_dq(ddr3_ch1_dq[SERDES_BYTE*8 +: 8]),
+                        .io_dqs_p(ddr3_ch1_dqs_p[SERDES_BYTE]),
+                        .io_dqs_n(ddr3_ch1_dqs_n[SERDES_BYTE])
+                    );
+                end
+            end
+        end else begin : gen_hiz_pins
+            ddr3_hiz_lanes_7series u_ch0_hiz (
+                .io_dq(ddr3_dq),
+                .io_dqs_p(ddr3_dqs_p),
+                .io_dqs_n(ddr3_dqs_n)
+            );
+
+            ddr3_hiz_lanes_7series u_ch1_hiz (
+                .io_dq(ddr3_ch1_dq),
+                .io_dqs_p(ddr3_ch1_dqs_p),
+                .io_dqs_n(ddr3_ch1_dqs_n)
+            );
+        end
+    endgenerate
+
+    wire line_serdes_rx_mix =
+        (USE_LINE_SERDES_PHY != 0) ?
+        (^line_serdes_dq_in_bits ^ ^line_serdes_dqs_in_bits) : 1'b0;
+    reg line_serdes_rx_mix_sys = 1'b0;
+    always @(posedge clk_sys) begin
+        if (line_serdes_rst)
+            line_serdes_rx_mix_sys <= 1'b0;
+        else
+            line_serdes_rx_mix_sys <= line_serdes_rx_mix;
+    end
+
+    reg [2:0] line_serdes_rx_mix_ctrl_sr = 3'b000;
+    always @(posedge ctrl_clk) begin
+        if (ctrl_rst)
+            line_serdes_rx_mix_ctrl_sr <= 3'b000;
+        else
+            line_serdes_rx_mix_ctrl_sr <= {
+                line_serdes_rx_mix_ctrl_sr[1:0],
+                line_serdes_rx_mix_sys
+            };
+    end
+    wire line_serdes_rx_mix_ctrl = line_serdes_rx_mix_ctrl_sr[2];
 
     wire clk_ref_alive;
     wire clk_ref_bit;
@@ -914,7 +1063,7 @@ module top_ddr3_ctrl_line_loopback #(
         1'b0,
         4'b0000,
         pll_locked,
-        1'b1,                // no IDELAYCTRL in this image
+        idelay_ready,
         ctrl_rst,
         1'b0,
         phy_any_error,
@@ -950,12 +1099,15 @@ module top_ddr3_ctrl_line_loopback #(
             8'h01: status_word = state_bits;
             8'h02: status_word = {8'h00, heartbeat};
             8'h03: status_word = loop_total;
-            8'h04: status_word = {16'hAB04, 11'd0,
+            8'h04: status_word = {16'hAB04, 10'd0,
+                                   (USE_LINE_SERDES_PHY != 0),
                                    (USE_PINPAIR_TIMING_PROBE != 0),
                                    (USE_LINE_LANE_PHY != 0),
                                    (USE_LINE_TO_LANES != 0),
                                    (PHY_HAS_BYTE_MASK != 0),
                                    (DRIVE_DDR3_COMMANDS != 0)};
+            8'h05: status_word = {16'hAB05, 15'd0,
+                                   line_serdes_rx_mix_ctrl};
             8'h08: status_word = loop_rd_count[0 +: 32] + loop_rd_count[32 +: 32];
             8'h10: status_word = {16'hAB10, 12'd0,
                                    jwb_busy, jwb_last_ack,
@@ -990,7 +1142,8 @@ module top_ddr3_ctrl_line_loopback #(
     assign led_3bits_tri_o[0] = heartbeat[23];
     assign led_3bits_tri_o[1] = init_all_done;
     assign led_3bits_tri_o[2] =
-        !pll_locked || refresh_any_late || jwb_last_err || phy_any_error;
+        !pll_locked || !idelay_ready || refresh_any_late || jwb_last_err ||
+        phy_any_error;
 
     wire _unused = &{1'b0, init_done, init_busy, sched_req_pending,
                      refresh_ack, bank_busy, bank_open, jwb_cal_load_lane,

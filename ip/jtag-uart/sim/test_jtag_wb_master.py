@@ -124,7 +124,7 @@ async def set_then_read(dut):
 
 @cocotb.test()
 async def set_cal_pulse(dut):
-    """SET_CAL command: payload[3:0]=lane, payload[12:8]=tap. One-shot
+    """SET_CAL command: low payload bits=lane, payload[12:8]=tap. One-shot
     pulse on o_cal_load_lane[lane]; o_cal_tap latched until next SET_CAL."""
     cocotb.start_soon(Clock(dut.i_clk, 10, units="ns").start())
     await reset(dut)

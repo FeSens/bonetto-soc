@@ -220,6 +220,18 @@ post-route reported `clk_dq` at 448.43 MHz, passing the 400 MHz DDR3-800
 bit-clock target. DDR3 reset remains asserted and CKE low, so this proves
 full-pin local BL8 launch route shape, not external DDR3 storage.
 
+Hardware note: the YPCB-00338 controller-to-SERDES target
+`ddr3-ctrl-line-serdes-router1-ddr800-bitstream` connects `ddr3_ctrl_line`
+through `ddr3_line_serdes_phy` into the board-local 7-series SERDES/IDELAY
+shell for both full x9 channels. The first 400 MHz global check completed route
+but failed the slow `SYS_CLK`/`clk_sys` timing checks because nextpnr applies one
+frequency to every clock. The checked-in target therefore uses the real 50 MHz
+board-clock global constraint and records the generated-clock max-frequency
+report. The 2026-05-20 seed-1 route generated a bitstream with `clk_dq` and
+`clk_ddr` at 1557.63 MHz and `clk_idelay_ref` at 792.39 MHz, so the high-speed
+SERDES/IDELAY boundary clears DDR3-800 route timing. It is still not memory
+validation because the DDR3 devices are held in reset with CKE low.
+
 The first post-init-probe RTL slice, `rtl/ddr3_wb_line_channel.sv`, is now wired
 under both `rtl/ddr3_wb_channel.sv` and
 `rtl/ddr3_wb_dual_channel_line.sv`. `rtl/ddr3_ctrl_line.sv` exposes that
@@ -274,6 +286,17 @@ OSERDES/ISERDES/IDELAY wrapper. The focused unit simulation uses
 `CHANNELS=2, LANES=9` so the physical YPCB-00338 lane count is covered at this
 boundary. It is still not a calibrated board PHY or an external memory data
 path.
+
+`../../boards/ypcb-00338/rtl/top_ddr3_ctrl_line_serdes.sv` is the first
+board-level route target that connects that line-to-SERDES boundary to all
+physical x9 DQ/DQS lanes on both DDR3 channels. The 2026-05-20 seed-1 router1
+run generated a bitstream while preserving 162 OSERDESE2, 162 ISERDESE2,
+162 IDELAYE2, 144 DQ IOBUF, 18 DQS IOBUFDS, and 6 IDELAYCTRL cells. Post-route
+max-frequency reporting showed `SYS_CLK` at 58.09 MHz, `clk_sys` at 103.70 MHz,
+`clk_idelay_ref` at 792.39 MHz, and `clk_dq`/`clk_ddr` at 1557.63 MHz. This is
+route evidence only: DDR3 reset remains asserted, CKE remains low, and the x9
+physical-line path still needs an explicit data/ECC mapping decision before it
+can become an external storage validation image.
 
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler

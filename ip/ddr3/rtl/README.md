@@ -102,8 +102,9 @@ lane adapter, one x8 burst clock bridge, one line-to-fast-burst PHY shell, one
 line-to-SERDES PHY shell, one line-to-lane PHY timing bridge, a
 line-backed Wishbone-to-channel bridge, and a pre-PHY controller shell tying
 those pieces to the dual-channel command path. The full-capacity address map is
-explicit and formally checked. The board has route-proven DQ/DQS primitive and
-local x8 burst-launch probes, but there is still no calibrated
+explicit and formally checked. The board has route-proven DQ/DQS primitive,
+local x8 burst-launch, raw SERDES/IDELAY, and full x9 controller-to-SERDES
+boundary probes, but there is still no calibrated
 hardware-validated DDR3 read/write path.
 
 Rules for adding new RTL:
@@ -123,3 +124,10 @@ Recommended first RTL slices:
   PHY bridge,
 - a backend merge/read-modify-write path before partial writes are exposed as
   hardware validated.
+
+Current board route note: `top_ddr3_ctrl_line_serdes` connects
+`ddr3_ctrl_line` through `ddr3_line_serdes_phy` to all x9 CH0+CH1 7-series
+SERDES/IDELAY DQ/DQS lanes and generated a router1 bitstream on 2026-05-20.
+That is a physical-boundary proof only; DDR3 reset is held active, CKE is low,
+and the x9 data/ECC policy still needs to be made explicit before real storage
+validation.

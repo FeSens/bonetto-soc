@@ -16,7 +16,7 @@
 //   0xE5     GO_READ     - issue WB read of stored addr; latch result in rd_data
 //   0xE6     HALT_OTHERS - assert o_halt_others (top.v pauses memtest_lite)
 //   0xE7     RESUME      - clear o_halt_others
-//   0xE8     SET_CAL     - payload[3:0]=lane, [12:8]=tap, [16]=channel
+//   0xE8     SET_CAL     - payload low bits=lane, [12:8]=tap, [16]=channel
 //   0xF0     SET_SEL     - byte enables <= i_cmd_word[WB_DATA_W/8-1:0]
 //
 // Status outputs (consumed by top.v status mux at reg indices 0x10-0x15):
@@ -84,6 +84,8 @@ module jtag_wb_master #(
 
     reg [1:0] state;
     reg [3:0] phase_req_hold;
+    localparam integer CAL_LANE_W =
+        (NUM_BYTE_LANES <= 1) ? 1 : $clog2(NUM_BYTE_LANES);
 
     // Initial values: required for formal (fwb_master asserts !cyc/!stb at
     // cycle 0 before reset takes effect). FPGA flops respect these via
@@ -121,8 +123,9 @@ module jtag_wb_master #(
     wire       cmd_go_rd    = i_cmd_valid && (cmd == 8'hE5);
     wire       cmd_halt     = i_cmd_valid && (cmd == 8'hE6);
     wire       cmd_resume   = i_cmd_valid && (cmd == 8'hE7);
-    // iter-10: 0xE8 = SET_IDELAY_TAP (payload[3:0]=lane, payload[12:8]=tap)
+    // iter-10: 0xE8 = SET_IDELAY_TAP (payload low bits=lane, [12:8]=tap)
     wire       cmd_set_cal  = i_cmd_valid && (cmd == 8'hE8);
+    wire [CAL_LANE_W-1:0] cal_lane = i_cmd_word[CAL_LANE_W-1:0];
     // iter-11: 0xE9 = MMCM phase INC, 0xEA = MMCM phase DEC (no payload)
     wire       cmd_phase_inc = i_cmd_valid && (cmd == 8'hE9);
     wire       cmd_phase_dec = i_cmd_valid && (cmd == 8'hEA);
@@ -156,8 +159,9 @@ module jtag_wb_master #(
             // assert the requested lane bit only when cmd_set_cal fires.
             o_cal_load_lane <= {NUM_BYTE_LANES{1'b0}};
             if (cmd_set_cal) begin
-                if (i_cmd_word[3:0] < NUM_BYTE_LANES)
-                    o_cal_load_lane <= ({{(NUM_BYTE_LANES-1){1'b0}}, 1'b1} << i_cmd_word[3:0]);
+                if (cal_lane < NUM_BYTE_LANES)
+                    o_cal_load_lane <=
+                        ({{(NUM_BYTE_LANES-1){1'b0}}, 1'b1} << cal_lane);
                 o_cal_tap <= i_cmd_word[12:8];
                 o_cal_channel <= i_cmd_word[16];
             end
