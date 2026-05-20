@@ -9,6 +9,7 @@ build/
 # Simulation
 sim_build/
 sim_build_*/
+**/build_micron/
 results.xml
 results_*.xml
 **/results.xml

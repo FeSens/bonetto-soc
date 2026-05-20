@@ -1,9 +1,17 @@
-# DDR3 RTL Reset
+# DDR3 RTL Restart Area
 
-The previous DDR3 controller and PHY implementation was intentionally removed.
-Keep new DDR3 RTL out of this directory until the BRAM-only JTAG/Wishbone proof
-flow is the baseline and the next implementation plan is explicit.
+No active DDR3 controller or PHY RTL lives here yet.
 
-The formal harnesses, board pin references, and bring-up notes remain outside
-this directory so the next controller can be built against preserved checks
-rather than inherited timing/debug debt.
+Rules for adding new RTL:
+
+1. Add the formal contract or simulation harness in the same change.
+2. Keep timing/geometry constants centralized and reviewable.
+3. Keep controller scheduling separate from board-specific PHY pin work.
+4. Preserve the BRAM JTAG/Wishbone hardware path until DDR3 has its own
+   hardware evidence.
+
+Recommended first RTL slices:
+
+- a typed DDR3 command encoder/decoder,
+- a JEDEC init sequencer that can pass the Micron model,
+- a single-bank open-row scheduler wired into the command timing monitor.
