@@ -17,6 +17,7 @@ module ddr3_init_seq #(
     parameter integer TMOD_CYCLES      = `DDR3_800_TMOD_CYCLES,
     parameter integer TZQINIT_CYCLES   = `DDR3_800_TZQINIT_CYCLES,
     parameter integer TRFC_CYCLES      = `DDR3_800_TRFC_CYCLES,
+    parameter integer TDLLK_CYCLES     = `DDR3_800_TDLLK_CYCLES,
     parameter [ADDR_BITS-1:0] MR0 = `DDR3_MR0_DDR800,
     parameter [ADDR_BITS-1:0] MR1 = `DDR3_MR1_DDR800,
     parameter [ADDR_BITS-1:0] MR2 = `DDR3_MR2_DDR800,
@@ -58,7 +59,8 @@ module ddr3_init_seq #(
         ST_WAIT_ZQ   = 5'd13,
         ST_REF       = 5'd14,
         ST_WAIT_RFC  = 5'd15,
-        ST_DONE      = 5'd16;
+        ST_WAIT_DLLK = 5'd16,
+        ST_DONE      = 5'd17;
 
     reg [31:0] wait_left;
 
@@ -229,6 +231,15 @@ module ddr3_init_seq #(
                 end
 
                 ST_WAIT_RFC: begin
+                    if (wait_left == 32'd0) begin
+                        o_state <= ST_WAIT_DLLK;
+                        wait_left <= load_wait(TDLLK_CYCLES);
+                    end else begin
+                        wait_left <= dec_wait(wait_left);
+                    end
+                end
+
+                ST_WAIT_DLLK: begin
                     if (wait_left == 32'd0)
                         o_state <= ST_DONE;
                     else

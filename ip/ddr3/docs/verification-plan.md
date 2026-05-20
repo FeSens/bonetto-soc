@@ -16,16 +16,19 @@ Current coverage:
 - `formal`: proves the reusable DDR3 command timing monitor is internally
   consistent on a legal ACT/RD/PRE/REF/WR/ZQ trace, and proves the
   controller-owned init sequencer emits reset, MRS, ZQCL, and REF in order with
-  minimum waits.
+  minimum waits plus the post-DLL-lock wait. It also proves the command-only
+  single-bank runtime slice emits ACT, READ, PRE, and REF in order through the
+  monitor.
 - `sim`: compiles and runs the vendored Micron x8 2Gb DDR3 model at a valid
   DDR3-800 clock, then drives both a handwritten reset/MRS/ZQ/REF reference
-  script and the RTL init sequencer through the model. The make target fails if
-  the model reports timing or protocol errors.
+  script and the RTL init sequencer through the model. It also drives the RTL
+  init sequencer into one single-bank READ command sequence. The protocol
+  benches fail if the model reports timing or protocol errors or warnings.
 
 Current non-coverage:
 
-- no runtime controller, bank scheduler, Wishbone frontend, dual-channel wrapper,
-  or memory data path exists yet;
+- no data-capture path, write path, real runtime controller, bank scheduler,
+  Wishbone frontend, dual-channel wrapper, or memory data path exists yet;
 - no PHY, DQS, DQ, leveling, or hardware DDR3 path is validated by these gates.
 
 ## Formal Ladder
@@ -55,6 +58,7 @@ Use the real Micron model for protocol validation:
 | Smoke | one x8 model, held in reset | model compiles and clocks with selected defines |
 | Reference init | handwritten script + one x8 model | reset/MRS/ZQ/REF completes without model timing errors |
 | Controller init | controller + one x8 model | controller init completes without model timing errors |
+| Single READ command | controller + one x8 model | ACT/READ/PRE/REF command sequence completes without model errors or warnings |
 | Runtime x8 | controller + one x8 model | deterministic write/read patterns pass |
 | Full channel | controller + eight x8 models | every 64 data bits and byte lane pass |
 | Dual channel | two full-channel stacks | both channels pass independent and interleaved traffic |

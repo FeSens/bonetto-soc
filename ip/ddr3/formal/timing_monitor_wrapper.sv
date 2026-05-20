@@ -48,11 +48,11 @@ module ddr3_timing_monitor_wrapper (
         set_cmd(CMD_NOP, 3'd0, 15'd0);
         case (step)
             8'd2:  set_cmd(CMD_ACT, 3'd0, 15'h0123);
-            8'd5:  set_cmd(CMD_RD,  3'd0, 15'h0123);
+            8'd5:  set_cmd(CMD_RD,  3'd0, 15'h0000);
             8'd9:  set_cmd(CMD_PRE, 3'd0, 15'h0000);
             8'd12: set_cmd(CMD_REF, 3'd0, 15'h0000);
             8'd17: set_cmd(CMD_ACT, 3'd1, 15'h0456);
-            8'd20: set_cmd(CMD_WR,  3'd1, 15'h0456);
+            8'd20: set_cmd(CMD_WR,  3'd1, 15'h0008);
             8'd24: set_cmd(CMD_PRE, 3'd1, 15'h0000);
             8'd28: set_cmd(CMD_ZQ,  3'd0, 15'h0400);
             default: begin end

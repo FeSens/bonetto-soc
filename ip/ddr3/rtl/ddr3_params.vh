@@ -40,5 +40,16 @@
 `define DDR3_800_TMOD_CYCLES        16      // >=max(12 tCK, 15 ns)
 `define DDR3_800_TZQINIT_CYCLES     640     // >512 tCK
 `define DDR3_800_TRFC_CYCLES        80      // >160 ns for 2Gb
+`define DDR3_800_TDLLK_CYCLES       512     // DLL lock after MR0 DLL reset
+`define DDR3_800_TRCD_CYCLES        8
+`define DDR3_800_TRP_CYCLES         8
+`define DDR3_800_TRAS_CYCLES        20
+`define DDR3_800_TRC_CYCLES         28
+`define DDR3_800_TRRD_CYCLES        8
+`define DDR3_800_TFAW_CYCLES        20
+`define DDR3_800_TCCD_CYCLES        4
+`define DDR3_800_TWTR_CYCLES        8
+`define DDR3_800_TRTP_CYCLES        8
+`define DDR3_800_TWR_CYCLES         8
 
 `endif

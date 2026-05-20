@@ -17,6 +17,8 @@ module ddr3_init_seq_wrapper (
     localparam integer TMOD_CYCLES      = 3;
     localparam integer TZQINIT_CYCLES   = 4;
     localparam integer TRFC_CYCLES      = 3;
+    localparam integer TDLLK_CYCLES     = 4;
+    localparam integer DONE_WAIT_CYCLES = TRFC_CYCLES + TDLLK_CYCLES;
 
     wire       busy;
     wire       done;
@@ -39,7 +41,8 @@ module ddr3_init_seq_wrapper (
         .TMRD_CYCLES(TMRD_CYCLES),
         .TMOD_CYCLES(TMOD_CYCLES),
         .TZQINIT_CYCLES(TZQINIT_CYCLES),
-        .TRFC_CYCLES(TRFC_CYCLES)
+        .TRFC_CYCLES(TRFC_CYCLES),
+        .TDLLK_CYCLES(TDLLK_CYCLES)
     ) dut (
         .i_clk(clk),
         .i_rst(rst),
@@ -89,6 +92,7 @@ module ddr3_init_seq_wrapper (
             assert(reset_n);
             assert(cke);
             assert(command_index == 8'd6);
+            assert(cycle_count - last_issue_cycle >= DONE_WAIT_CYCLES[7:0]);
         end
 
         if (rst) begin

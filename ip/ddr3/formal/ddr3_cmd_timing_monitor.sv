@@ -128,7 +128,6 @@ module ddr3_cmd_timing_monitor #(
 
             if (cmd_rd || cmd_wr) begin
                 assert(bank_open[i_bank]);
-                assert(open_row[i_bank] == i_addr);
                 assert(t_rcd_wait[i_bank] == 8'd0);
                 assert(t_ccd_wait == 8'd0);
             end

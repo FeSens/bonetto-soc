@@ -1,13 +1,17 @@
 # DDR3 RTL Area
 
-The only active RTL slice here is the DDR3-800 initialization sequencer:
+The active RTL slices are deliberately small and command-only:
 
 - `ddr3_params.vh`: shared command encodings, mode registers, geometry, and
   DDR3-800 timing waits;
-- `ddr3_init_seq.sv`: reset, CKE, MR2, MR3, MR1, MR0, ZQCL, first REF.
+- `ddr3_init_seq.sv`: reset, CKE, MR2, MR3, MR1, MR0, ZQCL, first REF, and
+  post-DLL-lock wait before `done`;
+- `ddr3_single_read_seq.sv`: one conservative single-bank ACT, READ, PRE, REF
+  command sequence after init.
 
-There is still no runtime bank scheduler, Wishbone frontend, PHY, calibration,
-dual-channel wrapper, or hardware-validated DDR3 path.
+There is still no data capture, write path, runtime bank scheduler, Wishbone
+frontend, PHY, calibration, dual-channel wrapper, or hardware-validated DDR3
+path.
 
 Rules for adding new RTL:
 
@@ -19,5 +23,6 @@ Rules for adding new RTL:
 
 Recommended first RTL slices:
 
-- a typed DDR3 command encoder/decoder,
-- a single-bank open-row scheduler wired into the command timing monitor.
+- typed mode-register field helpers,
+- a read/write byte-lane data slice against one Micron x8 model,
+- a single-bank open-row scheduler that reuses the command timing monitor.

@@ -30,7 +30,7 @@ module tb_micron_init_seq;
     wire [0:0] tdqs_n;
 
     reg seed_inputs = 1'b1;
-    reg model_reset_n = 1'b0;
+    reg model_reset_n = 1'b1;
     reg model_cke = 1'b1;
     reg model_odt = 1'b0;
     reg model_cs_n = 1'b0;
@@ -107,6 +107,7 @@ module tb_micron_init_seq;
 
     initial begin
         #1;
+        model_reset_n = 1'b0;
         model_cke = 1'b0;
         model_cs_n = 1'b1;
         model_ba = 3'd0;

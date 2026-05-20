@@ -24,7 +24,8 @@ describes the target architecture, not an existing implementation.
 | Module | Responsibility |
 |---|---|
 | `ddr3_cmd` | Command encoding/decoding helpers and mode-register fields. |
-| `ddr3_init_seq` | JEDEC reset, CKE, MRS, ZQCL, DLL wait, and first refresh. |
+| `ddr3_init_seq` | JEDEC reset, CKE, MRS, ZQCL, first refresh, and DLL-lock release wait. |
+| `ddr3_single_read_seq` | Temporary command-only ACT/READ/PRE/REF slice for Micron and formal timing bring-up. |
 | `ddr3_bank` | One bank's open-row state and local timing waits. |
 | `ddr3_scheduler` | Cross-bank arbitration, refresh, tRRD/tFAW/tCCD/tWTR, command issue. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 packing, byte-enable merge. |
