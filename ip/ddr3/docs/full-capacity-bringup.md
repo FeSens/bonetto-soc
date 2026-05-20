@@ -66,6 +66,15 @@ line-level Micron regression feeds `ddr3_ctrl_line` through this RTL adapter and
 then through simulation-only x8 timing agents into sixteen Micron models for a
 full-width write/read loopback on each channel.
 
+`boards/ypcb-00338/rtl/top_ddr3_ctrl_line_laneloop.sv` is the hardware-visible
+gate for that same adapter. It routes the clean line controller through
+`ddr3_line_to_lanes` and into internal x8 lane memories while keeping external
+DQ/DQS high-Z and DDR3 devices held in reset. This image was routed,
+programmed, and validated over XVC on 2026-05-20; see
+`boards/ypcb-00338/DDR3_VALIDATION.md` for the route timing, FPGA DONE status,
+and JTAG/Wishbone loopback evidence. It is a prerequisite data-boundary proof,
+not a completed DDR3-800 speed grade.
+
 `boards/ypcb-00338/rtl/top_ddr3_init_probe.sv` is the first fresh hardware
 integration step. It runs per-channel init/refresh sequencers in the 100 MHz
 control domain, launches commands on the 400 MHz DDR3-800 command clock, wires

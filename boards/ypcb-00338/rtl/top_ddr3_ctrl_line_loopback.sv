@@ -21,6 +21,7 @@
 module top_ddr3_ctrl_line_loopback #(
     parameter integer DRIVE_DDR3_COMMANDS = 0,
     parameter integer PHY_HAS_BYTE_MASK = 1,
+    parameter integer USE_LINE_TO_LANES = 0,
     parameter [31:0] GATE_VERSION = 32'hB07E_0D82,
     parameter [23:0] DEFAULT_MAGIC = 24'hD3AD82
 ) (
@@ -381,31 +382,101 @@ module top_ddr3_ctrl_line_loopback #(
 
     genvar ch;
     generate
-        for (ch = 0; ch < CHANNELS; ch = ch + 1) begin : gen_loopback
-            ddr3_line_loopback_phy #(
+        if (USE_LINE_TO_LANES) begin : gen_lane_loopback
+            wire [PHY_LANES-1:0] lane_wr_valid;
+            wire [PHY_LANES-1:0] lane_wr_ready;
+            wire [PHY_LANES*8-1:0] lane_wr_data;
+            wire [PHY_LANES-1:0] lane_wr_mask;
+            wire [PHY_LANES-1:0] lane_wr_last;
+            wire [PHY_LANES-1:0] lane_rd_ready;
+            wire [PHY_LANES-1:0] lane_rd_valid;
+            wire [PHY_LANES*8-1:0] lane_rd_data;
+
+            ddr3_line_to_lanes #(
+                .CHANNELS(CHANNELS),
                 .LANES(LANES)
-            ) u_loop (
+            ) u_line_to_lanes (
                 .i_clk(ctrl_clk),
                 .i_rst(ctrl_rst),
-                .i_cmd_valid(ddr_cmd_valid_w[ch]),
-                .i_cs_n(ddr_cs_n_w[ch]),
-                .i_ras_n(ddr_ras_n_w[ch]),
-                .i_cas_n(ddr_cas_n_w[ch]),
-                .i_we_n(ddr_we_n_w[ch]),
-                .i_ba(ddr_ba_w[ch*BANK_BITS +: BANK_BITS]),
-                .i_addr(ddr_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
-                .i_wr_line_valid(phy_wr_line_valid[ch]),
-                .o_wr_line_ready(phy_wr_line_ready[ch]),
-                .i_wr_line_data(phy_wr_line_data[ch*LINE_DATA_W +: LINE_DATA_W]),
-                .i_wr_line_mask(phy_wr_line_mask[ch*LINE_BYTES +: LINE_BYTES]),
-                .i_rd_line_ready(phy_rd_line_ready[ch]),
-                .o_rd_line_valid(phy_rd_line_valid[ch]),
-                .o_rd_line_data(phy_rd_line_data[ch*LINE_DATA_W +: LINE_DATA_W]),
-                .o_rd_line_err(phy_rd_line_err[ch]),
-                .o_wr_count(loop_wr_count[ch*32 +: 32]),
-                .o_rd_count(loop_rd_count[ch*32 +: 32]),
-                .o_last_line_addr(loop_last_line_addr[ch*LINE_ADDR_W +: LINE_ADDR_W])
+                .i_wr_line_valid(phy_wr_line_valid),
+                .o_wr_line_ready(phy_wr_line_ready),
+                .i_wr_line_data(phy_wr_line_data),
+                .i_wr_line_mask(phy_wr_line_mask),
+                .i_rd_line_ready(phy_rd_line_ready),
+                .o_rd_line_valid(phy_rd_line_valid),
+                .o_rd_line_data(phy_rd_line_data),
+                .o_rd_line_err(phy_rd_line_err),
+                .o_lane_wr_valid(lane_wr_valid),
+                .i_lane_wr_ready(lane_wr_ready),
+                .o_lane_wr_data(lane_wr_data),
+                .o_lane_wr_mask(lane_wr_mask),
+                .o_lane_wr_last(lane_wr_last),
+                .o_lane_rd_ready(lane_rd_ready),
+                .i_lane_rd_valid(lane_rd_valid),
+                .i_lane_rd_data(lane_rd_data)
             );
+
+            for (ch = 0; ch < CHANNELS; ch = ch + 1) begin : gen_lane_loop
+                localparam integer PHY_BASE = ch * LANES;
+                localparam integer PHY_DATA_W = LANES * 8;
+
+                ddr3_ctrl_loopback_phy #(
+                    .LANES(LANES)
+                ) u_loop (
+                    .i_clk(ctrl_clk),
+                    .i_rst(ctrl_rst),
+                    .i_cmd_valid(ddr_cmd_valid_w[ch]),
+                    .i_cs_n(ddr_cs_n_w[ch]),
+                    .i_ras_n(ddr_ras_n_w[ch]),
+                    .i_cas_n(ddr_cas_n_w[ch]),
+                    .i_we_n(ddr_we_n_w[ch]),
+                    .i_ba(ddr_ba_w[ch*BANK_BITS +: BANK_BITS]),
+                    .i_addr(ddr_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
+                    .i_phy_wr_valid(lane_wr_valid[PHY_BASE +: LANES]),
+                    .o_phy_wr_ready(lane_wr_ready[PHY_BASE +: LANES]),
+                    .i_phy_wr_data(lane_wr_data[PHY_BASE*8 +: PHY_DATA_W]),
+                    .i_phy_wr_mask(lane_wr_mask[PHY_BASE +: LANES]),
+                    .i_phy_wr_last(lane_wr_last[PHY_BASE +: LANES]),
+                    .i_phy_rd_ready(lane_rd_ready[PHY_BASE +: LANES]),
+                    .o_phy_rd_valid(lane_rd_valid[PHY_BASE +: LANES]),
+                    .o_phy_rd_data(lane_rd_data[PHY_BASE*8 +: PHY_DATA_W]),
+                    .o_wr_count(loop_wr_count[ch*32 +: 32]),
+                    .o_rd_count(loop_rd_count[ch*32 +: 32]),
+                    .o_last_line_addr(
+                        loop_last_line_addr[ch*LINE_ADDR_W +: LINE_ADDR_W])
+                );
+            end
+        end else begin : gen_line_loopback
+            for (ch = 0; ch < CHANNELS; ch = ch + 1) begin : gen_loopback
+                ddr3_line_loopback_phy #(
+                    .LANES(LANES)
+                ) u_loop (
+                    .i_clk(ctrl_clk),
+                    .i_rst(ctrl_rst),
+                    .i_cmd_valid(ddr_cmd_valid_w[ch]),
+                    .i_cs_n(ddr_cs_n_w[ch]),
+                    .i_ras_n(ddr_ras_n_w[ch]),
+                    .i_cas_n(ddr_cas_n_w[ch]),
+                    .i_we_n(ddr_we_n_w[ch]),
+                    .i_ba(ddr_ba_w[ch*BANK_BITS +: BANK_BITS]),
+                    .i_addr(ddr_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
+                    .i_wr_line_valid(phy_wr_line_valid[ch]),
+                    .o_wr_line_ready(phy_wr_line_ready[ch]),
+                    .i_wr_line_data(
+                        phy_wr_line_data[ch*LINE_DATA_W +: LINE_DATA_W]),
+                    .i_wr_line_mask(
+                        phy_wr_line_mask[ch*LINE_BYTES +: LINE_BYTES]),
+                    .i_rd_line_ready(phy_rd_line_ready[ch]),
+                    .o_rd_line_valid(phy_rd_line_valid[ch]),
+                    .o_rd_line_data(
+                        phy_rd_line_data[ch*LINE_DATA_W +: LINE_DATA_W]),
+                    .o_rd_line_err(phy_rd_line_err[ch]),
+                    .o_wr_count(loop_wr_count[ch*32 +: 32]),
+                    .o_rd_count(loop_rd_count[ch*32 +: 32]),
+                    .o_last_line_addr(
+                        loop_last_line_addr[ch*LINE_ADDR_W +: LINE_ADDR_W])
+                );
+            end
         end
     endgenerate
 
@@ -638,7 +709,8 @@ module top_ddr3_ctrl_line_loopback #(
             8'h01: status_word = state_bits;
             8'h02: status_word = {8'h00, heartbeat};
             8'h03: status_word = loop_total;
-            8'h04: status_word = {16'hAB04, 14'd0,
+            8'h04: status_word = {16'hAB04, 13'd0,
+                                   (USE_LINE_TO_LANES != 0),
                                    (PHY_HAS_BYTE_MASK != 0),
                                    (DRIVE_DDR3_COMMANDS != 0)};
             8'h08: status_word = loop_rd_count[0 +: 32] + loop_rd_count[32 +: 32];

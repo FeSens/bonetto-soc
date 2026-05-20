@@ -54,6 +54,9 @@ Pre-PHY YPCB-00338 controller gate:
 make -C boards/ypcb-00338 ddr3-ctrl-line-loopback-ddr800-bitstream
 make -C boards/ypcb-00338 program-ddr3-ctrl-line-loopback-ddr800
 make -C boards/ypcb-00338 validate-ddr3-ctrl-line-loopback
+make -C boards/ypcb-00338 ddr3-ctrl-line-laneloop-ddr800-bitstream
+make -C boards/ypcb-00338 program-ddr3-ctrl-line-laneloop-ddr800
+make -C boards/ypcb-00338 validate-ddr3-ctrl-line-laneloop
 make -C boards/ypcb-00338 ddr3-ctrl-line-cmdprobe-ddr800-bitstream
 make -C boards/ypcb-00338 program-ddr3-ctrl-line-cmdprobe-ddr800
 make -C boards/ypcb-00338 validate-ddr3-ctrl-line-cmdprobe
@@ -63,6 +66,11 @@ The line-controller loopback proves the live JTAG/Wishbone path through the
 clean controller, scheduler, and complete BL8 line boundary in FPGA fabric. It
 does not prove external DDR3 storage because the board DQ/DQS pins remain
 high-Z and the DDR3 devices are held in reset.
+
+The line-to-lane loopback inserts the synthesizable `ddr3_line_to_lanes`
+adapter after the line controller and before internal x8 lane memories. Passing
+it proves the RTL boundary that a future DQ/DQS PHY should consume, still
+without validating external DDR3 storage.
 
 The command-probe gate is the next pre-PHY step. It drives reset, CKE, ODT, CK,
 command, bank, and address pins on both physical DDR3 channels while keeping

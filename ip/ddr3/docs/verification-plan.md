@@ -103,6 +103,13 @@ validated over XVC on 2026-05-20 at commit `a6fe0d6`. That proof covers PLL
 lock, generated-clock liveness, both channel init sequencers, refresh liveness,
 and USER1 JTAG status. It deliberately does not cover memory reads/writes.
 
+Hardware note: the YPCB-00338 line-to-lane loopback gate was routed,
+programmed, and validated over XVC on 2026-05-20. That proof covers live
+JTAG/Wishbone writes and reads through the line-level dual-channel controller,
+scheduler, complete BL8 line boundary, and synthesizable `ddr3_line_to_lanes`
+adapter into internal x8 lane memories. It deliberately keeps external DDR3
+DQ/DQS high-Z and does not cover real memory storage.
+
 The first post-init-probe RTL slice, `rtl/ddr3_wb_line_channel.sv`, is now wired
 under both `rtl/ddr3_wb_channel.sv` and
 `rtl/ddr3_wb_dual_channel_line.sv`. `rtl/ddr3_ctrl_line.sv` exposes that
