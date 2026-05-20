@@ -49,7 +49,11 @@ Current coverage:
   line-to-lane PHY bridge proof composes those contracts for a focused one-lane
   instance and checks scheduler transfer-start queuing, representative write
   pin-pair mapping, read sample reassembly with arbitrary sampled data, and no
-  unexpected channel/lane errors.
+  unexpected channel/lane errors. The controller-to-PHY line clock bridge proof
+  checks the next slow/fast-domain protocol boundary in a same-clock formal
+  harness: accepted write payloads preserve data and mask, start pulses cross
+  in order, read payloads return intact, and no bridge error is raised for a
+  legal single-outstanding sequence.
   The scheduler and line-controller checks now also preserve transfer type so
   the future PHY receives mutually exclusive write/read start pulses aligned to
   the issued WR/RD command.
@@ -83,7 +87,10 @@ Current coverage:
   rise/fall launch pairs, samples four read pairs, and verifies eight returned
   lane bytes. The line-to-lane PHY bridge unit bench runs the full two-channel,
   sixteen-lane integration over abstract DQ/DQS/DM timing signals before any
-  Xilinx primitive wrapper is connected. It also runs the Wishbone frontend address split, write data/mask
+  Xilinx primitive wrapper is connected. The controller-to-PHY clock bridge
+  unit bench runs the real dual-clock case, with a slow controller clock and a
+  fast PHY clock, and checks write payload crossing, write/read start pulses,
+  read payload return, and final idle/error state. It also runs the Wishbone frontend address split, write data/mask
   placement, and read word selection. The Wishbone-to-channel unit bench drives
   one write and one read from the bus through all eight byte lanes. The
   dual-channel dispatch unit bench drives a channel-0 write and a channel-1
@@ -142,6 +149,19 @@ the full DDR3 board XDC. That route used `--timing-allow-fail`: `SYS_CLK` failed
 the artificial 400 MHz check at 65.30 MHz and `clk_dq` estimated 381.97 MHz, so
 this is functional pre-pin evidence, not external DDR3 timing or storage proof.
 
+Hardware note: the first YPCB-00338 PHY-clock bridge experiment, gate version
+`0xb07e0d88`, was intentionally kept as debug evidence rather than a hardware
+validation gate. It moved the abstract `ddr3_line_lane_phy` plus a small
+pin-pair timing probe into `clk_dq` through `ddr3_line_phy_clock_bridge`.
+Synthesis completed and bitstream generation was possible only because the
+target used `--timing-allow-fail`; the final seed-1 route reached about
+107 MHz on `clk_dq` against the 400 MHz DDR3-800 target. The board Makefile
+therefore refuses to program this image unless
+`ALLOW_TIMING_FAILED_DDR3_EXPERIMENT=1` is set. This result confirms the next
+architecture split: keep the controller, full-line assembly, and lane timing
+state in slow fabric, and put only a tiny 7-series DQ/DQS I/O shell in the fast
+clock domain.
+
 The first post-init-probe RTL slice, `rtl/ddr3_wb_line_channel.sv`, is now wired
 under both `rtl/ddr3_wb_channel.sv` and
 `rtl/ddr3_wb_dual_channel_line.sv`. `rtl/ddr3_ctrl_line.sv` exposes that
@@ -182,6 +202,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Line-to-x8-lane adapter | Two complete 512-bit channel lines serialize into sixteen x8 lane streams, and read beats from all lanes reassemble into complete channel lines. First proof exists; skewed-lane stall simulation exists. |
 | X8 lane PHY timing core | One BL8 x8 write stream becomes four DDR rise/fall pin-data pairs with DQ/DM/DQS output enables, and four sampled read pairs become eight lane read beats. First bounded proof and unit simulation exist. |
 | Line-to-lane PHY bridge | Complete channel lines feed one x8 lane PHY timing core per physical lane, with queued scheduler transfer-start pulses and abstract DQ/DQS/DM timing signals. First focused write/read sequencing proofs and full two-channel unit simulation exist. |
+| Controller-to-PHY clock bridge | Slow controller line handshakes cross to a faster PHY-side clock without changing payloads or dropping one legal single-outstanding read/write transaction. First dual-clock simulation and same-clock bounded protocol proof exist. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
 | Wishbone channel bridge | One Wishbone word request maps to exactly one BL8 line command and one full-channel data transfer, with write-line data captured before command acceptance. First proof exists. |
 | Wishbone line channel | One Wishbone word request maps to one scheduler command while write data is presented as a complete 64-byte line before command accept; reads wait for a full returned line. First proof exists. The no-DM RMW mode proves a write becomes read-old-line, merge selected bytes, then write an all-active line. |
@@ -212,6 +233,7 @@ Use the real Micron model for protocol validation:
 | Line-to-x8-lane unit | two complete channel line ports + sixteen x8 lane streams | dual-channel line serialization, mask mapping, lane-last markers, skewed lane stalls, and read-line reassembly pass |
 | X8 lane PHY unit | one lane stream + synthesizable timing core | BL8 write preload, four DDR write rise/fall pairs, DQ/DM/DQS output enables, four sampled read pairs, and eight returned lane bytes pass |
 | Line-to-lane PHY unit | two complete channel line ports + sixteen x8 lane PHY timing cores | queued transfer starts, all-lane write launch mapping, DQ/DQS/DM pin-pair checks, read sampling, and complete line reassembly pass |
+| Controller-to-PHY clock bridge unit | slow controller clock + fast PHY clock | write payload, start pulses, and read payload cross the bridge without error and return to idle |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
 | JTAG-Wishbone byte-select gate | `jtag_wb_master` plus BRAM or DDR3 loopback target | host-driven `SET_SEL` preserves unselected bytes before no-DM DDR3 RMW is trusted in hardware |
 | Wishbone channel unit | line-level Wishbone bridge + full-channel line packetizer | one bus write and one bus read traverse all eight byte lanes with correct command and word mapping |

@@ -181,6 +181,19 @@ loaded or a read window is ready, and exposes abstract per-lane DDR DQ/DQS/DM
 rise/fall timing signals. It is the intended input to a future YPCB-00338
 7-series primitive wrapper, but it is still not pin-level hardware validation.
 
+`rtl/ddr3_line_phy_clock_bridge.sv` is a deliberately narrow bridge between
+the slow controller line contract and a faster PHY-side clock domain. It is
+single-outstanding per channel and holds each multi-bit payload stable until
+the receiving side has acknowledged the matching toggle. The bridge has a
+simulation and a bounded protocol proof, but the first board experiment that
+placed the whole abstract line-lane PHY behind this bridge did not meet the
+DDR3-800 400 MHz `clk_dq` target. The useful architecture lesson is that this
+bridge is a control/data boundary; it is not permission to move wide soft
+line assembly, lane arbitration, or pin-pair checking into the bit clock domain.
+Those pieces should remain in slow fabric. The fast domain should eventually
+contain only the minimum 7-series I/O shell: DQ/DQS output/input registers,
+delay/calibration, and tightly local per-bit capture/launch logic.
+
 ## Debug/Status
 
 Expose status registers through the board JTAG/Wishbone path before relying on
