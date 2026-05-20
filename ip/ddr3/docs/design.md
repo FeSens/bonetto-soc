@@ -35,6 +35,7 @@ describes the target architecture, not an existing implementation.
 | `ddr3_channel_line` | Full 64-bit-channel BL8 line packetizer that composes eight x8 byte lanes into one 512-bit line plus 64 byte-mask bits. This exists now. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 word packing, byte-mask generation, and read word selection. This exists now as a single-outstanding frontend slice. |
 | `ddr3_wb_channel` | First bus/data integration slice tying the Wishbone frontend to the full-channel line packetizer and emitting one scheduler-facing BL8 line command. This exists now. |
+| `ddr3_wb_dual_channel` | Full-capacity bus-facing dispatch slice tying the global address decoder to two full-channel Wishbone bridges. This exists now as a single-outstanding dual-channel slice. |
 | `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
 
@@ -70,6 +71,12 @@ and no-alias property for matching `{channel, line, word}` fields.
 The low word-index bits intentionally match `ddr3_wb_frontend` and
 `ddr3_wb_channel`: consecutive 32-bit Wishbone addresses fill one 64-byte BL8
 line before the BL8 column address increments.
+
+`rtl/ddr3_wb_dual_channel.sv` is the first live user of this map. It decodes
+the global address, routes the request to exactly one of two
+`ddr3_wb_channel` instances, and presents the selected channel's response on
+the global Wishbone bus. It is deliberately single-outstanding until the
+controller has a real scheduler/PHY path and hardware data evidence.
 
 ## Timing Contract
 
@@ -110,7 +117,11 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 14. One Wishbone-to-full-channel bridge. This exists now and proves the first
     integration between the bus frontend, one BL8 line command, and the eight
     byte-lane data packetizers.
-15. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
-16. One 64-bit channel integrated through scheduler, frontend, and PHY.
-17. Two 64-bit channels.
-18. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+15. One full-capacity dual-channel Wishbone dispatch bridge. This exists now
+    and proves channel selection plus local address preservation before either
+    channel owns a PHY.
+16. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
+17. One 64-bit channel integrated through scheduler, frontend, and PHY.
+18. Two 64-bit channels with the dispatch bridge driving independent
+    scheduler/PHY stacks.
+19. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.

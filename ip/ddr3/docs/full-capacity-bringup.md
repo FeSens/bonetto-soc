@@ -33,6 +33,10 @@ This keeps each 64-byte full-channel BL8 transfer contiguous in the Wishbone
 word address space and covers the full 4 GiB installed data capacity across the
 two 64-bit channels. The map is implemented in `rtl/ddr3_addr_decode.sv` and
 covered by `formal/addr_decode_wrapper.sv` plus `sim/tb_addr_decode.sv`.
+`rtl/ddr3_wb_dual_channel.sv` now uses this decoder to route global Wishbone
+requests into channel 0 or channel 1, with formal and simulation coverage for
+single-outstanding channel dispatch. This is still pre-PHY and pre-hardware; it
+only proves the bus-facing channel split.
 
 ## Speed Ladder
 

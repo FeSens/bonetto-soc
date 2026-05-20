@@ -33,7 +33,10 @@ The active RTL slices are deliberately small and scheduler-facing:
   lines;
 - `ddr3_wb_channel.sv`: first integration slice connecting the Wishbone
   frontend to the full-channel BL8 line packetizer and exposing a
-  scheduler-facing line command.
+  scheduler-facing line command;
+- `ddr3_wb_dual_channel.sv`: full-capacity dual-channel dispatch slice that
+  decodes the global word address and routes one Wishbone request to exactly
+  one full-channel bridge.
 
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with the byte-lane packetizer feeding an ideal
@@ -43,7 +46,7 @@ focused active-traffic deadline proofs. The data boundary has one x8 lane, one
 full 64-bit-channel line packetizer, and a first Wishbone-to-channel bridge.
 The full-capacity address map is explicit and formally checked. There is still
 no pin-level controller-owned DQS/DQ PHY, integrated controller, calibration,
-dual-channel wrapper, or hardware-validated DDR3 path.
+or hardware-validated DDR3 path.
 
 Rules for adding new RTL:
 

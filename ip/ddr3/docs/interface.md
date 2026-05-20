@@ -60,6 +60,14 @@ that command is accepted, and returns completed read lines to the frontend for
 32-bit word selection. It still does not own a DDR3 command scheduler, row
 machine selection, PHY timing, calibration, or partial-write read-modify-write.
 
+`rtl/ddr3_wb_dual_channel.sv` is the first integrated global bus slice. It
+wraps two `ddr3_wb_channel` instances behind `ddr3_addr_decode`, uses
+`global[29]` as the channel select, routes `global[28:0]` to the selected
+channel, and exposes independent command/data packet ports for channel 0 and
+channel 1. It intentionally allows only one global Wishbone request outstanding
+at a time; throughput pipelining should wait until scheduler and PHY timing are
+hardware-proven.
+
 ## DDR3 Command Pins
 
 Controller or PHY boundary must eventually drive:
@@ -104,7 +112,9 @@ full 64-bit-channel packet boundary: one 512-bit BL8 line plus 64 byte-mask
 bits, with per-lane PHY handshakes still visible for the future Xilinx 7-series
 DQS/DQ bridge. `rtl/ddr3_wb_channel.sv` currently drives that packet boundary
 from Wishbone requests and exposes the line command that the future scheduler
-must pair with ACT/RD/WR/PRE timing.
+must pair with ACT/RD/WR/PRE timing. `rtl/ddr3_wb_dual_channel.sv` replicates
+that boundary once per channel and keeps the two channel PHY-facing interfaces
+independent.
 
 ## Debug/Status
 
