@@ -13,8 +13,8 @@ proof under `boards/ypcb-00338`. Do not regress that path while rebuilding DDR3.
 
 | Area | State |
 |---|---|
-| Controller RTL | DDR3-800 init sequencer plus single-bank ACT/READ/PRE/REF and ACT/WRITE/READ/PRE/REF command slices; no controller-owned PHY |
-| Formal | Live command timing monitor self-check, init sequencer proof, single-read proof, and single-write/read proof |
+| Controller RTL | DDR3-800 init sequencer, temporary single-bank command slices, and the first reusable one-bank row/timing machine; no controller-owned PHY |
+| Formal | Live command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, and bank-machine proof |
 | Simulation | Live Micron DDR3 model smoke, reference init, RTL init, RTL single-read command, and x8 write/read loopback targets |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
 | Active hardware gate | BRAM JTAG/Wishbone proof, not DDR3 |
@@ -35,7 +35,10 @@ What these mean today:
   trace and proves the controller-owned init sequencer emits reset, MRS, ZQCL,
   REF, and post-DLL-lock wait in order with minimum waits. It also proves the
   single-bank runtime slices emit ACT/READ/PRE/REF and
-  ACT/WRITE/READ/PRE/REF in order through the same timing monitor.
+  ACT/WRITE/READ/PRE/REF in order through the same timing monitor. The
+  reusable bank-machine proof accepts arbitrary one-at-a-time read/write
+  requests and proves emitted ACT/PRE/RD/WR commands stay inside the monitor's
+  local row/timing contract.
 - `sim` compiles the vendored Micron DDR3 model, runs a smoke bench, and runs a
   DDR3-800 reset/MRS/ZQ/REF reference script plus the RTL init sequencer against
   the model. It also runs the RTL init sequencer followed by one single-bank
@@ -54,11 +57,13 @@ What these mean today:
 | `rtl/ddr3_init_seq.sv` | DDR3-800 reset/MRS/ZQ/REF initialization sequencer. |
 | `rtl/ddr3_single_read_seq.sv` | Command-only single-bank ACT/READ/PRE/REF runtime slice. |
 | `rtl/ddr3_single_write_read_seq.sv` | Single-bank ACT/WRITE/READ/PRE/REF runtime slice for timing and x8 model bring-up. |
+| `rtl/ddr3_bank.sv` | Reusable one-bank open-row and local timing machine. |
 | `formal/ddr3_cmd_timing_monitor.sv` | Reusable JEDEC command/timing assertion block. |
 | `formal/timing_monitor_wrapper.sv` | Self-check harness for the timing monitor. |
 | `formal/init_seq_wrapper.sv` | Formal harness for init sequencer ordering and waits. |
 | `formal/single_read_wrapper.sv` | Formal harness for the single-bank runtime command slice. |
 | `formal/single_write_read_wrapper.sv` | Formal harness for the single-bank write/read runtime command slice. |
+| `formal/bank_wrapper.sv` | Formal harness for the one-bank row/timing machine. |
 | `sim/vendor/` | Vendored Micron DDR3 model and parameters. |
 | `sim/tb_micron_model_smoke.sv` | Minimal Micron model compile/run smoke bench. |
 | `sim/tb_micron_init_script.sv` | Handwritten DDR3-800 reset/MRS/ZQ/REF script against the Micron model. |
