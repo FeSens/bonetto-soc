@@ -35,16 +35,19 @@ Current coverage:
   64-bit line accepted from the PHY side. The Wishbone frontend proof covers a
   single-outstanding `fwb_slave` adapter, backend request stability under
   backpressure, abort/drain behavior, write acknowledgement, and read
-  data/error return from the selected word in a BL8 line.
+  data/error return from the selected word in a BL8 line. The full-channel line
+  proof composes eight byte lanes and checks 512-bit write data placement,
+  64-bit byte-mask placement, and read-line reassembly at the channel boundary.
 - `sim`: compiles and runs the vendored Micron x8 2Gb DDR3 model at a valid
   DDR3-800 clock, then drives both a handwritten reset/MRS/ZQ/REF reference
   script and the RTL init sequencer through the model. It also drives the RTL
   init sequencer into one single-bank READ command sequence and one single-bank
   WRITE/READ loopback using the byte-lane packetizer for one BL8 payload plus
   an ideal x8 DQS/DQ testbench agent. It also runs a unit bench for the
-  Wishbone frontend address split, write data/mask placement, and read word
-  selection. The protocol benches fail if the model reports timing or protocol
-  errors or warnings.
+  full-channel line packetizer with independent per-lane stalls, plus a unit
+  bench for the Wishbone frontend address split, write data/mask placement, and
+  read word selection. The protocol benches fail if the model reports timing or
+  protocol errors or warnings.
 
 Current non-coverage:
 
@@ -65,6 +68,7 @@ Every new RTL slice should add or extend one of these harnesses:
 | Global scheduler | No cross-bank violation of tRRD, tFAW, tCCD, or tWTR. First bounded proof exists. |
 | Refresh scheduler | No tRFC violation and no refresh before all banks are precharged. Request-driven proof exists; periodic idle deadline proof exists; focused active-traffic deadline proof exists. |
 | Byte lane | BL8 x8 write data/mask ordering, read capture ordering, and ready/valid stability under PHY backpressure. First proof exists. |
+| Full channel line | Eight x8 byte lanes compose into one 512-bit line plus 64 byte-mask bits. First proof exists; per-lane stall simulation exists. |
 | Wishbone frontend | ZipCPU `fwb_slave` contract; no ack without accepted request; no lost request. First single-outstanding proof exists. |
 | Read/write merge | Byte enables update exactly the selected 32-bit word inside one BL8 line. Frontend byte-mask generation exists; downstream merge or mask-preserving PHY write is still pending. |
 | Dual channel decode | Channel select bit routes to exactly one channel and preserves local address. |
@@ -84,6 +88,7 @@ Use the real Micron model for protocol validation:
 | Controller init | controller + one x8 model | controller init completes without model timing errors |
 | Single READ command | controller + one x8 model | ACT/READ/PRE/REF command sequence completes without model errors or warnings |
 | Single WRITE/READ command | controller + one x8 model + byte-lane packetizer + ideal DQS/DQ agent | deterministic BL8 x8 write/read pattern passes |
+| Full-channel line unit | eight byte-lane packetizers behind one channel interface | 512-bit write mapping, 64-bit mask mapping, per-lane stalls, and read reassembly pass |
 | Wishbone frontend unit | Wishbone frontend + backend line handshake model | address split, write data/mask placement, and read word selection pass |
 | Runtime x8 | controller + one x8 model | controller-owned DQS/DQ write/read patterns pass |
 | Full channel | controller + eight x8 models | every 64 data bits and byte lane pass |

@@ -84,12 +84,14 @@ Required future simulation stages:
    command/data phasing.
 6. Controller-side x8 byte-lane packetizer: BL8 data/mask ordering and read
    capture before a pin-level PHY. This exists now.
-7. Wishbone-to-BL8 frontend: single-outstanding protocol adapter, address
+7. Full-channel BL8 line packetizer: eight x8 lanes composed into one 512-bit
+   line plus 64 byte-mask bits. This exists now.
+8. Wishbone-to-BL8 frontend: single-outstanding protocol adapter, address
    split, data/mask placement, and read word selection. This exists now.
-8. Controller-owned x8 PHY bridge: real DQS/DQ write and read timing, still
+9. Controller-owned x8 PHY bridge: real DQS/DQ write and read timing, still
    pending.
-9. Full channel: eight x8 models for 64-bit data, then optional ECC lane.
-10. Dual channel: two independent full-channel model stacks.
+10. Full channel: eight x8 models for 64-bit data, then optional ECC lane.
+11. Dual channel: two independent full-channel model stacks.
 
 ## Architecture Direction
 
@@ -106,6 +108,8 @@ Build the new controller as small modules:
   proven through the scheduler in idle and focused active-traffic paths;
 - `ddr3_byte_lane`: controller-side BL8 x8 packetization. This exists now for
   ordered write data/masks and ordered read capture;
+- `ddr3_channel_line`: full-channel BL8 packetization. This exists now for
+  eight-lane 512-bit data and 64-bit byte-mask composition;
 - `ddr3_wb_frontend`: Wishbone request packing and BL8 word selection. This
   exists now as a single-outstanding frontend with formal and unit simulation
   coverage;

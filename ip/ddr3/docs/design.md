@@ -31,6 +31,7 @@ describes the target architecture, not an existing implementation.
 | `ddr3_scheduler` | Cross-bank arbitration, tRRD/tFAW/tCCD/tWTR command issue, and request-driven refresh after all banks are precharged. A first slice exists now. |
 | `ddr3_refresh` | Periodic tREFI accounting and early refresh requests into the scheduler. Idle and focused active-traffic deadline proofs exist now. |
 | `ddr3_byte_lane` | Controller-side x8 BL8 data packetizer. This exists now and proves write data/mask ordering plus read capture ordering before a board-specific DQS/DQ PHY is added. |
+| `ddr3_channel_line` | Full 64-bit-channel BL8 line packetizer that composes eight x8 byte lanes into one 512-bit line plus 64 byte-mask bits. This exists now. |
 | `ddr3_wb_frontend` | Wishbone request acceptance, BL8 word packing, byte-mask generation, and read word selection. This exists now as a single-outstanding frontend slice. |
 | `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
@@ -94,10 +95,13 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 8. Periodic refresh requester and idle deadline proof. This exists now.
 9. Focused active-traffic refresh-deadline proof. This exists now.
 10. One controller-side x8 BL8 byte-lane packetizer. This exists now.
-11. One single-outstanding Wishbone-to-BL8 frontend. This exists now and proves
+11. One full 64-bit-channel BL8 line packetizer composed from eight x8 lanes.
+    This exists now and verifies 512-bit data plus 64 byte-mask placement before
+    a board PHY is attached.
+12. One single-outstanding Wishbone-to-BL8 frontend. This exists now and proves
     protocol, address split, write data/mask placement, and read word
     selection before it is connected to the scheduler/data path.
-12. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
-13. One 64-bit channel.
-14. Two 64-bit channels.
-15. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+13. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
+14. One 64-bit channel integrated through scheduler, frontend, and PHY.
+15. Two 64-bit channels.
+16. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
