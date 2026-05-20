@@ -27,6 +27,14 @@ The controller-level block should expose the same basic B4-style slave shape as
 Formal requirement: every implementation must pass `fwb_slave` before it is
 connected to the board top.
 
+`rtl/ddr3_wb_frontend.sv` is the first live slice of this contract. It accepts
+one 32-bit Wishbone request at a time, stalls while that request is outstanding,
+splits the word address into `{line address, word index}`, packs write data into
+the selected word slot inside a BL8 line, shifts `i_wb_sel` into a line byte
+mask, and selects the requested 32-bit word from a backend read line. It is not
+yet the full controller-level `ddr3_ctrl`; downstream scheduler, merge, PHY,
+calibration, and status integration are still separate work.
+
 ## DDR3 Command Pins
 
 Controller or PHY boundary must eventually drive:
@@ -57,9 +65,12 @@ Keep the PHY boundary packetized around BL8:
 | PHY to controller | read payload | 512 | One captured BL8 line. |
 | PHY to controller | read valid | 1 | Read payload valid. |
 
-For the 32-bit Wishbone frontend, reads select one of sixteen words from the
-512-bit line. Partial writes perform read-modify-write until byte-mask writes
-are proven through the PHY.
+For the 32-bit Wishbone frontend, reads select one word from the BL8 line. With
+the final 64-bit channel line this means one of sixteen 32-bit words from a
+512-bit line. The current frontend emits a byte mask for the selected word;
+downstream logic must either preserve that byte mask through a proven PHY write
+path or perform read-modify-write before partial writes are exposed as hardware
+validated.
 
 `rtl/ddr3_byte_lane.sv` implements the first x8 slice of this boundary: one
 64-bit BL8 byte lane with eight write mask bits and an ordered read-capture

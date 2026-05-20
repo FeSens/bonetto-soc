@@ -20,14 +20,18 @@ The active RTL slices are deliberately small and scheduler-facing:
   early enough to give the scheduler a drain/close margin before the JEDEC
   deadline;
 - `ddr3_byte_lane.sv`: controller-side x8 BL8 packetizer that emits ordered
-  write data/mask beats and captures ordered read data beats.
+  write data/mask beats and captures ordered read data beats;
+- `ddr3_wb_frontend.sv`: single-outstanding Wishbone-to-BL8 frontend that
+  splits word addresses into line address and word index, places write data and
+  byte masks into a BL8 line, and selects read words from backend response
+  lines.
 
 The write/read slice proves command ordering and timing in RTL and is exercised
 against one Micron x8 model with the byte-lane packetizer feeding an ideal
 testbench DQS/DQ agent. The bank machine, scheduler, and refresh requester are
 the first scheduler-owned blocks, and the refresh requester now has idle plus
 focused active-traffic deadline proofs. There is still no pin-level
-controller-owned DQS/DQ PHY, Wishbone frontend, calibration, dual-channel
+controller-owned DQS/DQ PHY, integrated controller, calibration, dual-channel
 wrapper, or hardware-validated DDR3 path.
 
 Rules for adding new RTL:
@@ -43,4 +47,5 @@ Recommended first RTL slices:
 - typed mode-register field helpers,
 - a real controller-owned PHY bridge from the byte-lane packet stream to DQS/DQ
   timing against one Micron x8 model,
-- a Wishbone frontend that maps 32-bit accesses onto BL8 lines.
+- a backend merge/read-modify-write path connecting the Wishbone frontend to
+  scheduler requests and byte-lane packets.

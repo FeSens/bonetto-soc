@@ -31,7 +31,7 @@ describes the target architecture, not an existing implementation.
 | `ddr3_scheduler` | Cross-bank arbitration, tRRD/tFAW/tCCD/tWTR command issue, and request-driven refresh after all banks are precharged. A first slice exists now. |
 | `ddr3_refresh` | Periodic tREFI accounting and early refresh requests into the scheduler. Idle and focused active-traffic deadline proofs exist now. |
 | `ddr3_byte_lane` | Controller-side x8 BL8 data packetizer. This exists now and proves write data/mask ordering plus read capture ordering before a board-specific DQS/DQ PHY is added. |
-| `ddr3_wb_frontend` | Wishbone request acceptance, BL8 packing, byte-enable merge. |
+| `ddr3_wb_frontend` | Wishbone request acceptance, BL8 word packing, byte-mask generation, and read word selection. This exists now as a single-outstanding frontend slice. |
 | `ddr3_ctrl` | Integrates init, frontend, scheduler, and PHY command/data ports. |
 | `ddr3_phy_xilinx7` | Xilinx 7-series clocking, DQS/DQ IO, delay, and leveling. |
 
@@ -61,6 +61,11 @@ global[6:0]     column[9:3]
 The exact bit placement can be tuned for locality, but it must be documented
 and formally checked before hardware validation.
 
+The current `ddr3_wb_frontend` implements the same word-to-line split in
+parameterized form. With the current x8 bring-up setting, `LINE_BYTES=8`, so one
+BL8 line contains two 32-bit Wishbone words. The eventual full-channel setting
+is `LINE_BYTES=64`, where one BL8 line contains sixteen 32-bit Wishbone words.
+
 ## Timing Contract
 
 The command scheduler must never issue a command that violates:
@@ -89,7 +94,10 @@ runtime command timing. Extend it instead of scattering ad hoc asserts.
 8. Periodic refresh requester and idle deadline proof. This exists now.
 9. Focused active-traffic refresh-deadline proof. This exists now.
 10. One controller-side x8 BL8 byte-lane packetizer. This exists now.
-11. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
-12. One 64-bit channel.
-13. Two 64-bit channels.
-14. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
+11. One single-outstanding Wishbone-to-BL8 frontend. This exists now and proves
+    protocol, address split, write data/mask placement, and read word
+    selection before it is connected to the scheduler/data path.
+12. One controller-owned x8 PHY bridge with real DQS/DQ write/read timing.
+13. One 64-bit channel.
+14. Two 64-bit channels.
+15. Speed ladder: DDR3-800, DDR3-1066, DDR3-1333, DDR3-1600.
