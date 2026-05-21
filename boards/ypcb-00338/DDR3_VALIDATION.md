@@ -1,5 +1,52 @@
 # YPCB-00338 DDR3 Validation
 
+## SERDES Init-Only Hardware Attempt Blocked By DLC10
+
+This is the next live gate after the pre-PHY command plus line-to-lane loopback:
+the routed `0xB07E0D89` image enables DDR3 reset/CKE/ODT/CK/address/command
+pins, keeps the full x9 CH0 + CH1 SERDES/IDELAY DQ/DQS shell present, blocks
+DDR Wishbone storage access, and exposes JTAG-loadable IDELAY tap status
+registers.
+
+The image builds and routes, but the latest programming run did not reach FPGA
+DONE or XVC validation. The failure is at the DLC10/XPCU JTAG-init transport
+stage, before any DDR3 status can be sampled.
+
+Attempted command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 program-ddr3-ctrl-line-serdes-init-ddr800
+```
+
+Observed failure pattern:
+
+```text
+>> program DDR3-800 SERDES init-only attempt 1
+USB alternate interface 1 not present; keeping current setting
+Unable to read control request: LIBUSB_ERROR_TIMEOUT (bRequest=0x176, wValue=0x64)
+JTAG init failed with: Unable to read constant.
+...
+>> program DDR3-800 SERDES init-only attempt 10
+USB alternate interface 1 not present; keeping current setting
+Unable to read control request: LIBUSB_ERROR_TIMEOUT (bRequest=0x176, wValue=0x64)
+JTAG init failed with: Unable to read constant.
+program failed after 10 attempts -- if all attempts after #1
+showed 'Unable to read constant', the cable is wedged. Physical
+unplug+replug of the USB cable from the Mac is required.
+```
+
+Next action after replug:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 program-ddr3-ctrl-line-serdes-init-ddr800
+nix develop --command make -C boards/ypcb-00338 xvc
+nix develop --command make -C boards/ypcb-00338 validate-ddr3-ctrl-line-serdes-init
+python3 tools/jtag_uart_read.py --set-idelay 12 21 --tck-ns 2000
+```
+
+This section is failure evidence only. It must not be counted as DDR3-800
+external-memory validation or as validation of the SERDES init-only status path.
+
 ## Clean-Sheet DDR3 Command Plus Line-To-Lane Loopback Evidence
 
 Validation date: 2026-05-20

@@ -19,6 +19,7 @@ Usage:
     python tools/jtag_uart_read.py                # dump all known regs once
     python tools/jtag_uart_read.py --reg 0x03     # read one register
     python tools/jtag_uart_read.py --watch        # dump-all every interval
+    python tools/jtag_uart_read.py --set-idelay 12 21
 
 The XVC protocol is the original Xilinx Virtual Cable v1.0 — three commands:
     getinfo:                       -> "xvcServer_v1.0:NNN\\n"
@@ -418,6 +419,28 @@ def decode_dqs_dbg_counts(w: int) -> str:
     )
 
 
+def decode_cal_request(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} pending={(w>>15)&1} "
+        f"channel={(w>>14)&1} lane={(w>>9)&0x1F} "
+        f"tap={(w>>4)&0x1F} count_lo={w&0xF}"
+    )
+
+
+def decode_cal_seen(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} lane={(w>>9)&0x1F} "
+        f"tap={(w>>4)&0x1F} count_lo={w&0xF}"
+    )
+
+
+def decode_cal_counts(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} req_count={(w>>8)&0xFF} "
+        f"seen_count={w&0xFF}"
+    )
+
+
 REG_DECODERS = {
     0x00: ("STATUS_FLAGS", decode_status_flags),
     0x01: ("STATE_BITS",   decode_state_bits),
@@ -458,6 +481,9 @@ REG_DECODERS = {
         f"dq_hb_bit={(w>>14)&1} dq_ticks_lo={w & 0x3F}"
     )),
     0x1A: ("JWB_ADDR_HI", lambda w: f"magic=0x{w>>16:04x} addr_hi=0x{w & 0xffff:04x}"),
+    0x26: ("IDELAY_CAL_REQUEST", decode_cal_request),
+    0x27: ("IDELAY_CAL_SEEN", decode_cal_seen),
+    0x28: ("IDELAY_CAL_COUNTS", decode_cal_counts),
     0x1D: ("DDR3_CH0_RDDBG_FLAGS", decode_rd_dbg_flags),
     0x1E: ("DDR3_CH0_RDDBG_READ_COUNTS", decode_rd_dbg_read_counts),
     0x1F: ("DDR3_CH0_RDDBG_WRITE_COUNTS", decode_rd_dbg_write_counts),
@@ -503,6 +529,12 @@ def main():
                     help="iter-7: WB read via JTAG-WB master (hex/dec ok)")
     ap.add_argument("--wb-resume", action="store_true",
                     help="clear JWB halt_others so memtest_lite resumes")
+    ap.add_argument("--set-idelay", nargs=2, metavar=("LANE", "TAP"),
+                    help="pulse IDELAY load for a physical lane/tap through JTAG SET_CAL")
+    ap.add_argument("--idelay-channel", type=int, default=0, choices=(0, 1),
+                    help="SET_CAL channel bit; 0=physical lane number, 1=legacy CH1 byte-lane map")
+    ap.add_argument("--idelay-status-polls", type=int, default=8,
+                    help="status polls after --set-idelay")
     args = ap.parse_args()
 
     xvc = XVC(args.host, args.port)
@@ -535,6 +567,28 @@ def main():
     if args.wb_resume:
         jwb_cmd(xvc, JWB_CMD_RESUME)
         print("JWB resumed (halt_others cleared)")
+        xvc.close()
+        return 0
+
+    if args.set_idelay is not None:
+        lane = int(args.set_idelay[0], 0)
+        tap = int(args.set_idelay[1], 0)
+        jwb_set_idelay(xvc, lane, tap, args.idelay_channel)
+        print(f"IDELAY load requested lane={lane} tap={tap} "
+              f"channel={args.idelay_channel}")
+        for _ in range(args.idelay_status_polls):
+            req = read_status_reg(xvc, 0x26)
+            seen = read_status_reg(xvc, 0x27)
+            counts = read_status_reg(xvc, 0x28)
+            print(f"  [0x26] {REG_DECODERS[0x26][0]:<26s} = "
+                  f"{req:#010x}   {decode_cal_request(req)}")
+            print(f"  [0x27] {REG_DECODERS[0x27][0]:<26s} = "
+                  f"{seen:#010x}   {decode_cal_seen(seen)}")
+            print(f"  [0x28] {REG_DECODERS[0x28][0]:<26s} = "
+                  f"{counts:#010x}   {decode_cal_counts(counts)}")
+            if ((req >> 15) & 1) == 0:
+                break
+            time.sleep(0.05)
         xvc.close()
         return 0
 

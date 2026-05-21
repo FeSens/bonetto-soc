@@ -201,7 +201,8 @@ DDR3_CTRL_LINE_SERDES_RTL := \
     ../../ip/ddr3/rtl/ddr3_x8_to_x9_line_adapter.sv \
     ../../ip/ddr3/rtl/ddr3_x8_burst_clock_bridge.sv \
     ../../ip/ddr3/rtl/ddr3_x8_serdes_burst_lane.sv \
-    ../../ip/ddr3/rtl/ddr3_line_serdes_phy.sv
+    ../../ip/ddr3/rtl/ddr3_line_serdes_phy.sv \
+    ../../ip/ddr3/rtl/ddr3_idelay_cal_cdc.sv
 
 DDR3_DQ_DQS_IO_PROBE_RTL := \
     rtl/top_ddr3_dq_dqs_iobuf_probe.sv \

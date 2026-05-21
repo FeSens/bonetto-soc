@@ -75,6 +75,12 @@ exists. Its DQ and DQS IDELAYE2 cells use `VAR_LOAD`; host `SET_CAL` commands
 now cross safely from the JTAG/Wishbone clock into `clk_sys` and issue a
 per-lane IDELAY load pulse with the requested tap.
 
+The current SERDES init-only bitstream routes, but it has not reached XVC
+validation yet. The latest bounded `program-ddr3-ctrl-line-serdes-init-ddr800`
+run failed all 10 DLC10 attempts at XPCU JTAG init with
+`LIBUSB_ERROR_TIMEOUT` / `Unable to read constant`; a physical USB replug is
+needed before retrying the hardware gate.
+
 ## Historical DDR3 Configuration
 
 The previous DDR3 controller/PHY RTL has been reset. The notes below are kept
@@ -264,6 +270,7 @@ Use `tools/jtag_uart_read.py` while XVC is running:
 ```sh
 python3 tools/jtag_uart_read.py --tck-ns 2000
 python3 tools/jtag_uart_read.py --reg 0x00 --tck-ns 2000
+python3 tools/jtag_uart_read.py --set-idelay 12 21 --tck-ns 2000
 ```
 
 Key BRAM-proof registers:
@@ -302,6 +309,9 @@ Key DDR3 controller-loopback registers:
 | `0x20`..`0x21` | CH0/CH1 loopback write counts |
 | `0x22`..`0x23` | CH0/CH1 loopback read counts |
 | `0x24`..`0x25` | CH0/CH1 last loopback line address |
+| `0x26` | IDELAY calibration request status: pending flag, channel bit, physical lane, tap, request-count low nibble |
+| `0x27` | IDELAY calibration observed-load status: physical lane, tap, observed-count low nibble |
+| `0x28` | IDELAY calibration request and observed-load counters |
 | `0xFE` | DDR3 controller-loopback version, `0xB07E0D81`; command-probe version, `0xB07E0D84`; command plus line-to-lane version, `0xB07E0D86`; command plus PHY-timing version, `0xB07E0D87`; live SERDES init-only version, `0xB07E0D89` |
 
 ## LEDs

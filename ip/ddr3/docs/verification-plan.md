@@ -77,7 +77,10 @@ Current coverage:
   synchronized error status for a legal sequence. The line-to-SERDES PHY shell
   proof checks the next board-wrapper-facing split: line-to-burst, per-lane
   clock bridge, and x8 SERDES-domain lane adapter compose without corrupting
-  the representative write/read payload or output-enable contract.
+  the representative write/read payload or output-enable contract. The IDELAY
+  calibration command CDC proof checks direct physical-lane and legacy CH1
+  byte-lane tap-load mapping, tap integrity, one-cycle load pulses, and
+  request/observed-load accounting in the same-clock formal harness.
   The scheduler and line-controller checks now also preserve transfer type so
   the future PHY receives mutually exclusive write/read start pulses aligned to
   the issued WR/RD command.
@@ -125,7 +128,10 @@ Current coverage:
   line-to-SERDES PHY shell unit bench repeats that slow/fast integration with
   two physical x9 channels and checks that every selected-channel lane produces
   the expected 64-bit SERDES write word and that returned SERDES words
-  reassemble into a complete line. The
+  reassemble into a complete line. The IDELAY calibration command CDC unit
+  bench runs real dual-clock tap-load requests, including direct physical CH1
+  lane addressing and the legacy CH1 byte-lane map, and checks that `LD` pulses
+  for one `clk_sys` cycle with the requested tap. The
   line-to-lane PHY bridge unit bench runs the
   full two-channel, sixteen-lane integration over abstract DQ/DQS/DM timing
   signals before any Xilinx primitive wrapper is connected. The
@@ -317,10 +323,12 @@ into `clk_sys`, so future read-leveling code can sweep taps without relying on
 a one-cycle cross-domain pulse. The 2026-05-20 seed-1 router1 run generated a
 bitstream with 162 OSERDESE2, 162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF,
 18 DQS IOBUFDS, and 6 IDELAYCTRL cells. Post-route max-frequency reporting
-showed `SYS_CLK` at 118.60 MHz, `clk_sys` at 125.80 MHz, `clk_idelay_ref` at
-773.99 MHz, `clk_dq` at 719.94 MHz, and `clk_ddr` at 1557.63 MHz. This is still
+showed `SYS_CLK` at 112.84 MHz, `clk_sys` at 133.87 MHz, `clk_idelay_ref` at
+834.72 MHz, `clk_dq` at 684.93 MHz, and `clk_ddr` at 1557.63 MHz. This is still
 not external DDR3 storage validation because DQ/DQS read/write leveling and the
-memory write/read validator are not live yet.
+memory write/read validator are not live yet. Live programming/XVC validation
+is blocked on the DLC10 cable: the bounded 10-attempt program target failed at
+XPCU JTAG init with `LIBUSB_ERROR_TIMEOUT` / `Unable to read constant`.
 
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler
