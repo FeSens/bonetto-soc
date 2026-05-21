@@ -125,6 +125,7 @@ module top_ddr3_dq_dqs_serdes_lane_probe (
         .i_bitslip(1'b0),
         .i_idelay_load(1'b0),
         .i_idelay_tap(5'd0),
+        .i_history_age(4'd0),
         .o_dq_bits(rd_bits),
         .o_dqs_bits(rd_dqs_bits),
         .io_dq(ddr3_dq),

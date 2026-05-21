@@ -136,6 +136,70 @@ post_block_bram_read_status=0xab100005 read_data=0x00000000
 DDR3_CTRL_LINE_SERDES_INIT_VALIDATE_SUMMARY ok=1
 ```
 
+Latest DQS-mapped MPR capture evidence:
+
+Validation date: 2026-05-21
+
+The `0xB07E0DA1` image replaces the one-off cross probes with an explicit
+18-lane DQS IDDR capture map. The map is identity except CH0 byte lane 2 uses
+CH0 DQS lane 3, and CH1 byte lane 0 uses CH1 DQS lane 1. This is still an MPR
+read-capture gate, not external storage validation, but every physical x9 byte
+lane on both channels now captures the DDR3 MPR `00 ff` pattern through the
+board DQ/DQS pins.
+
+Route command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream
+```
+
+Post-route timing summary:
+
+```text
+Router1 time 22.46s
+Checksum: 0x02fb42ad
+u_top.SYS_CLK             113.42 MHz (PASS at 50.00 MHz)
+u_top.clk_sys              83.06 MHz (PASS at 50.00 MHz)
+u_top.clk_dq              240.85 MHz (PASS at 50.00 MHz)
+u_top.clk_ddr             522.74 MHz (PASS at 50.00 MHz)
+```
+
+Program and init-validator evidence:
+
+```text
+Load SRAM: 100.00%
+ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+version=0xb07e0da1
+status=0xb07e8831 init_done=1 pll_locked=1 reset_active=0 refresh_late=0
+blocked_ddr_write_status=0xab100007
+blocked_ddr_read_status=0xab100007 read_data=0xd15ab1ed
+post_block_bram_read_status=0xab100005 read_data=0x00000000
+DDR3_CTRL_LINE_SERDES_INIT_VALIDATE_SUMMARY ok=1
+```
+
+MPR command:
+
+```sh
+python3 tools/mpr_tap_sweep.py --channel 0 --lanes 0-8 --taps 0 --waits 0-15 --dqs-iddr
+python3 tools/mpr_tap_sweep.py --channel 1 --lanes 0-8 --taps 0 --waits 0-15 --dqs-iddr
+```
+
+MPR summaries:
+
+```text
+bitstream iter=0x0da1
+MPR_TAP_SWEEP_SUMMARY L0=0@0 L1=0@0 L2=0@0 L3=0@0 L4=0@0 L5=0@0 L6=0@0 L7=0@0 L8=0@0
+bitstream iter=0x0da1
+MPR_TAP_SWEEP_SUMMARY L0=0@2 L1=0@1 L2=0@1 L3=0@0 L4=0@1 L5=0@1 L6=0@1 L7=0@1 L8=0@0
+```
+
+Map status registers:
+
+```text
+[0x4a] SERDES_DQS_MAP_CH0_L2 = 0xca608860 magic=0xca60 enabled=1 dq_lane=2 dqs_lane=3 edge_count_lo5=0
+[0x4b] SERDES_DQS_MAP_CH1_L0 = 0xca61a541 magic=0xca61 enabled=1 dq_lane=9 dqs_lane=10 edge_count_lo5=1
+```
+
 IDELAY direct physical-lane check:
 
 ```sh

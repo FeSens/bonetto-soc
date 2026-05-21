@@ -49,8 +49,16 @@ module top_ddr3_ctrl_line_serdes_init (
         .USE_LINE_TO_LANES(0),
         .USE_LINE_LANE_PHY(0),
         .USE_LINE_SERDES_PHY(1),
-        .GATE_VERSION(32'hB07E_0D89),
-        .DEFAULT_MAGIC(24'hD3AD89)
+        .USE_DQS_IDDR_PROBE(1),
+        .DQS_IDDR_SWAP_MASK(18'h00090),
+        .DQS_IDDR_DQ_IDELAY_MASK(18'h00000),
+        .USE_DQS_IDDR_CAPTURE_MAP(1),
+        .DQS_IDDR_CAPTURE_MAP({
+            5'd17, 5'd16, 5'd15, 5'd14, 5'd13, 5'd12, 5'd11, 5'd10, 5'd10,
+            5'd8, 5'd7, 5'd6, 5'd5, 5'd4, 5'd3, 5'd3, 5'd1, 5'd0
+        }),
+        .GATE_VERSION(32'hB07E_0DA1),
+        .DEFAULT_MAGIC(24'hD3ADA1)
     ) u_top (
         .SYS_CLK(SYS_CLK),
         .SYS_RSTN(SYS_RSTN),

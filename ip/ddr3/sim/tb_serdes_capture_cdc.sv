@@ -17,12 +17,20 @@ module tb_serdes_capture_cdc;
     reg [PHY_LANES*TAP_W-1:0] tap_bus = {(PHY_LANES*TAP_W){1'b0}};
     reg [PHY_LANES*64-1:0] dq_bus = {(PHY_LANES*64){1'b0}};
     reg [PHY_LANES*8-1:0] dqs_bus = {(PHY_LANES*8){1'b0}};
+    reg [PHY_LANES*8-1:0] dqs_edge_rise_dq_bus = {(PHY_LANES*8){1'b0}};
+    reg [PHY_LANES*8-1:0] dqs_edge_fall_dq_bus = {(PHY_LANES*8){1'b0}};
+    reg [PHY_LANES*8-1:0] dqs_edge_rise_count_bus = {(PHY_LANES*8){1'b0}};
+    reg [PHY_LANES*8-1:0] dqs_edge_fall_count_bus = {(PHY_LANES*8){1'b0}};
 
     wire valid;
     wire [4:0] lane;
     wire [TAP_W-1:0] tap;
     wire [63:0] dq_bits;
     wire [7:0] dqs_bits;
+    wire [7:0] dqs_edge_rise_dq;
+    wire [7:0] dqs_edge_fall_dq;
+    wire [7:0] dqs_edge_rise_count;
+    wire [7:0] dqs_edge_fall_count;
     wire [7:0] count;
 
     ddr3_serdes_capture_cdc #(
@@ -37,11 +45,19 @@ module tb_serdes_capture_cdc;
         .i_phy_tap(tap_bus),
         .i_phy_dq_bits(dq_bus),
         .i_phy_dqs_bits(dqs_bus),
+        .i_phy_dqs_edge_rise_dq(dqs_edge_rise_dq_bus),
+        .i_phy_dqs_edge_fall_dq(dqs_edge_fall_dq_bus),
+        .i_phy_dqs_edge_rise_count(dqs_edge_rise_count_bus),
+        .i_phy_dqs_edge_fall_count(dqs_edge_fall_count_bus),
         .o_ctrl_valid(valid),
         .o_ctrl_lane(lane),
         .o_ctrl_tap(tap),
         .o_ctrl_dq_bits(dq_bits),
         .o_ctrl_dqs_bits(dqs_bits),
+        .o_ctrl_dqs_edge_rise_dq(dqs_edge_rise_dq),
+        .o_ctrl_dqs_edge_fall_dq(dqs_edge_fall_dq),
+        .o_ctrl_dqs_edge_rise_count(dqs_edge_rise_count),
+        .o_ctrl_dqs_edge_fall_count(dqs_edge_fall_count),
         .o_ctrl_count(count)
     );
 
@@ -55,6 +71,10 @@ module tb_serdes_capture_cdc;
             tap_bus[req_lane*TAP_W +: TAP_W] = req_tap;
             dq_bus[req_lane*64 +: 64] = req_dq;
             dqs_bus[req_lane*8 +: 8] = req_dqs;
+            dqs_edge_rise_dq_bus[req_lane*8 +: 8] = 8'ha0 | req_lane[3:0];
+            dqs_edge_fall_dq_bus[req_lane*8 +: 8] = 8'h50 | req_lane[3:0];
+            dqs_edge_rise_count_bus[req_lane*8 +: 8] = 8'd10 + req_lane;
+            dqs_edge_fall_count_bus[req_lane*8 +: 8] = 8'd20 + req_lane;
             capture_lane = ({PHY_LANES{1'b0}} | (18'd1 << req_lane));
             @(negedge phy_clk);
             capture_lane = {PHY_LANES{1'b0}};
@@ -81,9 +101,15 @@ module tb_serdes_capture_cdc;
                 $fatal(1);
             end
             if (!valid || lane !== exp_lane || tap !== exp_tap ||
-                dq_bits !== exp_dq || dqs_bits !== exp_dqs) begin
-                $display("[serdes-capture-cdc] mismatch valid=%0d lane=%0d tap=%0d dq=%016x dqs=%02x",
-                         valid, lane, tap, dq_bits, dqs_bits);
+                dq_bits !== exp_dq || dqs_bits !== exp_dqs ||
+                dqs_edge_rise_dq !== (8'ha0 | exp_lane[3:0]) ||
+                dqs_edge_fall_dq !== (8'h50 | exp_lane[3:0]) ||
+                dqs_edge_rise_count !== (8'd10 + exp_lane) ||
+                dqs_edge_fall_count !== (8'd20 + exp_lane)) begin
+                $display("[serdes-capture-cdc] mismatch valid=%0d lane=%0d tap=%0d dq=%016x dqs=%02x edge_r=%02x edge_f=%02x cnt_r=%0d cnt_f=%0d",
+                         valid, lane, tap, dq_bits, dqs_bits,
+                         dqs_edge_rise_dq, dqs_edge_fall_dq,
+                         dqs_edge_rise_count, dqs_edge_fall_count);
                 $fatal(1);
             end
         end

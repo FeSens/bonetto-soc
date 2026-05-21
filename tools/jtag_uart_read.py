@@ -214,7 +214,7 @@ JWB_CMD_SET_CAL  = 0xE8
 # iter-11: MMCM clk_dq phase shift on CLKOUT2 (DQS-out launch clock).
 JWB_CMD_PHASE_INC = 0xE9
 JWB_CMD_PHASE_DEC = 0xEA
-# iter-18: board-top debug commands for direct MPR probing.
+# Board-top debug commands for direct MPR probing.
 JWB_CMD_MPR_EN    = 0xEB
 JWB_CMD_MPR_DIS   = 0xEC
 JWB_CMD_MPR_READ  = 0xED
@@ -245,9 +245,16 @@ def jwb_mpr_read(xvc, addr: int = 0x1000, channel: int = 0):
     jwb_cmd(xvc, JWB_CMD_MPR_READ, payload)
 
 
-def jwb_select_rddbg(xvc, lane: int, channel: int = 0):
-    """Select the compact PHY read-capture debug lane."""
-    payload = ((channel & 1) << 16) | (lane & 0x7)
+def jwb_select_rddbg(xvc, lane: int, channel: int = 0, delay: int = 0):
+    """Select the SERDES/MPR capture lane and capture timing byte.
+
+    In iter 0x0d9a+, MPR captures read back a DQS-edge frame. delay[3:0]
+    is the post-read controller wait; delay[6:4] selects how many clk_sys
+    frames before the DQS edge should be exported. In iter 0x0d9b+, delay[7]
+    selects the DQS-clocked IDDR probe instead of the global-clock SERDES
+    edge-window frame.
+    """
+    payload = ((channel & 1) << 16) | ((delay & 0xFF) << 8) | (lane & 0x1F)
     jwb_cmd(xvc, JWB_CMD_RDDBG_SEL, payload)
 
 
@@ -453,8 +460,147 @@ def decode_serdes_capture_dqs(w: int) -> str:
     return f"magic=0x{w>>16:04x} dqs=0x{w&0xFF:02x}"
 
 
+def decode_serdes_dqs_edge_counts(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} "
+        f"rise_count={(w>>8)&0xFF} fall_count={w&0xFF}"
+    )
+
+
+def decode_serdes_dqs_edge_dq(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} "
+        f"rise_dq=0x{(w>>8)&0xFF:02x} fall_dq=0x{w&0xFF:02x}"
+    )
+
+
+def decode_mpr_status(w: int) -> str:
+    cfg = w & 0xFF
+    return (
+        f"magic=0x{w>>16:04x} busy={(w>>15)&1} error={(w>>14)&1} "
+        f"enabled=0b{(w>>12)&0x3:02b} state={(w>>8)&0xF} "
+        f"capture_cfg=0x{cfg:02x} wait={cfg&0xF} "
+        f"history={(cfg>>4)&0x7} dqs_iddr={(cfg>>7)&1}"
+    )
+
+
+def decode_mpr_counts(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} cmd_count={(w>>8)&0xFF} "
+        f"read_count={w&0xFF}"
+    )
+
+
+def decode_mpr_capture(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} capture_count={(w>>8)&0xFF} "
+        f"selected_lane={w&0x1F}"
+    )
+
+
+def decode_mpr_read(w: int) -> str:
+    return f"magic=0x{w>>16:04x} read_addr=0x{w&0x1FFF:04x}"
+
+
+CMD_NAMES = {
+    0x0: "MRS",
+    0x1: "REF",
+    0x2: "PRE",
+    0x3: "ACT",
+    0x4: "WR",
+    0x5: "RD",
+    0x6: "ZQ",
+    0x7: "NOP",
+    0xF: "DES",
+}
+
+
+def decode_cmd_name(code: int) -> str:
+    return CMD_NAMES.get(code, "?")
+
+
+def decode_cmd_pin_status(w: int) -> str:
+    last0 = (w >> 4) & 0xF
+    last1 = w & 0xF
+    return (
+        f"magic=0x{w>>16:04x} "
+        f"reset_n=0b{(w>>14)&0x3:02b} "
+        f"cke=0b{(w>>12)&0x3:02b} "
+        f"odt=0b{(w>>10)&0x3:02b} "
+        f"last_cmd0=0x{last0:x}({decode_cmd_name(last0)}) "
+        f"last_cmd1=0x{last1:x}({decode_cmd_name(last1)})"
+    )
+
+
+def decode_cmd_pin_counts(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} cmd_count={(w>>8)&0xFF} "
+        f"mrs_count={w&0xFF}"
+    )
+
+
+def decode_cmd_pin_rd_counts(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} ch0_rd_count={(w>>8)&0xFF} "
+        f"ch1_rd_count={w&0xFF}"
+    )
+
+
+def decode_cmd_pin_last(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} ba={(w>>13)&0x7} "
+        f"addr_lo13=0x{w&0x1FFF:04x}"
+    )
+
+
+def decode_cmd_ctrl_codes(w: int) -> str:
+    cmd0 = (w >> 12) & 0xF
+    cmd1 = (w >> 8) & 0xF
+    return (
+        f"magic=0x{w>>16:04x} "
+        f"last_cmd0=0x{cmd0:x}({decode_cmd_name(cmd0)}) "
+        f"last_cmd1=0x{cmd1:x}({decode_cmd_name(cmd1)}) "
+        f"count0_lo4={(w>>4)&0xF} count1_lo4={w&0xF}"
+    )
+
+
 def decode_refresh_count(w: int) -> str:
     return f"magic=0x{w>>16:04x} count={w & 0xFFFF}"
+
+
+def decode_serdes_capture_cfg(w: int) -> str:
+    raw_hi = (w >> 8) & 0xF
+    return (
+        f"magic=0x{w>>16:04x} dqs_iddr_en={(w>>15)&1} "
+        f"dqs_iddr={(w>>14)&1} "
+        f"raw_cfg_hi=0x{raw_hi:x} raw_dqs_iddr={(raw_hi>>3)&1} "
+        f"history_age={(w>>4)&0x7} "
+        f"wait={w&0xF}"
+    )
+
+
+def decode_serdes_dqs_iddr_swap_lo(w: int) -> str:
+    return f"magic=0x{w>>16:04x} swap_mask_lo=0x{w & 0xFFFF:04x}"
+
+
+def decode_serdes_dqs_iddr_swap_hi(w: int) -> str:
+    return f"magic=0x{w>>16:04x} swap_mask_hi=0x{w & 0x3:01x}"
+
+
+def decode_serdes_dqs_iddr_dq_idelay_lo(w: int) -> str:
+    return f"magic=0x{w>>16:04x} dq_idelay_mask_lo=0x{w & 0xFFFF:04x}"
+
+
+def decode_serdes_dqs_iddr_dq_idelay_hi(w: int) -> str:
+    return f"magic=0x{w>>16:04x} dq_idelay_mask_hi=0x{w & 0x3:01x}"
+
+
+def decode_serdes_dqs_map(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} enabled={(w>>15)&1} "
+        f"dq_lane={(w>>10)&0x1F} dqs_lane={(w>>5)&0x1F} "
+        f"edge_count_lo5={w&0x1F}"
+    )
 
 
 REG_DECODERS = {
@@ -504,8 +650,37 @@ REG_DECODERS = {
     0x2A: ("SERDES_CAPTURE_DQ_LO", lambda w: f"{w:#010x}"),
     0x2B: ("SERDES_CAPTURE_DQ_HI", lambda w: f"{w:#010x}"),
     0x2C: ("SERDES_CAPTURE_DQS", decode_serdes_capture_dqs),
+    0x2D: ("DDR3_MPR_STATUS", decode_mpr_status),
+    0x2E: ("DDR3_MPR_COUNTS", decode_mpr_counts),
+    0x2F: ("DDR3_MPR_CAPTURE", decode_mpr_capture),
     0x30: ("DDR3_CH0_REFRESH", decode_refresh_count),
     0x31: ("DDR3_CH1_REFRESH", decode_refresh_count),
+    0x32: ("DDR3_MPR_READ", decode_mpr_read),
+    0x33: ("DDR3_CMD_PIN_STATUS", decode_cmd_pin_status),
+    0x34: ("DDR3_CH0_CMD_COUNTS", decode_cmd_pin_counts),
+    0x35: ("DDR3_CH1_CMD_COUNTS", decode_cmd_pin_counts),
+    0x36: ("DDR3_CMD_PIN_RD_COUNTS", decode_cmd_pin_rd_counts),
+    0x37: ("DDR3_CH0_CMD_LAST", decode_cmd_pin_last),
+    0x38: ("DDR3_CH1_CMD_LAST", decode_cmd_pin_last),
+    0x39: ("DDR3_CH0_CMD_LAST_MRS", decode_cmd_pin_last),
+    0x3A: ("DDR3_CH1_CMD_LAST_MRS", decode_cmd_pin_last),
+    0x3B: ("DDR3_CH0_CMD_LAST_RD", decode_cmd_pin_last),
+    0x3C: ("DDR3_CH1_CMD_LAST_RD", decode_cmd_pin_last),
+    0x3D: ("DDR3_MPR_SRC_CH0_LAST", decode_cmd_pin_last),
+    0x3E: ("DDR3_MPR_SRC_CH1_LAST", decode_cmd_pin_last),
+    0x3F: ("DDR3_MPR_SRC_CMDS", decode_cmd_ctrl_codes),
+    0x40: ("DDR3_MUX_CTRL_CH0_LAST", decode_cmd_pin_last),
+    0x41: ("DDR3_MUX_CTRL_CH1_LAST", decode_cmd_pin_last),
+    0x42: ("DDR3_MUX_CTRL_CMDS", decode_cmd_ctrl_codes),
+    0x43: ("SERDES_DQS_EDGE_COUNTS", decode_serdes_dqs_edge_counts),
+    0x44: ("SERDES_DQS_EDGE_DQ", decode_serdes_dqs_edge_dq),
+    0x45: ("SERDES_CAPTURE_CFG", decode_serdes_capture_cfg),
+    0x46: ("SERDES_DQS_IDDR_SWAP_LO", decode_serdes_dqs_iddr_swap_lo),
+    0x47: ("SERDES_DQS_IDDR_SWAP_HI", decode_serdes_dqs_iddr_swap_hi),
+    0x48: ("SERDES_DQS_IDDR_DQIDELAY_LO", decode_serdes_dqs_iddr_dq_idelay_lo),
+    0x49: ("SERDES_DQS_IDDR_DQIDELAY_HI", decode_serdes_dqs_iddr_dq_idelay_hi),
+    0x4A: ("SERDES_DQS_MAP_CH0_L2", decode_serdes_dqs_map),
+    0x4B: ("SERDES_DQS_MAP_CH1_L0", decode_serdes_dqs_map),
     0x1D: ("DDR3_CH0_RDDBG_FLAGS", decode_rd_dbg_flags),
     0x1E: ("DDR3_CH0_RDDBG_READ_COUNTS", decode_rd_dbg_read_counts),
     0x1F: ("DDR3_CH0_RDDBG_WRITE_COUNTS", decode_rd_dbg_write_counts),
@@ -530,6 +705,20 @@ def dump_all(xvc):
         print(f"  [{idx:#04x}] {name:<26s} = {w:#010x}   {decoder(w)}")
 
 
+def parse_reg_list(text):
+    regs = []
+    for piece in text.split(","):
+        piece = piece.strip()
+        if not piece:
+            continue
+        if "-" in piece:
+            first, last = piece.split("-", 1)
+            regs.extend(range(int(first, 0), int(last, 0) + 1))
+        else:
+            regs.append(int(piece, 0))
+    return regs
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -537,6 +726,8 @@ def main():
     ap.add_argument("--port", type=int, default=3721)
     ap.add_argument("--reg", type=lambda s: int(s, 0),
                     help="read a single register by index (hex/dec ok)")
+    ap.add_argument("--regs",
+                    help="read comma/range list of registers, e.g. 0x2d,0x33-0x3c")
     ap.add_argument("--watch", action="store_true",
                     help="poll forever")
     ap.add_argument("--interval", type=float, default=1.0,
@@ -627,7 +818,13 @@ def main():
         return 0
 
     while True:
-        if args.reg is not None:
+        if args.regs is not None:
+            for idx in parse_reg_list(args.regs):
+                w = read_status_reg(xvc, idx)
+                name, decoder = REG_DECODERS.get(
+                    idx, (f"REG_{idx:#04x}", lambda v: f"{v:#010x}"))
+                print(f"  [{idx:#04x}] {name:<26s} = {w:#010x}   {decoder(w)}")
+        elif args.reg is not None:
             w = read_status_reg(xvc, args.reg)
             name, decoder = REG_DECODERS.get(args.reg, (f"REG_{args.reg:#04x}", lambda v: f"{v:#010x}"))
             print(f"  [{args.reg:#04x}] {name:<26s} = {w:#010x}   {decoder(w)}")

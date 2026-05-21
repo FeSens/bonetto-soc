@@ -59,6 +59,7 @@ DDR3_CTRL_LOOPBACK_RTL := \
 DDR3_CTRL_LINE_LOOPBACK_RTL := \
     rtl/top_ddr3_ctrl_line_loopback.sv \
     rtl/ddr3_board_io.sv \
+    rtl/ddr3_cmd_observer_cdc.sv \
     rtl/ddr3_line_loopback_phy.sv \
     rtl/clk_liveness.v \
     ../../ip/wb-memory/rtl/wb_memory.v \
@@ -73,7 +74,8 @@ DDR3_CTRL_LINE_LOOPBACK_RTL := \
     ../../ip/ddr3/rtl/ddr3_wb_line_channel.sv \
     ../../ip/ddr3/rtl/ddr3_wb_dual_channel_line.sv \
     ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
-    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv \
+    ../../ip/ddr3/rtl/ddr3_mpr_debug.sv
 
 DDR3_CTRL_LINE_CMDPROBE_RTL := \
     rtl/top_ddr3_ctrl_line_cmdprobe.sv \
@@ -83,6 +85,7 @@ DDR3_CTRL_LINE_LANELOOP_RTL := \
     rtl/top_ddr3_ctrl_line_laneloop.sv \
     rtl/top_ddr3_ctrl_line_loopback.sv \
     rtl/ddr3_board_io.sv \
+    rtl/ddr3_cmd_observer_cdc.sv \
     rtl/ddr3_line_loopback_phy.sv \
     rtl/ddr3_ctrl_loopback_phy.sv \
     rtl/clk_liveness.v \
@@ -99,12 +102,14 @@ DDR3_CTRL_LINE_LANELOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_wb_dual_channel_line.sv \
     ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
     ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
-    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv \
+    ../../ip/ddr3/rtl/ddr3_mpr_debug.sv
 
 DDR3_CTRL_LINE_CMDLANELOOP_RTL := \
     rtl/top_ddr3_ctrl_line_cmdlaneloop.sv \
     rtl/top_ddr3_ctrl_line_loopback.sv \
     rtl/ddr3_board_io.sv \
+    rtl/ddr3_cmd_observer_cdc.sv \
     rtl/ddr3_line_loopback_phy.sv \
     rtl/ddr3_ctrl_loopback_phy.sv \
     rtl/clk_liveness.v \
@@ -121,12 +126,14 @@ DDR3_CTRL_LINE_CMDLANELOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_wb_dual_channel_line.sv \
     ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
     ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
-    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv \
+    ../../ip/ddr3/rtl/ddr3_mpr_debug.sv
 
 DDR3_CTRL_LINE_PHYTIMINGLOOP_RTL := \
     rtl/top_ddr3_ctrl_line_phytimingloop.sv \
     rtl/top_ddr3_ctrl_line_loopback.sv \
     rtl/ddr3_board_io.sv \
+    rtl/ddr3_cmd_observer_cdc.sv \
     rtl/ddr3_pinpair_loopback_phy.sv \
     rtl/ddr3_line_loopback_phy.sv \
     rtl/ddr3_ctrl_loopback_phy.sv \
@@ -146,12 +153,14 @@ DDR3_CTRL_LINE_PHYTIMINGLOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
     ../../ip/ddr3/rtl/ddr3_x8_lane_phy.sv \
     ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv \
-    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv \
+    ../../ip/ddr3/rtl/ddr3_mpr_debug.sv
 
 DDR3_CTRL_LINE_PHYCLKLOOP_RTL := \
     rtl/top_ddr3_ctrl_line_phyclkloop.sv \
     rtl/top_ddr3_ctrl_line_loopback.sv \
     rtl/ddr3_board_io.sv \
+    rtl/ddr3_cmd_observer_cdc.sv \
     rtl/ddr3_pinpair_timing_probe.sv \
     rtl/ddr3_pinpair_loopback_phy.sv \
     rtl/ddr3_line_loopback_phy.sv \
@@ -173,14 +182,17 @@ DDR3_CTRL_LINE_PHYCLKLOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_x8_lane_phy.sv \
     ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv \
     ../../ip/ddr3/rtl/ddr3_line_phy_clock_bridge.sv \
-    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv \
+    ../../ip/ddr3/rtl/ddr3_mpr_debug.sv
 
 DDR3_CTRL_LINE_SERDES_RTL := \
     rtl/top_ddr3_ctrl_line_serdes_init.sv \
     rtl/top_ddr3_ctrl_line_serdes.sv \
     rtl/top_ddr3_ctrl_line_loopback.sv \
     rtl/ddr3_board_io.sv \
+    rtl/ddr3_cmd_observer_cdc.sv \
     rtl/ddr3_serdes_io.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_edge_window.sv \
     rtl/ddr3_pinpair_timing_probe.sv \
     rtl/ddr3_pinpair_loopback_phy.sv \
     rtl/ddr3_line_loopback_phy.sv \
@@ -208,7 +220,8 @@ DDR3_CTRL_LINE_SERDES_RTL := \
     ../../ip/ddr3/rtl/ddr3_x8_serdes_burst_lane.sv \
     ../../ip/ddr3/rtl/ddr3_line_serdes_phy.sv \
     ../../ip/ddr3/rtl/ddr3_idelay_cal_cdc.sv \
-    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv \
+    ../../ip/ddr3/rtl/ddr3_mpr_debug.sv
 
 DDR3_DQ_DQS_IO_PROBE_RTL := \
     rtl/top_ddr3_dq_dqs_iobuf_probe.sv \
@@ -222,12 +235,14 @@ DDR3_DQ_DQS_BURST_PROBE_RTL := \
 DDR3_DQ_DQS_SERDES_PROBE_RTL := \
     rtl/top_ddr3_dq_dqs_serdes_probe.sv \
     rtl/ddr3_board_io.sv \
-    rtl/ddr3_serdes_io.sv
+    rtl/ddr3_serdes_io.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_edge_window.sv
 
 DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL := \
     rtl/top_ddr3_dq_dqs_serdes_lane_probe.sv \
     rtl/ddr3_board_io.sv \
-    rtl/ddr3_serdes_io.sv
+    rtl/ddr3_serdes_io.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_edge_window.sv
 
 BUILD  := build
 CHIPDB := $(BUILD)/chipdb
@@ -1032,7 +1047,7 @@ validate-ddr3-ctrl-line-phyclkloop:
 	cd ../.. && python3 tools/ddr3_ctrl_phyclk_validate.py --tck-ns 2000 --expected-version 0xB07E0D88 --gate-name DDR3_CTRL_LINE_PHYCLKLOOP
 
 validate-ddr3-ctrl-line-serdes-init:
-	cd ../.. && python3 tools/ddr3_init_validate.py --tck-ns 2000 --expected-version 0xB07E0D89 --gate-name DDR3_CTRL_LINE_SERDES_INIT --require-ddr-wb-blocked
+	cd ../.. && python3 tools/ddr3_init_validate.py --tck-ns 2000 --expected-version 0xB07E0DA1 --gate-name DDR3_CTRL_LINE_SERDES_INIT --require-ddr-wb-blocked
 
 bram-echo:
 	cd ../.. && python3 tools/jtag_bram_echo.py

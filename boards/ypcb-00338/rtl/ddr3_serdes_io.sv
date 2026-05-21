@@ -12,7 +12,10 @@ module ddr3_x8_serdes_io_7series #(
     parameter integer IDELAY_TAPS = 0,
     parameter integer ENABLE_TX = 1,
     parameter integer ENABLE_RX = 1,
-    parameter integer USE_IDELAY = 1
+    parameter integer USE_IDELAY = 1,
+    parameter integer ENABLE_DQS_IDDR_PROBE = 0,
+    parameter integer DQS_IDDR_SWAP_EDGES = 0,
+    parameter integer DQS_IDDR_USE_DQ_IDELAY = 0
 ) (
     input  wire        i_clk_serdes,
     input  wire        i_clk_div,
@@ -24,13 +27,26 @@ module ddr3_x8_serdes_io_7series #(
     input  wire        i_bitslip,
     input  wire        i_idelay_load,
     input  wire [4:0]  i_idelay_tap,
+    input  wire [3:0]  i_history_age,
     output wire [63:0] o_dq_bits,
     output wire [7:0]  o_dqs_bits,
+    output wire [7:0]  o_dqs_edge_rise_dq,
+    output wire [7:0]  o_dqs_edge_fall_dq,
+    output wire [7:0]  o_dqs_edge_rise_count,
+    output wire [7:0]  o_dqs_edge_fall_count,
+    output wire [63:0] o_dqs_edge_dq_bits,
+    output wire [7:0]  o_dqs_edge_dqs_bits,
+    output wire [7:0]  o_dqs_edge_event_count,
+    output wire [63:0] o_dqs_iddr_dq_bits,
+    output wire [7:0]  o_dqs_iddr_edge_count,
+    output wire [7:0]  o_dq_probe_in,
+    output wire        o_dqs_probe_clk,
     inout  wire [7:0]  io_dq,
     inout  wire        io_dqs_p,
     inout  wire        io_dqs_n
 );
     wire clk_serdes_b = !i_clk_serdes;
+    wire [7:0] dq_in_vec;
 
     genvar dq_i;
     generate
@@ -39,6 +55,7 @@ module ddr3_x8_serdes_io_7series #(
             wire dq_tri;
             wire dq_in;
             wire dq_delayed;
+            wire dq_probe_in;
             wire q1;
             wire q2;
             wire q3;
@@ -105,9 +122,43 @@ module ddr3_x8_serdes_io_7series #(
                 .T(dq_tri),
                 .IO(io_dq[dq_i])
             );
+            assign dq_in_vec[dq_i] = dq_probe_in;
 
             if (ENABLE_RX != 0) begin : gen_rx
-                if (USE_IDELAY != 0) begin : gen_dq_rx_idelay
+                if (ENABLE_DQS_IDDR_PROBE != 0) begin : gen_dq_rx_iddr_only
+                    if ((USE_IDELAY != 0) &&
+                            (DQS_IDDR_USE_DQ_IDELAY != 0)) begin : gen_dq_probe_idelay
+                        (* IODELAY_GROUP = "DDR3_SERDES_PROBE" *)
+                        IDELAYE2 #(
+                            .DELAY_SRC("IDATAIN"),
+                            .HIGH_PERFORMANCE_MODE("TRUE"),
+                            .IDELAY_TYPE("VAR_LOAD"),
+                            .IDELAY_VALUE(IDELAY_TAPS),
+                            .REFCLK_FREQUENCY(200.0),
+                            .SIGNAL_PATTERN("DATA")
+                        ) u_dq_probe_idelay (
+                            .CNTVALUEOUT(unused_tap_count),
+                            .DATAOUT(dq_delayed),
+                            .C(i_clk_div),
+                            .CE(1'b0),
+                            .CINVCTRL(1'b0),
+                            .CNTVALUEIN(i_idelay_tap),
+                            .DATAIN(1'b0),
+                            .IDATAIN(dq_in),
+                            .INC(1'b0),
+                            .LD(i_idelay_load),
+                            .LDPIPEEN(1'b0),
+                            .REGRST(i_rst)
+                        );
+
+                        assign dq_probe_in = dq_delayed;
+                    end else begin : gen_dq_probe_no_idelay
+                        assign unused_tap_count = 5'd0;
+                        assign dq_probe_in = dq_in;
+                    end
+
+                    assign {q8, q7, q6, q5, q4, q3, q2, q1} = 8'd0;
+                end else if (USE_IDELAY != 0) begin : gen_dq_rx_idelay
                     (* IODELAY_GROUP = "DDR3_SERDES_PROBE" *)
                     IDELAYE2 #(
                         .DELAY_SRC("IDATAIN"),
@@ -177,6 +228,8 @@ module ddr3_x8_serdes_io_7series #(
                         .SHIFTIN1(),
                         .SHIFTIN2()
                     );
+
+                    assign dq_probe_in = dq_in;
                 end else begin : gen_dq_rx_direct
                     assign unused_tap_count = 5'd0;
 
@@ -226,6 +279,8 @@ module ddr3_x8_serdes_io_7series #(
                         .SHIFTIN1(),
                         .SHIFTIN2()
                     );
+
+                    assign dq_probe_in = dq_in;
                 end
 
                 assign o_dq_bits[(0*8) + dq_i] = q1;
@@ -245,13 +300,14 @@ module ddr3_x8_serdes_io_7series #(
                 assign o_dq_bits[(5*8) + dq_i] = 1'b0;
                 assign o_dq_bits[(6*8) + dq_i] = 1'b0;
                 assign o_dq_bits[(7*8) + dq_i] = 1'b0;
+                assign dq_probe_in = dq_in;
             end
         end
     endgenerate
 
     wire dqs_out;
     wire dqs_tri;
-    wire dqs_in;
+    (* clkbuf_inhibit *) wire dqs_in;
     wire dqs_delayed;
     wire dqs_q1;
     wire dqs_q2;
@@ -261,12 +317,15 @@ module ddr3_x8_serdes_io_7series #(
     wire dqs_q6;
     wire dqs_q7;
     wire dqs_q8;
+    wire dqs_iddr_clk = dqs_in;
     wire dqs_unused_ofb;
     wire dqs_unused_shiftout1;
     wire dqs_unused_shiftout2;
     wire dqs_unused_tbyteout;
     wire dqs_unused_tfb;
     wire [4:0] dqs_unused_tap_count;
+    assign o_dq_probe_in = dq_in_vec;
+    assign o_dqs_probe_clk = dqs_iddr_clk;
 
     generate
         if (ENABLE_TX != 0) begin : gen_dqs_tx
@@ -324,9 +383,13 @@ module ddr3_x8_serdes_io_7series #(
         .T(dqs_tri)
     );
 
-    generate
-        if (ENABLE_RX != 0) begin : gen_dqs_rx
-            if (USE_IDELAY != 0) begin : gen_dqs_rx_idelay
+	generate
+	    if (ENABLE_RX != 0) begin : gen_dqs_rx
+	        if (ENABLE_DQS_IDDR_PROBE != 0) begin : gen_dqs_rx_iddr_only
+                assign dqs_unused_tap_count = 5'd0;
+	            assign {dqs_q8, dqs_q7, dqs_q6, dqs_q5,
+	                    dqs_q4, dqs_q3, dqs_q2, dqs_q1} = 8'd0;
+	        end else if (USE_IDELAY != 0) begin : gen_dqs_rx_idelay
                 (* IODELAY_GROUP = "DDR3_SERDES_PROBE" *)
                 IDELAYE2 #(
                     .DELAY_SRC("IDATAIN"),
@@ -456,7 +519,94 @@ module ddr3_x8_serdes_io_7series #(
         end
     endgenerate
 
-    wire _unused = &{1'b0, i_idelay_load, i_idelay_tap, 1'b0};
+    generate
+        if ((ENABLE_RX != 0) && (ENABLE_DQS_IDDR_PROBE != 0)) begin : gen_dqs_iddr_probe
+            ddr3_dqs_iddr_probe_7series #(
+                .SWAP_EDGES(DQS_IDDR_SWAP_EDGES)
+            ) u_iddr_probe (
+                .i_rst(i_rst),
+                .i_dqs_clk(dqs_iddr_clk),
+                .i_dq(dq_in_vec),
+                .o_dq_bits(o_dqs_iddr_dq_bits),
+                .o_edge_count(o_dqs_iddr_edge_count)
+            );
+        end else begin : gen_no_dqs_iddr_probe
+            assign o_dqs_iddr_dq_bits = 64'd0;
+            assign o_dqs_iddr_edge_count = 8'd0;
+        end
+    endgenerate
+
+    wire dqs_edge_valid_unused;
+    ddr3_serdes_edge_window u_edge_window (
+        .i_clk(i_clk_div),
+        .i_rst(i_rst),
+        .i_dq_bits(o_dq_bits),
+        .i_dqs_bits(o_dqs_bits),
+        .i_history_age(i_history_age),
+        .o_valid(dqs_edge_valid_unused),
+        .o_dq_bits(o_dqs_edge_dq_bits),
+        .o_dqs_bits(o_dqs_edge_dqs_bits),
+        .o_rise_dq(o_dqs_edge_rise_dq),
+        .o_fall_dq(o_dqs_edge_fall_dq),
+        .o_rise_count(o_dqs_edge_rise_count),
+        .o_fall_count(o_dqs_edge_fall_count),
+        .o_event_count(o_dqs_edge_event_count)
+    );
+
+    wire _unused = &{1'b0, i_idelay_load, i_idelay_tap,
+                     dqs_edge_valid_unused, o_dqs_edge_event_count, 1'b0};
+endmodule
+
+module ddr3_dqs_iddr_probe_7series #(
+    parameter integer SWAP_EDGES = 0
+) (
+    input  wire        i_rst,
+    input  wire        i_dqs_clk,
+    input  wire [7:0]  i_dq,
+    output wire [63:0] o_dq_bits,
+    output reg  [7:0]  o_edge_count
+);
+    wire [7:0] dq_rise;
+    wire [7:0] dq_fall;
+    wire [7:0] dq_even = (SWAP_EDGES != 0) ? dq_fall : dq_rise;
+    wire [7:0] dq_odd = (SWAP_EDGES != 0) ? dq_rise : dq_fall;
+
+    genvar dq_i;
+    generate
+        for (dq_i = 0; dq_i < 8; dq_i = dq_i + 1) begin : gen_iddr
+            IDDR #(
+                .DDR_CLK_EDGE("SAME_EDGE"),
+                .INIT_Q1(1'b0),
+                .INIT_Q2(1'b0),
+                .SRTYPE("SYNC")
+            ) u_iddr_dq (
+                .Q1(dq_rise[dq_i]),
+                .Q2(dq_fall[dq_i]),
+                .C(i_dqs_clk),
+                .CE(1'b1),
+                .D(i_dq[dq_i]),
+                .R(i_rst),
+                .S(1'b0)
+            );
+
+            assign o_dq_bits[(0*8) + dq_i] = dq_even[dq_i];
+            assign o_dq_bits[(1*8) + dq_i] = dq_odd[dq_i];
+            assign o_dq_bits[(2*8) + dq_i] = dq_even[dq_i];
+            assign o_dq_bits[(3*8) + dq_i] = dq_odd[dq_i];
+            assign o_dq_bits[(4*8) + dq_i] = dq_even[dq_i];
+            assign o_dq_bits[(5*8) + dq_i] = dq_odd[dq_i];
+            assign o_dq_bits[(6*8) + dq_i] = dq_even[dq_i];
+            assign o_dq_bits[(7*8) + dq_i] = dq_odd[dq_i];
+        end
+    endgenerate
+
+    always @(posedge i_dqs_clk or posedge i_rst) begin
+        if (i_rst) begin
+            o_edge_count <= 8'd0;
+        end else begin
+            o_edge_count <= o_edge_count + 8'd1;
+        end
+    end
 endmodule
 
 `default_nettype wire

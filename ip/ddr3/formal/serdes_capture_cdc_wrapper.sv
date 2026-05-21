@@ -23,12 +23,20 @@ module ddr3_serdes_capture_cdc_wrapper (
     reg [PHY_LANES*TAP_W-1:0] tap_bus = {(PHY_LANES*TAP_W){1'b0}};
     reg [PHY_LANES*64-1:0] dq_bus = {(PHY_LANES*64){1'b0}};
     reg [PHY_LANES*8-1:0] dqs_bus = {(PHY_LANES*8){1'b0}};
+    reg [PHY_LANES*8-1:0] edge_rise_bus = {(PHY_LANES*8){1'b0}};
+    reg [PHY_LANES*8-1:0] edge_fall_bus = {(PHY_LANES*8){1'b0}};
+    reg [PHY_LANES*8-1:0] edge_rise_count_bus = {(PHY_LANES*8){1'b0}};
+    reg [PHY_LANES*8-1:0] edge_fall_count_bus = {(PHY_LANES*8){1'b0}};
 
     wire valid;
     wire [4:0] lane;
     wire [TAP_W-1:0] tap;
     wire [63:0] dq_bits;
     wire [7:0] dqs_bits;
+    wire [7:0] edge_rise_dq;
+    wire [7:0] edge_fall_dq;
+    wire [7:0] edge_rise_count;
+    wire [7:0] edge_fall_count;
     wire [7:0] count;
 
     ddr3_serdes_capture_cdc #(
@@ -43,11 +51,19 @@ module ddr3_serdes_capture_cdc_wrapper (
         .i_phy_tap(tap_bus),
         .i_phy_dq_bits(dq_bus),
         .i_phy_dqs_bits(dqs_bus),
+        .i_phy_dqs_edge_rise_dq(edge_rise_bus),
+        .i_phy_dqs_edge_fall_dq(edge_fall_bus),
+        .i_phy_dqs_edge_rise_count(edge_rise_count_bus),
+        .i_phy_dqs_edge_fall_count(edge_fall_count_bus),
         .o_ctrl_valid(valid),
         .o_ctrl_lane(lane),
         .o_ctrl_tap(tap),
         .o_ctrl_dq_bits(dq_bits),
         .o_ctrl_dqs_bits(dqs_bits),
+        .o_ctrl_dqs_edge_rise_dq(edge_rise_dq),
+        .o_ctrl_dqs_edge_fall_dq(edge_fall_dq),
+        .o_ctrl_dqs_edge_rise_count(edge_rise_count),
+        .o_ctrl_dqs_edge_fall_count(edge_fall_count),
         .o_ctrl_count(count)
     );
 
@@ -62,10 +78,18 @@ module ddr3_serdes_capture_cdc_wrapper (
         tap_bus[4*TAP_W +: TAP_W] <= 5'd9;
         dq_bus[4*64 +: 64] <= 64'h0123_4567_89ab_cdef;
         dqs_bus[4*8 +: 8] <= 8'ha5;
+        edge_rise_bus[4*8 +: 8] <= 8'hc4;
+        edge_fall_bus[4*8 +: 8] <= 8'hd4;
+        edge_rise_count_bus[4*8 +: 8] <= 8'd14;
+        edge_fall_count_bus[4*8 +: 8] <= 8'd24;
 
         tap_bus[12*TAP_W +: TAP_W] <= 5'd21;
         dq_bus[12*64 +: 64] <= 64'hfedc_ba98_7654_3210;
         dqs_bus[12*8 +: 8] <= 8'h3c;
+        edge_rise_bus[12*8 +: 8] <= 8'hcc;
+        edge_fall_bus[12*8 +: 8] <= 8'hdc;
+        edge_rise_count_bus[12*8 +: 8] <= 8'd22;
+        edge_fall_count_bus[12*8 +: 8] <= 8'd32;
 
         if (rst) begin
             f_cycle <= 7'd0;
@@ -84,6 +108,10 @@ module ddr3_serdes_capture_cdc_wrapper (
                 assert(tap == 5'd9);
                 assert(dq_bits == 64'h0123_4567_89ab_cdef);
                 assert(dqs_bits == 8'ha5);
+                assert(edge_rise_dq == 8'hc4);
+                assert(edge_fall_dq == 8'hd4);
+                assert(edge_rise_count == 8'd14);
+                assert(edge_fall_count == 8'd24);
             end
 
             if (f_cycle == 7'd24) begin
@@ -93,6 +121,10 @@ module ddr3_serdes_capture_cdc_wrapper (
                 assert(tap == 5'd21);
                 assert(dq_bits == 64'hfedc_ba98_7654_3210);
                 assert(dqs_bits == 8'h3c);
+                assert(edge_rise_dq == 8'hcc);
+                assert(edge_fall_dq == 8'hdc);
+                assert(edge_rise_count == 8'd22);
+                assert(edge_fall_count == 8'd32);
             end
 
             cover(valid && count == 8'd2 && lane == 5'd12);

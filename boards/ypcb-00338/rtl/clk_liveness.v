@@ -1,15 +1,15 @@
 // clk_liveness — generic clk-domain liveness probe.
 //
-// Generates a slow-toggling bit on i_clk, CDCs it into the observer
-// clk_50 domain, and reports alive=1 if at least one toggle was seen
-// in the last ~1.3 ms. Used by top.v to detect the prjxray-db kintex7
-// segbit gap symptom (MMCM locks but a specific CLKOUT routing is
-// silently dropped).
+// Generates a slow-toggling bit on i_clk, CDCs it into the observer clock
+// domain, and reports alive=1 if at least one toggle was seen recently. The
+// optional odd-period divider avoids false-dead reports when the observed clock
+// is phase-related to the observer clock.
 
 `default_nettype none
 
 module clk_liveness #(
     parameter integer DIV_BIT      = 7,  // probe bit DIV_BIT of free-running ctr
+    parameter integer TOGGLE_PERIOD = 0, // 0 = legacy power-of-two divider
     parameter integer FRESHNESS_W  = 16  // observer cycles before declaring dead
 ) (
     input  wire        i_clk,        // domain under test
@@ -20,15 +20,37 @@ module clk_liveness #(
 );
     localparam [FRESHNESS_W-1:0] FRESH_MAX = {FRESHNESS_W{1'b1}};
 
-    reg [DIV_BIT:0] hb_q = {(DIV_BIT+1){1'b0}};
-    always @(posedge i_clk) hb_q <= hb_q + 1'b1;
+    wire hb_src;
+    generate
+        if (TOGGLE_PERIOD > 0) begin : gen_odd_period
+            localparam integer CTR_W =
+                (TOGGLE_PERIOD <= 2) ? 1 : $clog2(TOGGLE_PERIOD);
+            localparam [CTR_W-1:0] TOGGLE_LAST = TOGGLE_PERIOD - 1;
+
+            reg [CTR_W-1:0] div_ctr = {CTR_W{1'b0}};
+            reg hb_q = 1'b0;
+            always @(posedge i_clk) begin
+                if (div_ctr == TOGGLE_LAST) begin
+                    div_ctr <= {CTR_W{1'b0}};
+                    hb_q <= !hb_q;
+                end else begin
+                    div_ctr <= div_ctr + 1'b1;
+                end
+            end
+            assign hb_src = hb_q;
+        end else begin : gen_power2_period
+            reg [DIV_BIT:0] hb_q = {(DIV_BIT+1){1'b0}};
+            always @(posedge i_clk) hb_q <= hb_q + 1'b1;
+            assign hb_src = hb_q[DIV_BIT];
+        end
+    endgenerate
 
     reg [1:0]              sync = 2'b00;
     reg                    prev = 1'b0;
     reg [FRESHNESS_W-1:0]  freshness = FRESH_MAX;
     reg [15:0]             ticks = 16'd0;
     always @(posedge i_clk_obs) begin
-        sync <= {sync[0], hb_q[DIV_BIT]};
+        sync <= {sync[0], hb_src};
         prev <= sync[1];
         if (sync[1] != prev) begin
             ticks     <= ticks + 1'b1;

@@ -207,18 +207,32 @@ module ddr3_cmd_cdc_7series #(
     output reg  [BANK_BITS-1:0]  o_ba,
     output reg  [ADDR_BITS-1:0]  o_addr
 );
-    reg cmd_toggle_ctrl = 1'b0;
-    reg payload_cs_n = 1'b1;
-    reg payload_ras_n = 1'b1;
-    reg payload_cas_n = 1'b1;
-    reg payload_we_n = 1'b1;
-    reg [BANK_BITS-1:0] payload_ba = {BANK_BITS{1'b0}};
-    reg [ADDR_BITS-1:0] payload_addr = {ADDR_BITS{1'b0}};
+    localparam integer PAYLOAD_W = 4 + BANK_BITS + ADDR_BITS;
 
-    reg [2:0] cmd_toggle_dq = 3'b000;
+    wire source_cmd_nop =
+        !i_cs_n && i_ras_n && i_cas_n && i_we_n;
+    wire source_cmd_active =
+        i_cmd_valid && !i_cs_n && !source_cmd_nop;
+    wire [PAYLOAD_W-1:0] source_payload = {
+        i_cs_n, i_ras_n, i_cas_n, i_we_n, i_ba, i_addr
+    };
+
+    reg [PAYLOAD_W-1:0] payload_ctrl = {PAYLOAD_W{1'b0}};
+    reg [PAYLOAD_W-1:0] source_hold_payload = {PAYLOAD_W{1'b0}};
+    reg req_toggle_ctrl = 1'b0;
+    reg pending_ctrl = 1'b0;
+    reg source_hold_valid = 1'b0;
+    reg ack_toggle_dq = 1'b0;
+
+    (* ASYNC_REG = "TRUE" *) reg [2:0] ack_ctrl = 3'b000;
+    (* ASYNC_REG = "TRUE" *) reg [2:0] req_dq = 3'b000;
+
     reg [2:0] reset_n_dq = 3'b000;
     reg [2:0] cke_dq = 3'b000;
     reg [2:0] odt_dq = 3'b000;
+
+    wire ctrl_ready = !pending_ctrl || (ack_ctrl[2] == req_toggle_ctrl);
+    wire dq_request_seen = (req_dq[2] != ack_toggle_dq);
 
     initial begin
         o_reset_n = 1'b0;
@@ -234,27 +248,41 @@ module ddr3_cmd_cdc_7series #(
     end
 
     always @(posedge i_clk_ctrl) begin
+        ack_ctrl <= {ack_ctrl[1:0], ack_toggle_dq};
+
         if (i_rst_ctrl) begin
-            cmd_toggle_ctrl <= 1'b0;
-            payload_cs_n <= 1'b1;
-            payload_ras_n <= 1'b1;
-            payload_cas_n <= 1'b1;
-            payload_we_n <= 1'b1;
-            payload_ba <= {BANK_BITS{1'b0}};
-            payload_addr <= {ADDR_BITS{1'b0}};
-        end else if (i_cmd_valid && !i_cs_n) begin
-            payload_cs_n <= i_cs_n;
-            payload_ras_n <= i_ras_n;
-            payload_cas_n <= i_cas_n;
-            payload_we_n <= i_we_n;
-            payload_ba <= i_ba;
-            payload_addr <= i_addr;
-            cmd_toggle_ctrl <= !cmd_toggle_ctrl;
+            payload_ctrl <= {PAYLOAD_W{1'b0}};
+            source_hold_payload <= {PAYLOAD_W{1'b0}};
+            req_toggle_ctrl <= 1'b0;
+            pending_ctrl <= 1'b0;
+            source_hold_valid <= 1'b0;
+            ack_ctrl <= 3'b000;
+        end else begin
+            if (ctrl_ready) begin
+                pending_ctrl <= 1'b0;
+                if (source_hold_valid) begin
+                    payload_ctrl <= source_hold_payload;
+                    req_toggle_ctrl <= !req_toggle_ctrl;
+                    pending_ctrl <= 1'b1;
+                    if (source_cmd_active) begin
+                        source_hold_payload <= source_payload;
+                    end else begin
+                        source_hold_valid <= 1'b0;
+                    end
+                end else if (source_cmd_active) begin
+                    payload_ctrl <= source_payload;
+                    req_toggle_ctrl <= !req_toggle_ctrl;
+                    pending_ctrl <= 1'b1;
+                end
+            end else if (source_cmd_active && !source_hold_valid) begin
+                source_hold_payload <= source_payload;
+                source_hold_valid <= 1'b1;
+            end
         end
     end
 
     always @(posedge i_clk_dq) begin
-        cmd_toggle_dq <= {cmd_toggle_dq[1:0], cmd_toggle_ctrl};
+        req_dq <= {req_dq[1:0], req_toggle_ctrl};
         reset_n_dq <= {reset_n_dq[1:0], i_reset_n};
         cke_dq <= {cke_dq[1:0], i_cke};
         odt_dq <= {odt_dq[1:0], i_odt};
@@ -262,14 +290,21 @@ module ddr3_cmd_cdc_7series #(
         o_cke <= cke_dq[2];
         o_odt <= odt_dq[2];
 
-        if (cmd_toggle_dq[2] ^ cmd_toggle_dq[1]) begin
+        if (i_rst_dq) begin
+            req_dq <= 3'b000;
+            ack_toggle_dq <= 1'b0;
+            o_cmd_valid <= 1'b0;
+            o_cs_n <= 1'b1;
+            o_ras_n <= 1'b1;
+            o_cas_n <= 1'b1;
+            o_we_n <= 1'b1;
+            o_ba <= {BANK_BITS{1'b0}};
+            o_addr <= {ADDR_BITS{1'b0}};
+        end else if (dq_request_seen) begin
             o_cmd_valid <= 1'b1;
-            o_cs_n <= payload_cs_n;
-            o_ras_n <= payload_ras_n;
-            o_cas_n <= payload_cas_n;
-            o_we_n <= payload_we_n;
-            o_ba <= payload_ba;
-            o_addr <= payload_addr;
+            {o_cs_n, o_ras_n, o_cas_n, o_we_n, o_ba, o_addr} <=
+                payload_ctrl;
+            ack_toggle_dq <= req_dq[2];
         end else begin
             o_cmd_valid <= 1'b0;
             o_cs_n <= 1'b1;
@@ -281,7 +316,7 @@ module ddr3_cmd_cdc_7series #(
         end
     end
 
-    wire _unused = &{1'b0, i_rst_dq, 1'b0};
+    wire _unused = &{1'b0, ctrl_ready, 1'b0};
 endmodule
 
 module ddr3_dq_dqs_io_7series #(

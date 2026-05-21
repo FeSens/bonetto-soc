@@ -429,7 +429,9 @@ module top_ddr3_ctrl_loopback (
     wire clk_dq_bit;
     wire [5:0] clk_dq_ticks;
 
-    clk_liveness u_ref_live (
+    clk_liveness #(
+        .TOGGLE_PERIOD(251)
+    ) u_ref_live (
         .i_clk(SYS_CLK),
         .i_clk_obs(ctrl_clk),
         .o_alive(clk_ref_alive),
@@ -437,7 +439,9 @@ module top_ddr3_ctrl_loopback (
         .o_ticks_lo(clk_ref_ticks)
     );
 
-    clk_liveness u_sys_live (
+    clk_liveness #(
+        .TOGGLE_PERIOD(251)
+    ) u_sys_live (
         .i_clk(clk_sys),
         .i_clk_obs(ctrl_clk),
         .o_alive(clk_sys_alive),
@@ -445,7 +449,9 @@ module top_ddr3_ctrl_loopback (
         .o_ticks_lo(clk_sys_ticks)
     );
 
-    clk_liveness u_ddr_live (
+    clk_liveness #(
+        .TOGGLE_PERIOD(251)
+    ) u_ddr_live (
         .i_clk(clk_ddr),
         .i_clk_obs(ctrl_clk),
         .o_alive(clk_ddr_alive),
@@ -453,7 +459,9 @@ module top_ddr3_ctrl_loopback (
         .o_ticks_lo(clk_ddr_ticks)
     );
 
-    clk_liveness u_dq_live (
+    clk_liveness #(
+        .TOGGLE_PERIOD(251)
+    ) u_dq_live (
         .i_clk(clk_dq),
         .i_clk_obs(ctrl_clk),
         .o_alive(clk_dq_alive),

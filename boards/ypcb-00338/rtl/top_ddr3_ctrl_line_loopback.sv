@@ -26,6 +26,14 @@ module top_ddr3_ctrl_line_loopback #(
     parameter integer USE_LINE_SERDES_PHY = 0,
     parameter integer USE_PHY_CLOCK_BRIDGE = 0,
     parameter integer USE_PINPAIR_TIMING_PROBE = 0,
+    parameter integer USE_DQS_IDDR_PROBE = 0,
+    parameter [17:0] DQS_IDDR_SWAP_MASK = 18'd0,
+    parameter [17:0] DQS_IDDR_DQ_IDELAY_MASK = 18'd0,
+    parameter integer USE_DQS_IDDR_CAPTURE_MAP = 0,
+    parameter [89:0] DQS_IDDR_CAPTURE_MAP = {
+        5'd17, 5'd16, 5'd15, 5'd14, 5'd13, 5'd12, 5'd11, 5'd10, 5'd9,
+        5'd8, 5'd7, 5'd6, 5'd5, 5'd4, 5'd3, 5'd2, 5'd1, 5'd0
+    },
     parameter [31:0] GATE_VERSION = 32'hB07E_0D82,
     parameter [23:0] DEFAULT_MAGIC = 24'hD3AD82
 ) (
@@ -90,6 +98,24 @@ module top_ddr3_ctrl_line_loopback #(
     localparam integer PHY_LINE_DATA_W = PHY_LINE_BYTES * 8;
     localparam [7:0] STATUS_DATA_LANES = LANES;
     localparam [7:0] STATUS_PHY_BYTE_LANES = PHY_BYTE_LANES;
+    localparam integer USE_MAPPED_DQS_IDDR =
+        (USE_DQS_IDDR_PROBE != 0) && (USE_DQS_IDDR_CAPTURE_MAP != 0);
+    localparam [4:0] DQS_MAP_CH0_LANE2 =
+        DQS_IDDR_CAPTURE_MAP[2*5 +: 5];
+    localparam [4:0] DQS_MAP_CH1_LANE0 =
+        DQS_IDDR_CAPTURE_MAP[9*5 +: 5];
+
+    function automatic [PHY_LANES-1:0] phy_lane_onehot;
+        input [4:0] lane;
+        integer idx;
+        begin
+            phy_lane_onehot = {PHY_LANES{1'b0}};
+            for (idx = 0; idx < PHY_LANES; idx = idx + 1) begin
+                if (lane == idx)
+                    phy_lane_onehot[idx] = 1'b1;
+            end
+        end
+    endfunction
 
     reg [13:0] por_ctr = 14'h3fff;
     always @(posedge SYS_CLK) begin
@@ -118,7 +144,9 @@ module top_ddr3_ctrl_line_loopback #(
 
     wire idelay_ready;
     generate
-        if (USE_LINE_SERDES_PHY) begin : gen_line_serdes_idelayctrl
+        if ((USE_LINE_SERDES_PHY != 0) &&
+            ((USE_DQS_IDDR_PROBE == 0) ||
+             (DQS_IDDR_DQ_IDELAY_MASK != 18'd0))) begin : gen_line_serdes_idelayctrl
             ddr3_idelayctrl_7series u_idelayctrl (
                 .i_clk_ref(clk_idelay_ref),
                 .i_rst(por_rst || !pll_locked),
@@ -380,6 +408,51 @@ module top_ddr3_ctrl_line_loopback #(
     wire [CHANNELS-1:0] ddr_we_n_w;
     wire [CHANNELS*BANK_BITS-1:0] ddr_ba_w;
     wire [CHANNELS*ADDR_BITS-1:0] ddr_addr_w;
+    wire [CHANNELS-1:0] ddr_cmd_active_w;
+    wire [CHANNELS-1:0] mpr_cmd_valid_w;
+    wire [CHANNELS-1:0] mpr_cs_n_w;
+    wire [CHANNELS-1:0] mpr_ras_n_w;
+    wire [CHANNELS-1:0] mpr_cas_n_w;
+    wire [CHANNELS-1:0] mpr_we_n_w;
+    wire [CHANNELS*BANK_BITS-1:0] mpr_ba_w;
+    wire [CHANNELS*ADDR_BITS-1:0] mpr_addr_w;
+    wire mpr_capture_pulse_ctrl;
+    wire [4:0] mpr_capture_lane_ctrl;
+    wire mpr_busy;
+    wire mpr_error;
+    wire [CHANNELS-1:0] mpr_enabled;
+    wire [3:0] mpr_state;
+    wire [4:0] mpr_selected_lane;
+    wire [7:0] mpr_capture_delay;
+    wire [7:0] mpr_cmd_count;
+    wire [7:0] mpr_read_count;
+    wire [7:0] mpr_capture_count;
+    wire [12:0] mpr_read_addr;
+    wire mpr_debug_allowed =
+        (DRIVE_DDR3_COMMANDS != 0) && (USE_LINE_SERDES_PHY != 0);
+    wire [CHANNELS-1:0] cmd_mux_valid_w;
+    wire [CHANNELS-1:0] cmd_mux_cs_n_w;
+    wire [CHANNELS-1:0] cmd_mux_ras_n_w;
+    wire [CHANNELS-1:0] cmd_mux_cas_n_w;
+    wire [CHANNELS-1:0] cmd_mux_we_n_w;
+    wire [CHANNELS*BANK_BITS-1:0] cmd_mux_ba_w;
+    wire [CHANNELS*ADDR_BITS-1:0] cmd_mux_addr_w;
+    wire [CHANNELS*4-1:0] cmd_mux_code_w;
+    wire [CHANNELS*4-1:0] mpr_cmd_code_w;
+    wire [CHANNELS-1:0] cmd_mux_active_w;
+    wire [CHANNELS-1:0] mpr_cmd_active_w;
+    reg [CHANNELS*4-1:0] mux_dbg_last_cmd = {CHANNELS*4{1'b0}};
+    reg [CHANNELS*BANK_BITS-1:0] mux_dbg_last_ba =
+        {CHANNELS*BANK_BITS{1'b0}};
+    reg [CHANNELS*ADDR_BITS-1:0] mux_dbg_last_addr =
+        {CHANNELS*ADDR_BITS{1'b0}};
+    reg [CHANNELS*8-1:0] mux_dbg_count = {CHANNELS*8{1'b0}};
+    reg [CHANNELS*4-1:0] mpr_dbg_last_cmd = {CHANNELS*4{1'b0}};
+    reg [CHANNELS*BANK_BITS-1:0] mpr_dbg_last_ba =
+        {CHANNELS*BANK_BITS{1'b0}};
+    reg [CHANNELS*ADDR_BITS-1:0] mpr_dbg_last_addr =
+        {CHANNELS*ADDR_BITS{1'b0}};
+    reg [CHANNELS*8-1:0] mpr_dbg_count = {CHANNELS*8{1'b0}};
 
     wire [CHANNELS-1:0] phy_wr_line_valid;
     wire [CHANNELS-1:0] phy_wr_line_ready;
@@ -468,6 +541,141 @@ module top_ddr3_ctrl_line_loopback #(
         .i_phy_rd_line_err(phy_rd_line_err)
     );
 
+    ddr3_mpr_debug #(
+        .CHANNELS(CHANNELS),
+        .ADDR_BITS(ADDR_BITS),
+        .BANK_BITS(BANK_BITS),
+        .PHY_LANES_PER_CHANNEL(PHY_BYTE_LANES),
+        .MRS_WAIT_CYCLES(2),
+        .CAPTURE_DELAY_CYCLES(4)
+    ) u_mpr_debug (
+        .i_clk(ctrl_clk),
+        .i_rst(ctrl_rst),
+        .i_cmd_word(host_to_fpga),
+        .i_cmd_valid(host_to_fpga_valid),
+        .i_init_done(init_all_done && mpr_debug_allowed),
+        .i_ctrl_cmd_active(ddr_cmd_active_w),
+        .o_cmd_valid(mpr_cmd_valid_w),
+        .o_cs_n(mpr_cs_n_w),
+        .o_ras_n(mpr_ras_n_w),
+        .o_cas_n(mpr_cas_n_w),
+        .o_we_n(mpr_we_n_w),
+        .o_ba(mpr_ba_w),
+        .o_addr(mpr_addr_w),
+        .o_capture_pulse(mpr_capture_pulse_ctrl),
+        .o_capture_lane(mpr_capture_lane_ctrl),
+        .o_busy(mpr_busy),
+        .o_error(mpr_error),
+        .o_mpr_enabled(mpr_enabled),
+        .o_state(mpr_state),
+        .o_selected_lane(mpr_selected_lane),
+        .o_capture_delay(mpr_capture_delay),
+        .o_cmd_count(mpr_cmd_count),
+        .o_read_count(mpr_read_count),
+        .o_capture_count(mpr_capture_count),
+        .o_read_addr(mpr_read_addr)
+    );
+
+    genvar mux_ch;
+    generate
+        for (mux_ch = 0; mux_ch < CHANNELS; mux_ch = mux_ch + 1) begin : gen_mpr_cmd_mux
+            wire [3:0] ctrl_cmd_code = {
+                ddr_cs_n_w[mux_ch],
+                ddr_ras_n_w[mux_ch],
+                ddr_cas_n_w[mux_ch],
+                ddr_we_n_w[mux_ch]
+            };
+            wire use_mpr_cmd = mpr_debug_allowed && mpr_cmd_valid_w[mux_ch];
+            wire hold_ctrl_cmd =
+                mpr_debug_allowed && (mpr_busy || (|mpr_enabled));
+
+            assign mpr_cmd_code_w[mux_ch*4 +: 4] = {
+                mpr_cs_n_w[mux_ch],
+                mpr_ras_n_w[mux_ch],
+                mpr_cas_n_w[mux_ch],
+                mpr_we_n_w[mux_ch]
+            };
+            assign ddr_cmd_active_w[mux_ch] =
+                ddr_cmd_valid_w[mux_ch] &&
+                (ctrl_cmd_code != `DDR3_CMD_NOP) &&
+                (ctrl_cmd_code != `DDR3_CMD_DES);
+            assign cmd_mux_valid_w[mux_ch] =
+                use_mpr_cmd ? 1'b1 :
+                hold_ctrl_cmd ? 1'b0 : ddr_cmd_valid_w[mux_ch];
+            assign cmd_mux_cs_n_w[mux_ch] =
+                use_mpr_cmd ? mpr_cs_n_w[mux_ch] :
+                hold_ctrl_cmd ? 1'b1 : ddr_cs_n_w[mux_ch];
+            assign cmd_mux_ras_n_w[mux_ch] =
+                use_mpr_cmd ? mpr_ras_n_w[mux_ch] :
+                hold_ctrl_cmd ? 1'b1 : ddr_ras_n_w[mux_ch];
+            assign cmd_mux_cas_n_w[mux_ch] =
+                use_mpr_cmd ? mpr_cas_n_w[mux_ch] :
+                hold_ctrl_cmd ? 1'b1 : ddr_cas_n_w[mux_ch];
+            assign cmd_mux_we_n_w[mux_ch] =
+                use_mpr_cmd ? mpr_we_n_w[mux_ch] :
+                hold_ctrl_cmd ? 1'b1 : ddr_we_n_w[mux_ch];
+            assign cmd_mux_ba_w[mux_ch*BANK_BITS +: BANK_BITS] =
+                use_mpr_cmd ? mpr_ba_w[mux_ch*BANK_BITS +: BANK_BITS]
+                            : hold_ctrl_cmd ? {BANK_BITS{1'b0}}
+                            : ddr_ba_w[mux_ch*BANK_BITS +: BANK_BITS];
+            assign cmd_mux_addr_w[mux_ch*ADDR_BITS +: ADDR_BITS] =
+                use_mpr_cmd ? mpr_addr_w[mux_ch*ADDR_BITS +: ADDR_BITS]
+                            : hold_ctrl_cmd ? {ADDR_BITS{1'b0}}
+                            : ddr_addr_w[mux_ch*ADDR_BITS +: ADDR_BITS];
+            assign cmd_mux_code_w[mux_ch*4 +: 4] = {
+                cmd_mux_cs_n_w[mux_ch],
+                cmd_mux_ras_n_w[mux_ch],
+                cmd_mux_cas_n_w[mux_ch],
+                cmd_mux_we_n_w[mux_ch]
+            };
+            assign mpr_cmd_active_w[mux_ch] =
+                mpr_cmd_valid_w[mux_ch] &&
+                (mpr_cmd_code_w[mux_ch*4 +: 4] != `DDR3_CMD_NOP) &&
+                (mpr_cmd_code_w[mux_ch*4 +: 4] != `DDR3_CMD_DES);
+            assign cmd_mux_active_w[mux_ch] =
+                cmd_mux_valid_w[mux_ch] &&
+                (cmd_mux_code_w[mux_ch*4 +: 4] != `DDR3_CMD_NOP) &&
+                (cmd_mux_code_w[mux_ch*4 +: 4] != `DDR3_CMD_DES);
+        end
+    endgenerate
+
+    integer dbg_ch;
+    always @(posedge ctrl_clk) begin
+        if (ctrl_rst) begin
+            mux_dbg_last_cmd <= {CHANNELS*4{1'b0}};
+            mux_dbg_last_ba <= {CHANNELS*BANK_BITS{1'b0}};
+            mux_dbg_last_addr <= {CHANNELS*ADDR_BITS{1'b0}};
+            mux_dbg_count <= {CHANNELS*8{1'b0}};
+            mpr_dbg_last_cmd <= {CHANNELS*4{1'b0}};
+            mpr_dbg_last_ba <= {CHANNELS*BANK_BITS{1'b0}};
+            mpr_dbg_last_addr <= {CHANNELS*ADDR_BITS{1'b0}};
+            mpr_dbg_count <= {CHANNELS*8{1'b0}};
+        end else begin
+            for (dbg_ch = 0; dbg_ch < CHANNELS; dbg_ch = dbg_ch + 1) begin
+                if (mpr_cmd_active_w[dbg_ch]) begin
+                    mpr_dbg_last_cmd[dbg_ch*4 +: 4] <=
+                        mpr_cmd_code_w[dbg_ch*4 +: 4];
+                    mpr_dbg_last_ba[dbg_ch*BANK_BITS +: BANK_BITS] <=
+                        mpr_ba_w[dbg_ch*BANK_BITS +: BANK_BITS];
+                    mpr_dbg_last_addr[dbg_ch*ADDR_BITS +: ADDR_BITS] <=
+                        mpr_addr_w[dbg_ch*ADDR_BITS +: ADDR_BITS];
+                    mpr_dbg_count[dbg_ch*8 +: 8] <=
+                        mpr_dbg_count[dbg_ch*8 +: 8] + 8'd1;
+                end
+                if (cmd_mux_active_w[dbg_ch]) begin
+                    mux_dbg_last_cmd[dbg_ch*4 +: 4] <=
+                        cmd_mux_code_w[dbg_ch*4 +: 4];
+                    mux_dbg_last_ba[dbg_ch*BANK_BITS +: BANK_BITS] <=
+                        cmd_mux_ba_w[dbg_ch*BANK_BITS +: BANK_BITS];
+                    mux_dbg_last_addr[dbg_ch*ADDR_BITS +: ADDR_BITS] <=
+                        cmd_mux_addr_w[dbg_ch*ADDR_BITS +: ADDR_BITS];
+                    mux_dbg_count[dbg_ch*8 +: 8] <=
+                        mux_dbg_count[dbg_ch*8 +: 8] + 8'd1;
+                end
+            end
+        end
+    end
+
     wire [CHANNELS*32-1:0] loop_wr_count;
     wire [CHANNELS*32-1:0] loop_rd_count;
     wire [CHANNELS*LINE_ADDR_W-1:0] loop_last_line_addr;
@@ -478,12 +686,151 @@ module top_ddr3_ctrl_line_loopback #(
     wire [PHY_LANES*4-1:0] line_serdes_dqs_oe;
     wire [PHY_LANES*64-1:0] line_serdes_dq_in_bits;
     wire [PHY_LANES*8-1:0] line_serdes_dqs_in_bits;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_edge_rise_dq;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_edge_fall_dq;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_edge_rise_count;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_edge_fall_count;
+    wire [PHY_LANES*64-1:0] line_serdes_dqs_edge_dq_bits;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_edge_dqs_bits;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_edge_event_count;
+    wire [PHY_LANES*64-1:0] line_serdes_dqs_iddr_dq_bits;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_iddr_edge_count;
+    wire [PHY_LANES*64-1:0] line_serdes_dqs_iddr_dq_bits_io;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_iddr_edge_count_io;
+    wire [PHY_LANES*64-1:0] line_serdes_dqs_iddr_dq_bits_map;
+    wire [PHY_LANES*8-1:0] line_serdes_dqs_iddr_edge_count_map;
+    wire [PHY_LANES*8-1:0] line_serdes_dq_probe_in;
+    wire [PHY_LANES-1:0] line_serdes_dqs_probe_clk;
+    wire [PHY_LANES*64-1:0] serdes_capture_dq_bits_src;
+    wire [PHY_LANES*8-1:0] serdes_capture_dqs_bits_src;
+    wire [PHY_LANES*8-1:0] serdes_capture_rise_count_src;
+    wire [PHY_LANES*8-1:0] serdes_capture_fall_count_src;
     wire                    serdes_capture_valid;
     wire [4:0]              serdes_capture_lane;
     wire [4:0]              serdes_capture_tap;
     wire [63:0]             serdes_capture_dq;
     wire [7:0]              serdes_capture_dqs;
+    wire [7:0]              serdes_capture_dqs_edge_rise_dq;
+    wire [7:0]              serdes_capture_dqs_edge_fall_dq;
+    wire [7:0]              serdes_capture_dqs_edge_rise_count;
+    wire [7:0]              serdes_capture_dqs_edge_fall_count;
     wire [7:0]              serdes_capture_count;
+    reg                     mpr_capture_toggle_ctrl = 1'b0;
+    reg [4:0]               mpr_capture_lane_hold_ctrl = 5'd0;
+    reg [7:0]               mpr_capture_cfg_hold_ctrl = 8'd0;
+    reg [2:0]               mpr_capture_toggle_sys_sr = 3'b000;
+    reg [4:0]               mpr_capture_lane_sys_meta = 5'd0;
+    reg [4:0]               mpr_capture_lane_sys = 5'd0;
+    reg [7:0]               mpr_capture_cfg_sys_meta = 8'd0;
+    reg [7:0]               mpr_capture_cfg_sys = 8'd0;
+    reg [7:0]               mpr_capture_cfg_live_sys_meta = 8'd0;
+    reg [7:0]               mpr_capture_cfg_live_sys = 8'd0;
+    reg                     mpr_capture_pending_sys = 1'b0;
+    reg [3:0]               mpr_capture_wait_sys = 4'd0;
+    reg [PHY_LANES-1:0]     mpr_capture_lane_onehot_sys_q = {PHY_LANES{1'b0}};
+
+    always @(posedge ctrl_clk) begin
+        if (ctrl_rst) begin
+            mpr_capture_toggle_ctrl <= 1'b0;
+            mpr_capture_lane_hold_ctrl <= 5'd0;
+            mpr_capture_cfg_hold_ctrl <= 8'd0;
+        end else if (mpr_capture_pulse_ctrl) begin
+            mpr_capture_toggle_ctrl <= !mpr_capture_toggle_ctrl;
+            mpr_capture_lane_hold_ctrl <= mpr_capture_lane_ctrl;
+            mpr_capture_cfg_hold_ctrl <= mpr_capture_delay;
+        end
+    end
+
+    always @(posedge clk_sys) begin
+        if (line_serdes_rst) begin
+            mpr_capture_toggle_sys_sr <= 3'b000;
+            mpr_capture_lane_sys_meta <= 5'd0;
+            mpr_capture_lane_sys <= 5'd0;
+            mpr_capture_cfg_sys_meta <= 8'd0;
+            mpr_capture_cfg_sys <= 8'd0;
+            mpr_capture_cfg_live_sys_meta <= 8'd0;
+            mpr_capture_cfg_live_sys <= 8'd0;
+            mpr_capture_pending_sys <= 1'b0;
+            mpr_capture_wait_sys <= 4'd0;
+            mpr_capture_lane_onehot_sys_q <= {PHY_LANES{1'b0}};
+        end else begin
+            mpr_capture_toggle_sys_sr <= {
+                mpr_capture_toggle_sys_sr[1:0],
+                mpr_capture_toggle_ctrl
+            };
+            mpr_capture_lane_sys_meta <= mpr_capture_lane_hold_ctrl;
+            mpr_capture_lane_sys <= mpr_capture_lane_sys_meta;
+            mpr_capture_cfg_sys_meta <= mpr_capture_cfg_hold_ctrl;
+            mpr_capture_cfg_sys <= mpr_capture_cfg_sys_meta;
+            mpr_capture_cfg_live_sys_meta <= mpr_capture_delay;
+            mpr_capture_cfg_live_sys <= mpr_capture_cfg_live_sys_meta;
+            mpr_capture_lane_onehot_sys_q <= {PHY_LANES{1'b0}};
+
+            if (mpr_capture_event_sys) begin
+                if (mpr_capture_cfg_sys[3:0] == 4'd0) begin
+                    mpr_capture_pending_sys <= 1'b0;
+                    mpr_capture_wait_sys <= 4'd0;
+                    mpr_capture_lane_onehot_sys_q <=
+                        phy_lane_onehot(mpr_capture_lane_sys);
+                end else begin
+                    mpr_capture_pending_sys <= 1'b1;
+                    mpr_capture_wait_sys <= mpr_capture_cfg_sys[3:0] - 4'd1;
+                end
+            end else if (mpr_capture_pending_sys) begin
+                if (mpr_capture_wait_sys == 4'd0) begin
+                    mpr_capture_pending_sys <= 1'b0;
+                    mpr_capture_lane_onehot_sys_q <=
+                        phy_lane_onehot(mpr_capture_lane_sys);
+                end else begin
+                    mpr_capture_wait_sys <= mpr_capture_wait_sys - 4'd1;
+                end
+            end
+        end
+    end
+
+    wire mpr_capture_event_sys =
+        mpr_capture_toggle_sys_sr[2] ^ mpr_capture_toggle_sys_sr[1];
+    wire [PHY_LANES-1:0] serdes_capture_lane_req =
+        line_serdes_idelay_load | mpr_capture_lane_onehot_sys_q;
+    wire serdes_dqs_iddr_probe_enabled = (USE_DQS_IDDR_PROBE != 0);
+    wire serdes_capture_use_dqs_iddr =
+        serdes_dqs_iddr_probe_enabled && mpr_capture_cfg_live_sys[7];
+    wire [3:0] serdes_edge_history_age =
+        {1'b0, mpr_capture_cfg_live_sys[6:4]};
+
+    genvar cap_src_lane;
+    generate
+        for (cap_src_lane = 0; cap_src_lane < PHY_LANES;
+             cap_src_lane = cap_src_lane + 1) begin : gen_capture_src
+            localparam [4:0] CAP_SRC_LANE_ID = cap_src_lane;
+            localparam [4:0] CAP_DQS_IDDR_LANE =
+                (USE_MAPPED_DQS_IDDR != 0) ?
+                DQS_IDDR_CAPTURE_MAP[cap_src_lane*5 +: 5] :
+                CAP_SRC_LANE_ID;
+            assign serdes_capture_dq_bits_src[cap_src_lane*64 +: 64] =
+                (mpr_capture_lane_onehot_sys_q[cap_src_lane] &&
+                 serdes_capture_use_dqs_iddr) ?
+                line_serdes_dqs_iddr_dq_bits[cap_src_lane*64 +: 64] :
+                mpr_capture_lane_onehot_sys_q[cap_src_lane] ?
+                line_serdes_dqs_edge_dq_bits[cap_src_lane*64 +: 64] :
+                line_serdes_dq_in_bits[cap_src_lane*64 +: 64];
+            assign serdes_capture_dqs_bits_src[cap_src_lane*8 +: 8] =
+                (mpr_capture_lane_onehot_sys_q[cap_src_lane] &&
+                 serdes_capture_use_dqs_iddr) ?
+                {3'd0, CAP_DQS_IDDR_LANE} :
+                mpr_capture_lane_onehot_sys_q[cap_src_lane] ?
+                line_serdes_dqs_edge_dqs_bits[cap_src_lane*8 +: 8] :
+                line_serdes_dqs_in_bits[cap_src_lane*8 +: 8];
+            assign serdes_capture_rise_count_src[cap_src_lane*8 +: 8] =
+                serdes_capture_use_dqs_iddr ?
+                line_serdes_dqs_iddr_edge_count[cap_src_lane*8 +: 8] :
+                line_serdes_dqs_edge_rise_count[cap_src_lane*8 +: 8];
+            assign serdes_capture_fall_count_src[cap_src_lane*8 +: 8] =
+                serdes_capture_use_dqs_iddr ?
+                line_serdes_dqs_iddr_edge_count[cap_src_lane*8 +: 8] :
+                line_serdes_dqs_edge_fall_count[cap_src_lane*8 +: 8];
+        end
+    endgenerate
 
     ddr3_serdes_capture_cdc #(
         .PHY_LANES(PHY_LANES),
@@ -494,15 +841,23 @@ module top_ddr3_ctrl_line_loopback #(
         .i_phy_rst(line_serdes_rst),
         .i_ctrl_clk(ctrl_clk),
         .i_ctrl_rst(ctrl_rst),
-        .i_phy_capture_lane(line_serdes_idelay_load),
+        .i_phy_capture_lane(serdes_capture_lane_req),
         .i_phy_tap(line_serdes_idelay_tap),
-        .i_phy_dq_bits(line_serdes_dq_in_bits),
-        .i_phy_dqs_bits(line_serdes_dqs_in_bits),
+        .i_phy_dq_bits(serdes_capture_dq_bits_src),
+        .i_phy_dqs_bits(serdes_capture_dqs_bits_src),
+        .i_phy_dqs_edge_rise_dq(line_serdes_dqs_edge_rise_dq),
+        .i_phy_dqs_edge_fall_dq(line_serdes_dqs_edge_fall_dq),
+        .i_phy_dqs_edge_rise_count(serdes_capture_rise_count_src),
+        .i_phy_dqs_edge_fall_count(serdes_capture_fall_count_src),
         .o_ctrl_valid(serdes_capture_valid),
         .o_ctrl_lane(serdes_capture_lane),
         .o_ctrl_tap(serdes_capture_tap),
         .o_ctrl_dq_bits(serdes_capture_dq),
         .o_ctrl_dqs_bits(serdes_capture_dqs),
+        .o_ctrl_dqs_edge_rise_dq(serdes_capture_dqs_edge_rise_dq),
+        .o_ctrl_dqs_edge_fall_dq(serdes_capture_dqs_edge_fall_dq),
+        .o_ctrl_dqs_edge_rise_count(serdes_capture_dqs_edge_rise_count),
+        .o_ctrl_dqs_edge_fall_count(serdes_capture_dqs_edge_fall_count),
         .o_ctrl_count(serdes_capture_count)
     );
 
@@ -621,19 +976,19 @@ module top_ddr3_ctrl_line_loopback #(
                 (USE_PHY_CLOCK_BRIDGE != 0) ? cmd_pin_rst : ctrl_rst;
             wire [CHANNELS-1:0] pinpair_cmd_valid =
                 (USE_PHY_CLOCK_BRIDGE != 0) ? board_cmd_valid
-                                            : ddr_cmd_valid_w;
+                                            : cmd_mux_valid_w;
             wire [CHANNELS-1:0] pinpair_cs_n =
-                (USE_PHY_CLOCK_BRIDGE != 0) ? board_cs_n : ddr_cs_n_w;
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_cs_n : cmd_mux_cs_n_w;
             wire [CHANNELS-1:0] pinpair_ras_n =
-                (USE_PHY_CLOCK_BRIDGE != 0) ? board_ras_n : ddr_ras_n_w;
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_ras_n : cmd_mux_ras_n_w;
             wire [CHANNELS-1:0] pinpair_cas_n =
-                (USE_PHY_CLOCK_BRIDGE != 0) ? board_cas_n : ddr_cas_n_w;
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_cas_n : cmd_mux_cas_n_w;
             wire [CHANNELS-1:0] pinpair_we_n =
-                (USE_PHY_CLOCK_BRIDGE != 0) ? board_we_n : ddr_we_n_w;
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_we_n : cmd_mux_we_n_w;
             wire [CHANNELS*BANK_BITS-1:0] pinpair_ba =
-                (USE_PHY_CLOCK_BRIDGE != 0) ? board_ba : ddr_ba_w;
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_ba : cmd_mux_ba_w;
             wire [CHANNELS*ADDR_BITS-1:0] pinpair_addr =
-                (USE_PHY_CLOCK_BRIDGE != 0) ? board_addr : ddr_addr_w;
+                (USE_PHY_CLOCK_BRIDGE != 0) ? board_addr : cmd_mux_addr_w;
 
             if (USE_PHY_CLOCK_BRIDGE) begin : gen_phy_clk_bridge
                 ddr3_line_phy_clock_bridge #(
@@ -848,13 +1203,13 @@ module top_ddr3_ctrl_line_loopback #(
                 ) u_loop (
                     .i_clk(ctrl_clk),
                     .i_rst(ctrl_rst),
-                    .i_cmd_valid(ddr_cmd_valid_w[ch]),
-                    .i_cs_n(ddr_cs_n_w[ch]),
-                    .i_ras_n(ddr_ras_n_w[ch]),
-                    .i_cas_n(ddr_cas_n_w[ch]),
-                    .i_we_n(ddr_we_n_w[ch]),
-                    .i_ba(ddr_ba_w[ch*BANK_BITS +: BANK_BITS]),
-                    .i_addr(ddr_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
+                    .i_cmd_valid(cmd_mux_valid_w[ch]),
+                    .i_cs_n(cmd_mux_cs_n_w[ch]),
+                    .i_ras_n(cmd_mux_ras_n_w[ch]),
+                    .i_cas_n(cmd_mux_cas_n_w[ch]),
+                    .i_we_n(cmd_mux_we_n_w[ch]),
+                    .i_ba(cmd_mux_ba_w[ch*BANK_BITS +: BANK_BITS]),
+                    .i_addr(cmd_mux_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
                     .i_phy_wr_valid(lane_wr_valid[PHY_BASE +: LANES]),
                     .o_phy_wr_ready(lane_wr_ready[PHY_BASE +: LANES]),
                     .i_phy_wr_data(lane_wr_data[PHY_BASE*8 +: PHY_DATA_W]),
@@ -879,13 +1234,13 @@ module top_ddr3_ctrl_line_loopback #(
                 ) u_loop (
                     .i_clk(ctrl_clk),
                     .i_rst(ctrl_rst),
-                    .i_cmd_valid(ddr_cmd_valid_w[ch]),
-                    .i_cs_n(ddr_cs_n_w[ch]),
-                    .i_ras_n(ddr_ras_n_w[ch]),
-                    .i_cas_n(ddr_cas_n_w[ch]),
-                    .i_we_n(ddr_we_n_w[ch]),
-                    .i_ba(ddr_ba_w[ch*BANK_BITS +: BANK_BITS]),
-                    .i_addr(ddr_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
+                    .i_cmd_valid(cmd_mux_valid_w[ch]),
+                    .i_cs_n(cmd_mux_cs_n_w[ch]),
+                    .i_ras_n(cmd_mux_ras_n_w[ch]),
+                    .i_cas_n(cmd_mux_cas_n_w[ch]),
+                    .i_we_n(cmd_mux_we_n_w[ch]),
+                    .i_ba(cmd_mux_ba_w[ch*BANK_BITS +: BANK_BITS]),
+                    .i_addr(cmd_mux_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
                     .i_wr_line_valid(phy_wr_line_valid[ch]),
                     .o_wr_line_ready(phy_wr_line_ready[ch]),
                     .i_wr_line_data(
@@ -917,6 +1272,19 @@ module top_ddr3_ctrl_line_loopback #(
     wire [CHANNELS-1:0] board_we_n;
     wire [CHANNELS*BANK_BITS-1:0] board_ba;
     wire [CHANNELS*ADDR_BITS-1:0] board_addr;
+    wire [CHANNELS-1:0] cmd_obs_reset_n;
+    wire [CHANNELS-1:0] cmd_obs_cke;
+    wire [CHANNELS-1:0] cmd_obs_odt;
+    wire [CHANNELS*4-1:0] cmd_obs_last_cmd;
+    wire [CHANNELS*BANK_BITS-1:0] cmd_obs_last_ba;
+    wire [CHANNELS*ADDR_BITS-1:0] cmd_obs_last_addr;
+    wire [CHANNELS*BANK_BITS-1:0] cmd_obs_last_mrs_ba;
+    wire [CHANNELS*ADDR_BITS-1:0] cmd_obs_last_mrs_addr;
+    wire [CHANNELS*BANK_BITS-1:0] cmd_obs_last_rd_ba;
+    wire [CHANNELS*ADDR_BITS-1:0] cmd_obs_last_rd_addr;
+    wire [CHANNELS*8-1:0] cmd_obs_cmd_count;
+    wire [CHANNELS*8-1:0] cmd_obs_mrs_count;
+    wire [CHANNELS*8-1:0] cmd_obs_rd_count;
 
     generate
         if (DRIVE_DDR3_COMMANDS) begin : gen_cmd_drive
@@ -932,13 +1300,13 @@ module top_ddr3_ctrl_line_loopback #(
                     .i_reset_n(ddr_reset_n_w[ch]),
                     .i_cke(ddr_cke_w[ch]),
                     .i_odt(ddr_odt_w[ch]),
-                    .i_cmd_valid(ddr_cmd_valid_w[ch]),
-                    .i_cs_n(ddr_cs_n_w[ch]),
-                    .i_ras_n(ddr_ras_n_w[ch]),
-                    .i_cas_n(ddr_cas_n_w[ch]),
-                    .i_we_n(ddr_we_n_w[ch]),
-                    .i_ba(ddr_ba_w[ch*BANK_BITS +: BANK_BITS]),
-                    .i_addr(ddr_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
+                    .i_cmd_valid(cmd_mux_valid_w[ch]),
+                    .i_cs_n(cmd_mux_cs_n_w[ch]),
+                    .i_ras_n(cmd_mux_ras_n_w[ch]),
+                    .i_cas_n(cmd_mux_cas_n_w[ch]),
+                    .i_we_n(cmd_mux_we_n_w[ch]),
+                    .i_ba(cmd_mux_ba_w[ch*BANK_BITS +: BANK_BITS]),
+                    .i_addr(cmd_mux_addr_w[ch*ADDR_BITS +: ADDR_BITS]),
                     .o_reset_n(board_reset_n[ch]),
                     .o_cke(board_cke[ch]),
                     .o_odt(board_odt[ch]),
@@ -964,6 +1332,41 @@ module top_ddr3_ctrl_line_loopback #(
             assign board_addr = {(CHANNELS*ADDR_BITS){1'b0}};
         end
     endgenerate
+
+    ddr3_cmd_observer_cdc #(
+        .CHANNELS(CHANNELS),
+        .ADDR_BITS(ADDR_BITS),
+        .BANK_BITS(BANK_BITS),
+        .COUNT_W(8)
+    ) u_cmd_observer (
+        .i_clk_dq(cmd_pin_clk),
+        .i_rst_dq(cmd_pin_rst),
+        .i_reset_n(board_reset_n),
+        .i_cke(board_cke),
+        .i_odt(board_odt),
+        .i_cmd_valid(board_cmd_valid),
+        .i_cs_n(board_cs_n),
+        .i_ras_n(board_ras_n),
+        .i_cas_n(board_cas_n),
+        .i_we_n(board_we_n),
+        .i_ba(board_ba),
+        .i_addr(board_addr),
+        .i_clk_ctrl(ctrl_clk),
+        .i_rst_ctrl(ctrl_rst),
+        .o_reset_n(cmd_obs_reset_n),
+        .o_cke(cmd_obs_cke),
+        .o_odt(cmd_obs_odt),
+        .o_last_cmd(cmd_obs_last_cmd),
+        .o_last_ba(cmd_obs_last_ba),
+        .o_last_addr(cmd_obs_last_addr),
+        .o_last_mrs_ba(cmd_obs_last_mrs_ba),
+        .o_last_mrs_addr(cmd_obs_last_mrs_addr),
+        .o_last_rd_ba(cmd_obs_last_rd_ba),
+        .o_last_rd_addr(cmd_obs_last_rd_addr),
+        .o_cmd_count(cmd_obs_cmd_count),
+        .o_mrs_count(cmd_obs_mrs_count),
+        .o_rd_count(cmd_obs_rd_count)
+    );
 
     ddr3_cmd_pins_7series #(
         .ADDR_BITS(ADDR_BITS),
@@ -1042,9 +1445,19 @@ module top_ddr3_ctrl_line_loopback #(
                     serdes_lane / PHY_BYTE_LANES;
                 localparam integer SERDES_BYTE =
                     serdes_lane % PHY_BYTE_LANES;
+                localparam integer SERDES_USE_DQS_IDDR_PROBE =
+                    (USE_DQS_IDDR_PROBE != 0) &&
+                    (USE_MAPPED_DQS_IDDR == 0);
 
                 if (SERDES_CH == 0) begin : gen_ch0_serdes
-                    ddr3_x8_serdes_io_7series u_serdes_io (
+                    ddr3_x8_serdes_io_7series #(
+                        .ENABLE_RX((USE_MAPPED_DQS_IDDR != 0) ? 0 : 1),
+                        .ENABLE_DQS_IDDR_PROBE(SERDES_USE_DQS_IDDR_PROBE),
+                        .DQS_IDDR_SWAP_EDGES(
+                            DQS_IDDR_SWAP_MASK[serdes_lane]),
+                        .DQS_IDDR_USE_DQ_IDELAY(
+                            DQS_IDDR_DQ_IDELAY_MASK[serdes_lane])
+                    ) u_serdes_io (
                         .i_clk_serdes(clk_dq),
                         .i_clk_div(clk_sys),
                         .i_rst(line_serdes_rst),
@@ -1060,16 +1473,56 @@ module top_ddr3_ctrl_line_loopback #(
                         .i_idelay_load(line_serdes_idelay_load[serdes_lane]),
                         .i_idelay_tap(
                             line_serdes_idelay_tap[serdes_lane*5 +: 5]),
+                        .i_history_age(serdes_edge_history_age),
                         .o_dq_bits(
                             line_serdes_dq_in_bits[serdes_lane*64 +: 64]),
                         .o_dqs_bits(
                             line_serdes_dqs_in_bits[serdes_lane*8 +: 8]),
+                        .o_dqs_edge_rise_dq(
+                            line_serdes_dqs_edge_rise_dq[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_fall_dq(
+                            line_serdes_dqs_edge_fall_dq[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_rise_count(
+                            line_serdes_dqs_edge_rise_count[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_fall_count(
+                            line_serdes_dqs_edge_fall_count[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_dq_bits(
+                            line_serdes_dqs_edge_dq_bits[
+                                serdes_lane*64 +: 64]),
+                        .o_dqs_edge_dqs_bits(
+                            line_serdes_dqs_edge_dqs_bits[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_event_count(
+                            line_serdes_dqs_edge_event_count[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_iddr_dq_bits(
+                            line_serdes_dqs_iddr_dq_bits_io[
+                                serdes_lane*64 +: 64]),
+                        .o_dqs_iddr_edge_count(
+                            line_serdes_dqs_iddr_edge_count_io[
+                                serdes_lane*8 +: 8]),
+                        .o_dq_probe_in(
+                            line_serdes_dq_probe_in[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_probe_clk(
+                            line_serdes_dqs_probe_clk[serdes_lane]),
                         .io_dq(ddr3_dq[SERDES_BYTE*8 +: 8]),
                         .io_dqs_p(ddr3_dqs_p[SERDES_BYTE]),
                         .io_dqs_n(ddr3_dqs_n[SERDES_BYTE])
                     );
                 end else begin : gen_ch1_serdes
-                    ddr3_x8_serdes_io_7series u_serdes_io (
+                    ddr3_x8_serdes_io_7series #(
+                        .ENABLE_RX((USE_MAPPED_DQS_IDDR != 0) ? 0 : 1),
+                        .ENABLE_DQS_IDDR_PROBE(SERDES_USE_DQS_IDDR_PROBE),
+                        .DQS_IDDR_SWAP_EDGES(
+                            DQS_IDDR_SWAP_MASK[serdes_lane]),
+                        .DQS_IDDR_USE_DQ_IDELAY(
+                            DQS_IDDR_DQ_IDELAY_MASK[serdes_lane])
+                    ) u_serdes_io (
                         .i_clk_serdes(clk_dq),
                         .i_clk_div(clk_sys),
                         .i_rst(line_serdes_rst),
@@ -1085,10 +1538,43 @@ module top_ddr3_ctrl_line_loopback #(
                         .i_idelay_load(line_serdes_idelay_load[serdes_lane]),
                         .i_idelay_tap(
                             line_serdes_idelay_tap[serdes_lane*5 +: 5]),
+                        .i_history_age(serdes_edge_history_age),
                         .o_dq_bits(
                             line_serdes_dq_in_bits[serdes_lane*64 +: 64]),
                         .o_dqs_bits(
                             line_serdes_dqs_in_bits[serdes_lane*8 +: 8]),
+                        .o_dqs_edge_rise_dq(
+                            line_serdes_dqs_edge_rise_dq[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_fall_dq(
+                            line_serdes_dqs_edge_fall_dq[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_rise_count(
+                            line_serdes_dqs_edge_rise_count[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_fall_count(
+                            line_serdes_dqs_edge_fall_count[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_dq_bits(
+                            line_serdes_dqs_edge_dq_bits[
+                                serdes_lane*64 +: 64]),
+                        .o_dqs_edge_dqs_bits(
+                            line_serdes_dqs_edge_dqs_bits[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_edge_event_count(
+                            line_serdes_dqs_edge_event_count[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_iddr_dq_bits(
+                            line_serdes_dqs_iddr_dq_bits_io[
+                                serdes_lane*64 +: 64]),
+                        .o_dqs_iddr_edge_count(
+                            line_serdes_dqs_iddr_edge_count_io[
+                                serdes_lane*8 +: 8]),
+                        .o_dq_probe_in(
+                            line_serdes_dq_probe_in[
+                                serdes_lane*8 +: 8]),
+                        .o_dqs_probe_clk(
+                            line_serdes_dqs_probe_clk[serdes_lane]),
                         .io_dq(ddr3_ch1_dq[SERDES_BYTE*8 +: 8]),
                         .io_dqs_p(ddr3_ch1_dqs_p[SERDES_BYTE]),
                         .io_dqs_n(ddr3_ch1_dqs_n[SERDES_BYTE])
@@ -1098,6 +1584,17 @@ module top_ddr3_ctrl_line_loopback #(
         end else begin : gen_hiz_pins
             assign line_serdes_dq_in_bits = {(PHY_LANES*64){1'b0}};
             assign line_serdes_dqs_in_bits = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dqs_edge_rise_dq = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dqs_edge_fall_dq = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dqs_edge_rise_count = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dqs_edge_fall_count = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dqs_edge_dq_bits = {(PHY_LANES*64){1'b0}};
+            assign line_serdes_dqs_edge_dqs_bits = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dqs_edge_event_count = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dqs_iddr_dq_bits_io = {(PHY_LANES*64){1'b0}};
+            assign line_serdes_dqs_iddr_edge_count_io = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dq_probe_in = {(PHY_LANES*8){1'b0}};
+            assign line_serdes_dqs_probe_clk = {PHY_LANES{1'b0}};
 
             ddr3_hiz_lanes_7series u_ch0_hiz (
                 .io_dq(ddr3_dq),
@@ -1112,6 +1609,44 @@ module top_ddr3_ctrl_line_loopback #(
             );
         end
     endgenerate
+
+    genvar dqs_map_lane;
+    generate
+        if ((USE_LINE_SERDES_PHY != 0) &&
+                (USE_MAPPED_DQS_IDDR != 0)) begin : gen_dqs_iddr_map
+            for (dqs_map_lane = 0; dqs_map_lane < PHY_LANES;
+                 dqs_map_lane = dqs_map_lane + 1) begin : gen_lane
+                localparam [4:0] MAP_DQS_LANE =
+                    DQS_IDDR_CAPTURE_MAP[dqs_map_lane*5 +: 5];
+
+                ddr3_dqs_iddr_probe_7series #(
+                    .SWAP_EDGES(DQS_IDDR_SWAP_MASK[MAP_DQS_LANE])
+                ) u_iddr (
+                    .i_rst(line_serdes_rst),
+                    .i_dqs_clk(line_serdes_dqs_probe_clk[MAP_DQS_LANE]),
+                    .i_dq(line_serdes_dq_probe_in[dqs_map_lane*8 +: 8]),
+                    .o_dq_bits(line_serdes_dqs_iddr_dq_bits_map[
+                        dqs_map_lane*64 +: 64]),
+                    .o_edge_count(line_serdes_dqs_iddr_edge_count_map[
+                        dqs_map_lane*8 +: 8])
+                );
+            end
+        end else begin : gen_no_dqs_iddr_map
+            assign line_serdes_dqs_iddr_dq_bits_map =
+                {(PHY_LANES*64){1'b0}};
+            assign line_serdes_dqs_iddr_edge_count_map =
+                {(PHY_LANES*8){1'b0}};
+        end
+    endgenerate
+
+    assign line_serdes_dqs_iddr_dq_bits =
+        (USE_MAPPED_DQS_IDDR != 0) ?
+        line_serdes_dqs_iddr_dq_bits_map :
+        line_serdes_dqs_iddr_dq_bits_io;
+    assign line_serdes_dqs_iddr_edge_count =
+        (USE_MAPPED_DQS_IDDR != 0) ?
+        line_serdes_dqs_iddr_edge_count_map :
+        line_serdes_dqs_iddr_edge_count_io;
 
     wire line_serdes_rx_mix =
         (USE_LINE_SERDES_PHY != 0) ?
@@ -1149,7 +1684,9 @@ module top_ddr3_ctrl_line_loopback #(
     wire clk_dq_bit;
     wire [5:0] clk_dq_ticks;
 
-    clk_liveness u_ref_live (
+    clk_liveness #(
+        .TOGGLE_PERIOD(251)
+    ) u_ref_live (
         .i_clk(SYS_CLK),
         .i_clk_obs(ctrl_clk),
         .o_alive(clk_ref_alive),
@@ -1157,7 +1694,9 @@ module top_ddr3_ctrl_line_loopback #(
         .o_ticks_lo(clk_ref_ticks)
     );
 
-    clk_liveness u_sys_live (
+    clk_liveness #(
+        .TOGGLE_PERIOD(251)
+    ) u_sys_live (
         .i_clk(clk_sys),
         .i_clk_obs(ctrl_clk),
         .o_alive(clk_sys_alive),
@@ -1165,7 +1704,9 @@ module top_ddr3_ctrl_line_loopback #(
         .o_ticks_lo(clk_sys_ticks)
     );
 
-    clk_liveness u_ddr_live (
+    clk_liveness #(
+        .TOGGLE_PERIOD(251)
+    ) u_ddr_live (
         .i_clk(clk_ddr),
         .i_clk_obs(ctrl_clk),
         .o_alive(clk_ddr_alive),
@@ -1173,7 +1714,9 @@ module top_ddr3_ctrl_line_loopback #(
         .o_ticks_lo(clk_ddr_ticks)
     );
 
-    clk_liveness u_dq_live (
+    clk_liveness #(
+        .TOGGLE_PERIOD(251)
+    ) u_dq_live (
         .i_clk(clk_dq),
         .i_clk_obs(ctrl_clk),
         .o_alive(clk_dq_alive),
@@ -1183,10 +1726,166 @@ module top_ddr3_ctrl_line_loopback #(
 
     wire refresh_any_late = |refresh_late;
     wire phy_any_error = |phy_loop_error;
+    wire any_debug_error = phy_any_error || mpr_error;
+    wire [31:0] mpr_status = {
+        16'hCA30,
+        mpr_busy,
+        mpr_error,
+        mpr_enabled,
+        mpr_state,
+        mpr_capture_delay
+    };
+    wire [31:0] mpr_counts = {16'hCA31, mpr_cmd_count, mpr_read_count};
+    wire [31:0] mpr_capture_status = {
+        16'hCA32,
+        mpr_capture_count,
+        3'd0,
+        mpr_selected_lane
+    };
+    wire [31:0] mpr_read_status = {16'hCA33, 3'd0, mpr_read_addr};
+    wire [31:0] cmd_pin_status = {
+        16'hCA34,
+        cmd_obs_reset_n,
+        cmd_obs_cke,
+        cmd_obs_odt,
+        2'd0,
+        cmd_obs_last_cmd[0*4 +: 4],
+        cmd_obs_last_cmd[1*4 +: 4]
+    };
+    wire [31:0] cmd_pin_ch0_counts = {
+        16'hCA40,
+        cmd_obs_cmd_count[0*8 +: 8],
+        cmd_obs_mrs_count[0*8 +: 8]
+    };
+    wire [31:0] cmd_pin_ch1_counts = {
+        16'hCA41,
+        cmd_obs_cmd_count[1*8 +: 8],
+        cmd_obs_mrs_count[1*8 +: 8]
+    };
+    wire [31:0] cmd_pin_rd_counts = {
+        16'hCA42,
+        cmd_obs_rd_count[0*8 +: 8],
+        cmd_obs_rd_count[1*8 +: 8]
+    };
+    wire [31:0] cmd_pin_ch0_last = {
+        16'hCA43,
+        cmd_obs_last_ba[0*BANK_BITS +: BANK_BITS],
+        cmd_obs_last_addr[0*ADDR_BITS +: 13]
+    };
+    wire [31:0] cmd_pin_ch1_last = {
+        16'hCA44,
+        cmd_obs_last_ba[1*BANK_BITS +: BANK_BITS],
+        cmd_obs_last_addr[1*ADDR_BITS +: 13]
+    };
+    wire [31:0] cmd_pin_ch0_last_mrs = {
+        16'hCA45,
+        cmd_obs_last_mrs_ba[0*BANK_BITS +: BANK_BITS],
+        cmd_obs_last_mrs_addr[0*ADDR_BITS +: 13]
+    };
+    wire [31:0] cmd_pin_ch1_last_mrs = {
+        16'hCA46,
+        cmd_obs_last_mrs_ba[1*BANK_BITS +: BANK_BITS],
+        cmd_obs_last_mrs_addr[1*ADDR_BITS +: 13]
+    };
+    wire [31:0] cmd_pin_ch0_last_rd = {
+        16'hCA47,
+        cmd_obs_last_rd_ba[0*BANK_BITS +: BANK_BITS],
+        cmd_obs_last_rd_addr[0*ADDR_BITS +: 13]
+    };
+    wire [31:0] cmd_pin_ch1_last_rd = {
+        16'hCA48,
+        cmd_obs_last_rd_ba[1*BANK_BITS +: BANK_BITS],
+        cmd_obs_last_rd_addr[1*ADDR_BITS +: 13]
+    };
+    wire [31:0] mpr_src_ch0_last = {
+        16'hCA49,
+        mpr_dbg_last_ba[0*BANK_BITS +: BANK_BITS],
+        mpr_dbg_last_addr[0*ADDR_BITS +: 13]
+    };
+    wire [31:0] mpr_src_ch1_last = {
+        16'hCA4A,
+        mpr_dbg_last_ba[1*BANK_BITS +: BANK_BITS],
+        mpr_dbg_last_addr[1*ADDR_BITS +: 13]
+    };
+    wire [31:0] mpr_src_cmds = {
+        16'hCA4B,
+        mpr_dbg_last_cmd[0*4 +: 4],
+        mpr_dbg_last_cmd[1*4 +: 4],
+        mpr_dbg_count[0*8 +: 4],
+        mpr_dbg_count[1*8 +: 4]
+    };
+    wire [31:0] mux_ctrl_ch0_last = {
+        16'hCA4C,
+        mux_dbg_last_ba[0*BANK_BITS +: BANK_BITS],
+        mux_dbg_last_addr[0*ADDR_BITS +: 13]
+    };
+    wire [31:0] mux_ctrl_ch1_last = {
+        16'hCA4D,
+        mux_dbg_last_ba[1*BANK_BITS +: BANK_BITS],
+        mux_dbg_last_addr[1*ADDR_BITS +: 13]
+    };
+    wire [31:0] mux_ctrl_cmds = {
+        16'hCA4E,
+        mux_dbg_last_cmd[0*4 +: 4],
+        mux_dbg_last_cmd[1*4 +: 4],
+        mux_dbg_count[0*8 +: 4],
+        mux_dbg_count[1*8 +: 4]
+    };
+    wire [31:0] serdes_dqs_edge_counts = {
+        16'hCA50,
+        serdes_capture_dqs_edge_rise_count,
+        serdes_capture_dqs_edge_fall_count
+    };
+    wire [31:0] serdes_dqs_edge_dq = {
+        16'hCA51,
+        serdes_capture_dqs_edge_rise_dq,
+        serdes_capture_dqs_edge_fall_dq
+    };
+    wire [31:0] serdes_capture_cfg_status = {
+        16'hCA52,
+        serdes_dqs_iddr_probe_enabled,
+        serdes_capture_use_dqs_iddr,
+        2'd0,
+        mpr_capture_cfg_live_sys[7:4],
+        serdes_edge_history_age,
+        mpr_capture_cfg_live_sys[3:0]
+    };
+    wire [31:0] serdes_dqs_iddr_swap_lo_status = {
+        16'hCA53,
+        DQS_IDDR_SWAP_MASK[15:0]
+    };
+    wire [31:0] serdes_dqs_iddr_swap_hi_status = {
+        16'hCA54,
+        14'd0,
+        DQS_IDDR_SWAP_MASK[17:16]
+    };
+    wire [31:0] serdes_dqs_iddr_dq_idelay_lo_status = {
+        16'hCA55,
+        DQS_IDDR_DQ_IDELAY_MASK[15:0]
+    };
+    wire [31:0] serdes_dqs_iddr_dq_idelay_hi_status = {
+        16'hCA56,
+        14'd0,
+        DQS_IDDR_DQ_IDELAY_MASK[17:16]
+    };
+    wire [31:0] serdes_dqs_map_ch0_status = {
+        16'hCA60,
+        (USE_MAPPED_DQS_IDDR != 0),
+        5'd2,
+        DQS_MAP_CH0_LANE2,
+        line_serdes_dqs_iddr_edge_count[2*8 +: 5]
+    };
+    wire [31:0] serdes_dqs_map_ch1_status = {
+        16'hCA61,
+        (USE_MAPPED_DQS_IDDR != 0),
+        5'd9,
+        DQS_MAP_CH1_LANE0,
+        line_serdes_dqs_iddr_edge_count[9*8 +: 5]
+    };
     wire [31:0] status_flags = {
         16'hB07E,
         init_all_done,       // loopback "cal done"
-        phy_any_error,       // abstract PHY loop error
+        any_debug_error,     // abstract PHY or debug-gate error
         2'b00,
         init_all_done,
         1'b0,
@@ -1194,8 +1893,8 @@ module top_ddr3_ctrl_line_loopback #(
         pll_locked,
         idelay_ready,
         ctrl_rst,
-        1'b0,
-        phy_any_error,
+        mpr_busy,
+        any_debug_error,
         1'b1                 // target=DDR3-controller path
     };
 
@@ -1277,6 +1976,35 @@ module top_ddr3_ctrl_line_loopback #(
             8'h2A: status_word = serdes_capture_dq[31:0];
             8'h2B: status_word = serdes_capture_dq[63:32];
             8'h2C: status_word = {16'hCA21, 8'd0, serdes_capture_dqs};
+            8'h2D: status_word = mpr_status;
+            8'h2E: status_word = mpr_counts;
+            8'h2F: status_word = mpr_capture_status;
+            8'h32: status_word = mpr_read_status;
+            8'h33: status_word = cmd_pin_status;
+            8'h34: status_word = cmd_pin_ch0_counts;
+            8'h35: status_word = cmd_pin_ch1_counts;
+            8'h36: status_word = cmd_pin_rd_counts;
+            8'h37: status_word = cmd_pin_ch0_last;
+            8'h38: status_word = cmd_pin_ch1_last;
+            8'h39: status_word = cmd_pin_ch0_last_mrs;
+            8'h3A: status_word = cmd_pin_ch1_last_mrs;
+            8'h3B: status_word = cmd_pin_ch0_last_rd;
+            8'h3C: status_word = cmd_pin_ch1_last_rd;
+            8'h3D: status_word = mpr_src_ch0_last;
+            8'h3E: status_word = mpr_src_ch1_last;
+            8'h3F: status_word = mpr_src_cmds;
+            8'h40: status_word = mux_ctrl_ch0_last;
+            8'h41: status_word = mux_ctrl_ch1_last;
+            8'h42: status_word = mux_ctrl_cmds;
+            8'h43: status_word = serdes_dqs_edge_counts;
+            8'h44: status_word = serdes_dqs_edge_dq;
+            8'h45: status_word = serdes_capture_cfg_status;
+            8'h46: status_word = serdes_dqs_iddr_swap_lo_status;
+            8'h47: status_word = serdes_dqs_iddr_swap_hi_status;
+            8'h48: status_word = serdes_dqs_iddr_dq_idelay_lo_status;
+            8'h49: status_word = serdes_dqs_iddr_dq_idelay_hi_status;
+            8'h4A: status_word = serdes_dqs_map_ch0_status;
+            8'h4B: status_word = serdes_dqs_map_ch1_status;
             8'h30: status_word = {16'hF0C0, refresh_count[0*16 +: 16]};
             8'h31: status_word = {16'hF0C1, refresh_count[1*16 +: 16]};
             8'hFE: status_word = GATE_VERSION;
@@ -1289,12 +2017,12 @@ module top_ddr3_ctrl_line_loopback #(
     assign led_3bits_tri_o[1] = init_all_done;
     assign led_3bits_tri_o[2] =
         !pll_locked || !idelay_ready || refresh_any_late || jwb_last_err ||
-        phy_any_error;
+        any_debug_error;
 
     wire _unused = &{1'b0, init_done, init_busy, sched_req_pending,
                      refresh_ack, bank_busy, bank_open, jwb_phase_req,
                      jwb_phase_inc, phy_wr_line_valid, phy_rd_line_valid,
-                     1'b0};
+                     ^line_serdes_dqs_edge_event_count, 1'b0};
 endmodule
 
 `default_nettype wire
