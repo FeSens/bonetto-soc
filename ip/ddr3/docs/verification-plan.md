@@ -308,6 +308,20 @@ showed `SYS_CLK` at 71.28 MHz, `clk_sys` at 155.26 MHz, `clk_idelay_ref` at
 DDR3 reset remains asserted, CKE remains low, and the current ninth-lane policy
 is zero-filled ECC/spare rather than real ECC.
 
+Hardware note: the live SERDES init-only target
+`ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream` keeps the same full x9
+SERDES/IDELAY shell while enabling DDR3 reset/CKE/ODT/CK/address/command pins
+and blocking DDR Wishbone access. Its DQ/DQS IDELAYE2 cells use `VAR_LOAD` and
+are driven by host `SET_CAL` commands through a per-physical-lane CDC toggle
+into `clk_sys`, so future read-leveling code can sweep taps without relying on
+a one-cycle cross-domain pulse. The 2026-05-20 seed-1 router1 run generated a
+bitstream with 162 OSERDESE2, 162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF,
+18 DQS IOBUFDS, and 6 IDELAYCTRL cells. Post-route max-frequency reporting
+showed `SYS_CLK` at 118.60 MHz, `clk_sys` at 125.80 MHz, `clk_idelay_ref` at
+773.99 MHz, `clk_dq` at 719.94 MHz, and `clk_ddr` at 1557.63 MHz. This is still
+not external DDR3 storage validation because DQ/DQS read/write leveling and the
+memory write/read validator are not live yet.
+
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler
 transfer-start pulses. It gives the future board wrapper one clean abstract

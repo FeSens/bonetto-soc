@@ -123,6 +123,8 @@ module top_ddr3_dq_dqs_serdes_lane_probe (
         .i_dq_oe(burst_oe),
         .i_dqs_oe(burst_oe),
         .i_bitslip(1'b0),
+        .i_idelay_load(1'b0),
+        .i_idelay_tap(5'd0),
         .o_dq_bits(rd_bits),
         .o_dqs_bits(rd_dqs_bits),
         .io_dq(ddr3_dq),

@@ -71,7 +71,9 @@ combines the clean dual-channel line controller, real DDR3 reset/CKE/command
 pins, and the full x9 CH0 + CH1 SERDES/IDELAY DQ/DQS shell. DDR Wishbone
 access is intentionally blocked in this image so JTAG cannot issue
 uncalibrated external storage reads or writes before read/write leveling
-exists.
+exists. Its DQ and DQS IDELAYE2 cells use `VAR_LOAD`; host `SET_CAL` commands
+now cross safely from the JTAG/Wishbone clock into `clk_sys` and issue a
+per-lane IDELAY load pulse with the requested tap.
 
 ## Historical DDR3 Configuration
 

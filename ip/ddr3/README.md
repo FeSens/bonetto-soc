@@ -391,11 +391,14 @@ What these mean today:
   It drives DDR3 reset/CKE/ODT/CK/address/command pins and blocks DDR Wishbone
   access so uncalibrated external storage traffic cannot be launched. Its XVC
   validator requires the block flag and performs one blocked DDR write/read
-  check, expecting `ack+err` and the blocked-read sentinel. The 2026-05-20
-  seed-1 route generated a bitstream with 162 OSERDESE2,
+  check, expecting `ack+err` and the blocked-read sentinel. The DQ/DQS
+  IDELAYE2 cells are host-loadable through `SET_CAL`, with per-lane request
+  toggles crossing safely from the JTAG/Wishbone clock domain into `clk_sys`
+  before IDELAY `LD` is asserted. The 2026-05-20 seed-1 route generated a
+  bitstream with 162 OSERDESE2,
   162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF, 18 DQS IOBUFDS, and
-  6 IDELAYCTRL cells. Post-route max frequencies were `SYS_CLK` 118.11 MHz,
-  `clk_sys` 137.48 MHz, `clk_idelay_ref` 747.94 MHz, `clk_dq` 664.45 MHz, and
+  6 IDELAYCTRL cells. Post-route max frequencies were `SYS_CLK` 118.60 MHz,
+  `clk_sys` 125.80 MHz, `clk_idelay_ref` 773.99 MHz, `clk_dq` 719.94 MHz, and
   `clk_ddr` 1557.63 MHz. Hardware programming and XVC validation are still
   pending a DLC10 replug after the cable wedged during the first program
   attempt.

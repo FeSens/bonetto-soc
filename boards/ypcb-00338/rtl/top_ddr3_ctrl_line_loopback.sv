@@ -226,6 +226,9 @@ module top_ddr3_ctrl_line_loopback #(
     wire [PHY_LANES-1:0]    jwb_cal_load_lane;
     wire [4:0]              jwb_cal_tap;
     wire                    jwb_cal_channel;
+    wire [PHY_LANES-1:0]    jwb_cal_load_phy_lane;
+    reg [PHY_LANES-1:0]     jwb_cal_phy_toggle = {PHY_LANES{1'b0}};
+    reg [PHY_LANES*5-1:0]   jwb_cal_phy_tap = {(PHY_LANES*5){1'b0}};
     wire                    jwb_phase_req;
     wire                    jwb_phase_inc;
 
@@ -262,6 +265,40 @@ module top_ddr3_ctrl_line_loopback #(
         .o_phase_req(jwb_phase_req),
         .o_phase_inc(jwb_phase_inc)
     );
+
+    genvar cal_map_lane;
+    generate
+        for (cal_map_lane = 0; cal_map_lane < PHY_LANES;
+             cal_map_lane = cal_map_lane + 1) begin : gen_cal_lane_map
+            localparam integer CAL_CH = cal_map_lane / PHY_BYTE_LANES;
+            localparam integer CAL_BYTE = cal_map_lane % PHY_BYTE_LANES;
+            if (CAL_CH == 0) begin : gen_cal_ch0
+                assign jwb_cal_load_phy_lane[cal_map_lane] =
+                    !jwb_cal_channel && jwb_cal_load_lane[cal_map_lane];
+            end else begin : gen_cal_ch1
+                assign jwb_cal_load_phy_lane[cal_map_lane] =
+                    jwb_cal_channel ? jwb_cal_load_lane[CAL_BYTE] :
+                                      jwb_cal_load_lane[cal_map_lane];
+            end
+        end
+    endgenerate
+
+    integer cal_lane_idx;
+    always @(posedge ctrl_clk) begin
+        if (ctrl_rst) begin
+            jwb_cal_phy_toggle <= {PHY_LANES{1'b0}};
+            jwb_cal_phy_tap <= {(PHY_LANES*5){1'b0}};
+        end else begin
+            for (cal_lane_idx = 0; cal_lane_idx < PHY_LANES;
+                 cal_lane_idx = cal_lane_idx + 1) begin
+                if (jwb_cal_load_phy_lane[cal_lane_idx]) begin
+                    jwb_cal_phy_toggle[cal_lane_idx] <=
+                        !jwb_cal_phy_toggle[cal_lane_idx];
+                    jwb_cal_phy_tap[cal_lane_idx*5 +: 5] <= jwb_cal_tap;
+                end
+            end
+        end
+    end
 
     wire bram_sel = !jwb_adr[14];
     wire ddr_sel = jwb_adr[14];
@@ -980,6 +1017,36 @@ module top_ddr3_ctrl_line_loopback #(
                     serdes_lane / PHY_BYTE_LANES;
                 localparam integer SERDES_BYTE =
                     serdes_lane % PHY_BYTE_LANES;
+                reg [2:0] serdes_cal_toggle_sys = 3'b000;
+                reg [4:0] serdes_cal_tap_meta = 5'd0;
+                reg [4:0] serdes_cal_tap_sync = 5'd0;
+                reg [4:0] serdes_cal_tap_load = 5'd0;
+                reg       serdes_cal_load_pending = 1'b0;
+                reg       serdes_cal_load_sys = 1'b0;
+                wire      serdes_cal_toggle_seen =
+                    serdes_cal_toggle_sys[2] ^ serdes_cal_toggle_sys[1];
+                always @(posedge clk_sys) begin
+                    if (line_serdes_rst) begin
+                        serdes_cal_toggle_sys <= 3'b000;
+                        serdes_cal_tap_meta <= 5'd0;
+                        serdes_cal_tap_sync <= 5'd0;
+                        serdes_cal_tap_load <= 5'd0;
+                        serdes_cal_load_pending <= 1'b0;
+                        serdes_cal_load_sys <= 1'b0;
+                    end else begin
+                        serdes_cal_toggle_sys <= {
+                            serdes_cal_toggle_sys[1:0],
+                            jwb_cal_phy_toggle[serdes_lane]
+                        };
+                        serdes_cal_tap_meta <=
+                            jwb_cal_phy_tap[serdes_lane*5 +: 5];
+                        serdes_cal_tap_sync <= serdes_cal_tap_meta;
+                        serdes_cal_load_pending <= serdes_cal_toggle_seen;
+                        serdes_cal_load_sys <= serdes_cal_load_pending;
+                        if (serdes_cal_toggle_seen)
+                            serdes_cal_tap_load <= serdes_cal_tap_sync;
+                    end
+                end
 
                 if (SERDES_CH == 0) begin : gen_ch0_serdes
                     ddr3_x8_serdes_io_7series u_serdes_io (
@@ -995,6 +1062,8 @@ module top_ddr3_ctrl_line_loopback #(
                         .i_dqs_oe(
                             line_serdes_dqs_oe[serdes_lane*4 +: 4]),
                         .i_bitslip(1'b0),
+                        .i_idelay_load(serdes_cal_load_sys),
+                        .i_idelay_tap(serdes_cal_tap_load),
                         .o_dq_bits(
                             line_serdes_dq_in_bits[serdes_lane*64 +: 64]),
                         .o_dqs_bits(
@@ -1017,6 +1086,8 @@ module top_ddr3_ctrl_line_loopback #(
                         .i_dqs_oe(
                             line_serdes_dqs_oe[serdes_lane*4 +: 4]),
                         .i_bitslip(1'b0),
+                        .i_idelay_load(serdes_cal_load_sys),
+                        .i_idelay_tap(serdes_cal_tap_load),
                         .o_dq_bits(
                             line_serdes_dq_in_bits[serdes_lane*64 +: 64]),
                         .o_dqs_bits(

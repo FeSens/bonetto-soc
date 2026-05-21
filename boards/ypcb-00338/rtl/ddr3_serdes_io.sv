@@ -22,6 +22,8 @@ module ddr3_x8_serdes_io_7series #(
     input  wire [3:0]  i_dq_oe,
     input  wire [3:0]  i_dqs_oe,
     input  wire        i_bitslip,
+    input  wire        i_idelay_load,
+    input  wire [4:0]  i_idelay_tap,
     output wire [63:0] o_dq_bits,
     output wire [7:0]  o_dqs_bits,
     inout  wire [7:0]  io_dq,
@@ -110,7 +112,7 @@ module ddr3_x8_serdes_io_7series #(
                     IDELAYE2 #(
                         .DELAY_SRC("IDATAIN"),
                         .HIGH_PERFORMANCE_MODE("TRUE"),
-                        .IDELAY_TYPE("FIXED"),
+                        .IDELAY_TYPE("VAR_LOAD"),
                         .IDELAY_VALUE(IDELAY_TAPS),
                         .REFCLK_FREQUENCY(200.0),
                         .SIGNAL_PATTERN("DATA")
@@ -120,11 +122,11 @@ module ddr3_x8_serdes_io_7series #(
                         .C(i_clk_div),
                         .CE(1'b0),
                         .CINVCTRL(1'b0),
-                        .CNTVALUEIN(5'd0),
+                        .CNTVALUEIN(i_idelay_tap),
                         .DATAIN(1'b0),
                         .IDATAIN(dq_in),
                         .INC(1'b0),
-                        .LD(1'b0),
+                        .LD(i_idelay_load),
                         .LDPIPEEN(1'b0),
                         .REGRST(i_rst)
                     );
@@ -329,7 +331,7 @@ module ddr3_x8_serdes_io_7series #(
                 IDELAYE2 #(
                     .DELAY_SRC("IDATAIN"),
                     .HIGH_PERFORMANCE_MODE("TRUE"),
-                    .IDELAY_TYPE("FIXED"),
+                    .IDELAY_TYPE("VAR_LOAD"),
                     .IDELAY_VALUE(IDELAY_TAPS),
                     .REFCLK_FREQUENCY(200.0),
                     .SIGNAL_PATTERN("CLOCK")
@@ -339,11 +341,11 @@ module ddr3_x8_serdes_io_7series #(
                     .C(i_clk_div),
                     .CE(1'b0),
                     .CINVCTRL(1'b0),
-                    .CNTVALUEIN(5'd0),
+                    .CNTVALUEIN(i_idelay_tap),
                     .DATAIN(1'b0),
                     .IDATAIN(dqs_in),
                     .INC(1'b0),
-                    .LD(1'b0),
+                    .LD(i_idelay_load),
                     .LDPIPEEN(1'b0),
                     .REGRST(i_rst)
                 );
@@ -453,6 +455,8 @@ module ddr3_x8_serdes_io_7series #(
             assign o_dqs_bits = 8'd0;
         end
     endgenerate
+
+    wire _unused = &{1'b0, i_idelay_load, i_idelay_tap, 1'b0};
 endmodule
 
 `default_nettype wire
