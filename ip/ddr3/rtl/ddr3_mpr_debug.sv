@@ -34,6 +34,8 @@ module ddr3_mpr_debug #(
     output reg  [CHANNELS*BANK_BITS-1:0] o_ba,
     output reg  [CHANNELS*ADDR_BITS-1:0] o_addr,
 
+    output reg                          o_capture_arm_pulse,
+    output reg  [4:0]                   o_capture_arm_lane,
     output reg                          o_capture_pulse,
     output reg  [4:0]                   o_capture_lane,
 
@@ -43,6 +45,7 @@ module ddr3_mpr_debug #(
     output reg  [3:0]                   o_state,
     output reg  [4:0]                   o_selected_lane,
     output reg  [7:0]                   o_capture_delay,
+    output reg                          o_capture_swap_edges,
     output reg  [7:0]                   o_cmd_count,
     output reg  [7:0]                   o_read_count,
     output reg  [7:0]                   o_capture_count,
@@ -87,6 +90,7 @@ module ddr3_mpr_debug #(
     wire cmd_clear_rddbg = i_cmd_valid && (cmd == CMD_CLEAR_RDDBG);
     wire cmd_starts_op = cmd_mpr_en || cmd_mpr_dis || cmd_mpr_read;
     wire payload_channel = i_cmd_word[16];
+    wire payload_swap_edges = i_cmd_word[17];
     wire [4:0] payload_lane = i_cmd_word[4:0];
     wire [7:0] payload_delay = i_cmd_word[15:8];
     wire [12:0] payload_addr = i_cmd_word[12:0];
@@ -139,12 +143,15 @@ module ddr3_mpr_debug #(
 
     initial begin
         o_capture_pulse = 1'b0;
+        o_capture_arm_pulse = 1'b0;
+        o_capture_arm_lane = 5'd0;
         o_capture_lane = 5'd0;
         o_error = 1'b0;
         o_mpr_enabled = {CHANNELS{1'b0}};
         o_state = ST_IDLE;
         o_selected_lane = 5'd0;
         o_capture_delay = CAPTURE_DELAY_INIT;
+        o_capture_swap_edges = 1'b0;
         o_cmd_count = 8'd0;
         o_read_count = 8'd0;
         o_capture_count = 8'd0;
@@ -159,12 +166,15 @@ module ddr3_mpr_debug #(
         if (i_rst) begin
             clear_cmd_outputs();
             o_capture_pulse <= 1'b0;
+            o_capture_arm_pulse <= 1'b0;
+            o_capture_arm_lane <= 5'd0;
             o_capture_lane <= 5'd0;
             o_error <= 1'b0;
             o_mpr_enabled <= {CHANNELS{1'b0}};
             o_state <= ST_IDLE;
             o_selected_lane <= 5'd0;
             o_capture_delay <= CAPTURE_DELAY_INIT;
+            o_capture_swap_edges <= 1'b0;
             o_cmd_count <= 8'd0;
             o_read_count <= 8'd0;
             o_capture_count <= 8'd0;
@@ -175,6 +185,7 @@ module ddr3_mpr_debug #(
         end else begin
             clear_cmd_outputs();
             o_capture_pulse <= 1'b0;
+            o_capture_arm_pulse <= 1'b0;
 
             if (cmd_clear_rddbg && !o_busy) begin
                 o_error <= 1'b0;
@@ -189,6 +200,7 @@ module ddr3_mpr_debug #(
                     o_selected_lane <= to_physical_lane(
                         payload_channel, payload_lane);
                     o_capture_delay <= payload_delay;
+                    o_capture_swap_edges <= payload_swap_edges;
                 end else begin
                     o_error <= 1'b1;
                 end
@@ -230,6 +242,10 @@ module ddr3_mpr_debug #(
                     if (i_ctrl_cmd_active[target_channel]) begin
                         wait_left <= QUIET_SETTLE_INIT;
                     end else if (wait_left == {WAIT_W{1'b0}}) begin
+                        if (op == OP_READ) begin
+                            o_capture_arm_pulse <= 1'b1;
+                            o_capture_arm_lane <= o_selected_lane;
+                        end
                         o_state <= ST_ISSUE;
                     end else begin
                         wait_left <= wait_left - 1'b1;

@@ -21,6 +21,8 @@ module tb_mpr_debug;
     wire [CHANNELS-1:0] we_n;
     wire [CHANNELS*BANK_BITS-1:0] ba;
     wire [CHANNELS*ADDR_BITS-1:0] addr;
+    wire capture_arm_pulse;
+    wire [4:0] capture_arm_lane;
     wire capture_pulse;
     wire [4:0] capture_lane;
     wire busy;
@@ -29,6 +31,7 @@ module tb_mpr_debug;
     wire [3:0] state;
     wire [4:0] selected_lane;
     wire [7:0] capture_delay;
+    wire capture_swap_edges;
     wire [7:0] cmd_count;
     wire [7:0] read_count;
     wire [7:0] capture_count;
@@ -56,6 +59,8 @@ module tb_mpr_debug;
         .o_we_n(we_n),
         .o_ba(ba),
         .o_addr(addr),
+        .o_capture_arm_pulse(capture_arm_pulse),
+        .o_capture_arm_lane(capture_arm_lane),
         .o_capture_pulse(capture_pulse),
         .o_capture_lane(capture_lane),
         .o_busy(busy),
@@ -64,6 +69,7 @@ module tb_mpr_debug;
         .o_state(state),
         .o_selected_lane(selected_lane),
         .o_capture_delay(capture_delay),
+        .o_capture_swap_edges(capture_swap_edges),
         .o_cmd_count(cmd_count),
         .o_read_count(read_count),
         .o_capture_count(capture_count),
@@ -83,6 +89,34 @@ module tb_mpr_debug;
         end
     endtask
 
+    task wait_arm_one_cycle;
+        input [4:0] exp_lane;
+        integer timeout;
+        begin
+            timeout = 0;
+            while (!capture_arm_pulse && timeout < 40) begin
+                timeout = timeout + 1;
+                @(posedge clk);
+                #1;
+            end
+            if (timeout >= 40) begin
+                $display("[mpr-debug] missing arm pulse before read");
+                $fatal(1);
+            end
+            if (!capture_arm_pulse || capture_arm_lane !== exp_lane) begin
+                $display("[mpr-debug] missing arm pulse lane=%0d exp=%0d pulse=%0d",
+                         capture_arm_lane, exp_lane, capture_arm_pulse);
+                $fatal(1);
+            end
+            @(posedge clk);
+            #1;
+            if (capture_arm_pulse) begin
+                $display("[mpr-debug] arm pulse was not one cycle");
+                $fatal(1);
+            end
+        end
+    endtask
+
     task wait_idle;
         integer timeout;
         begin
@@ -93,6 +127,16 @@ module tb_mpr_debug;
             end
             if (timeout >= 80) begin
                 $display("[mpr-debug] timeout state=%0d", state);
+                $fatal(1);
+            end
+        end
+    endtask
+
+    task expect_no_arm_now;
+        begin
+            if (capture_arm_pulse) begin
+                $display("[mpr-debug] unexpected early arm pulse lane=%0d",
+                         capture_arm_lane);
                 $fatal(1);
             end
         end
@@ -139,16 +183,18 @@ module tb_mpr_debug;
         rst = 1'b0;
 
         send_cmd(8'hEE, 24'h01_0203); // channel 1, delay 2, local lane 3
-        if (selected_lane !== 5'd12 || capture_delay !== 8'd2) begin
-            $display("[mpr-debug] select mismatch lane=%0d delay=%0d",
-                     selected_lane, capture_delay);
+        if (selected_lane !== 5'd12 || capture_delay !== 8'd2 ||
+            capture_swap_edges) begin
+            $display("[mpr-debug] select mismatch lane=%0d delay=%0d swap=%0d",
+                     selected_lane, capture_delay, capture_swap_edges);
             $fatal(1);
         end
 
-        send_cmd(8'hEE, 24'h00_0102); // channel 0, delay 1, local lane 2
-        if (selected_lane !== 5'd2 || capture_delay !== 8'd1) begin
-            $display("[mpr-debug] ch0 select mismatch lane=%0d delay=%0d",
-                     selected_lane, capture_delay);
+        send_cmd(8'hEE, 24'h02_0102); // ch0, swap edges, delay 1, lane 2
+        if (selected_lane !== 5'd2 || capture_delay !== 8'd1 ||
+            !capture_swap_edges) begin
+            $display("[mpr-debug] ch0 select mismatch lane=%0d delay=%0d swap=%0d",
+                     selected_lane, capture_delay, capture_swap_edges);
             $fatal(1);
         end
 
@@ -169,6 +215,8 @@ module tb_mpr_debug;
         end
 
         send_cmd(8'hED, 24'h00_0010);
+        expect_no_arm_now();
+        wait_arm_one_cycle(5'd2);
         wait_cmd(1'b0, 4'b0101, 3'd0, 15'h1010);
         wait_idle();
         if (capture_count !== 8'd1 || capture_lane !== 5'd2 ||
@@ -187,10 +235,11 @@ module tb_mpr_debug;
             $fatal(1);
         end
 
-        send_cmd(8'hEE, 24'h01_0203); // channel 1, delay 2, local lane 3
-        if (selected_lane !== 5'd12 || capture_delay !== 8'd2) begin
-            $display("[mpr-debug] ch1 select mismatch lane=%0d delay=%0d",
-                     selected_lane, capture_delay);
+        send_cmd(8'hEE, 24'h03_0203); // ch1, swap edges, delay 2, lane 3
+        if (selected_lane !== 5'd12 || capture_delay !== 8'd2 ||
+            !capture_swap_edges) begin
+            $display("[mpr-debug] ch1 select mismatch lane=%0d delay=%0d swap=%0d",
+                     selected_lane, capture_delay, capture_swap_edges);
             $fatal(1);
         end
 
@@ -215,6 +264,8 @@ module tb_mpr_debug;
         end
 
         send_cmd(8'hED, 24'h01_0018);
+        expect_no_arm_now();
+        wait_arm_one_cycle(5'd12);
         wait_cmd(1'b1, 4'b0101, 3'd0, 15'h1018);
         wait_idle();
         if (capture_count !== 8'd2 || capture_lane !== 5'd12 ||

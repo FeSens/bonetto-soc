@@ -245,16 +245,23 @@ def jwb_mpr_read(xvc, addr: int = 0x1000, channel: int = 0):
     jwb_cmd(xvc, JWB_CMD_MPR_READ, payload)
 
 
-def jwb_select_rddbg(xvc, lane: int, channel: int = 0, delay: int = 0):
+def jwb_select_rddbg(
+        xvc, lane: int, channel: int = 0, delay: int = 0,
+        swap_edges: bool = False):
     """Select the SERDES/MPR capture lane and capture timing byte.
 
-    In iter 0x0d9a+, MPR captures read back a DQS-edge frame. delay[3:0]
-    is the post-read controller wait; delay[6:4] selects how many clk_sys
-    frames before the DQS edge should be exported. In iter 0x0d9b+, delay[7]
-    selects the DQS-clocked IDDR probe instead of the global-clock SERDES
-    edge-window frame.
+    The delay byte selects the capture mode/timing. delay[3:0] is the
+    post-read controller wait. In SERDES-edge mode, delay[6:4] selects which
+    recent clk_sys frame is exported. delay[7] selects the DQS-clocked IDDR
+    probe. Some experimental DQS-IDDR images also use delay[6:4] as a DQS
+    pair skip count before freezing a BL8 word; the current mapped-MPR board
+    image ignores that field. The RDDBG payload bit 17 toggles DQS-IDDR
+    rise/fall byte order on top of the bitstream's static lane mask.
     """
-    payload = ((channel & 1) << 16) | ((delay & 0xFF) << 8) | (lane & 0x1F)
+    payload = (((1 if swap_edges else 0) << 17) |
+               ((channel & 1) << 16) |
+               ((delay & 0xFF) << 8) |
+               (lane & 0x1F))
     jwb_cmd(xvc, JWB_CMD_RDDBG_SEL, payload)
 
 
@@ -569,11 +576,11 @@ def decode_refresh_count(w: int) -> str:
 
 
 def decode_serdes_capture_cfg(w: int) -> str:
-    raw_hi = (w >> 8) & 0xF
     return (
         f"magic=0x{w>>16:04x} dqs_iddr_en={(w>>15)&1} "
         f"dqs_iddr={(w>>14)&1} "
-        f"raw_cfg_hi=0x{raw_hi:x} raw_dqs_iddr={(raw_hi>>3)&1} "
+        f"runtime_swap={(w>>12)&1} "
+        f"dqs_skip={(w>>9)&0x7} raw_dqs_iddr={(w>>8)&1} "
         f"history_age={(w>>4)&0x7} "
         f"wait={w&0xF}"
     )
@@ -600,6 +607,40 @@ def decode_serdes_dqs_map(w: int) -> str:
         f"magic=0x{w>>16:04x} enabled={(w>>15)&1} "
         f"dq_lane={(w>>10)&0x1F} dqs_lane={(w>>5)&0x1F} "
         f"edge_count_lo5={w&0x1F}"
+    )
+
+
+def decode_serdes_dqs_arm(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} pending={(w>>15)&1} "
+        f"settling={(w>>14)&1} capture_en={(w>>13)&1} "
+        f"last_dqs_iddr={(w>>12)&1} window={(w>>7)&0x1F} "
+        f"lane={(w>>2)&0x1F} settle={w&0x3}"
+    )
+
+
+def decode_serdes_dqs_arm_count(w: int) -> str:
+    return f"magic=0x{w>>16:04x} count={w & 0xFFFF}"
+
+
+def decode_serdes_dqs_arm_payload(w: int) -> str:
+    cfg = w & 0xFF
+    return (
+        f"magic=0x{w>>16:04x} runtime_swap={(w>>13)&1} "
+        f"lane={(w>>8)&0x1F} cfg=0x{cfg:02x} "
+        f"dqs_iddr={(cfg>>7)&1} skip={(cfg>>4)&0x7} wait={cfg&0xF}"
+    )
+
+
+def decode_serdes_dqs_arm_onehot(w: int) -> str:
+    return f"magic=0x{w>>16:04x} onehot=0x{w & 0xFFFF:04x}"
+
+
+def decode_serdes_dqs_iddr_src(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} mapped={(w>>15)&1} "
+        f"valid={(w>>14)&1} dqs_lane={(w>>5)&0x1F} "
+        f"dq_lane={w&0x1F}"
     )
 
 
@@ -681,6 +722,12 @@ REG_DECODERS = {
     0x49: ("SERDES_DQS_IDDR_DQIDELAY_HI", decode_serdes_dqs_iddr_dq_idelay_hi),
     0x4A: ("SERDES_DQS_MAP_CH0_L2", decode_serdes_dqs_map),
     0x4B: ("SERDES_DQS_MAP_CH1_L0", decode_serdes_dqs_map),
+    0x4C: ("SERDES_DQS_IDDR_ARM", decode_serdes_dqs_arm),
+    0x4D: ("SERDES_DQS_IDDR_ARM_COUNT", decode_serdes_dqs_arm_count),
+    0x4E: ("SERDES_DQS_IDDR_ARM_PAYLOAD", decode_serdes_dqs_arm_payload),
+    0x4F: ("SERDES_DQS_IDDR_ARM_ONEHOT_LO", decode_serdes_dqs_arm_onehot),
+    0x50: ("SERDES_DQS_IDDR_ARM_ONEHOT_HI", decode_serdes_dqs_arm_onehot),
+    0x51: ("SERDES_DQS_IDDR_SRC", decode_serdes_dqs_iddr_src),
     0x1D: ("DDR3_CH0_RDDBG_FLAGS", decode_rd_dbg_flags),
     0x1E: ("DDR3_CH0_RDDBG_READ_COUNTS", decode_rd_dbg_read_counts),
     0x1F: ("DDR3_CH0_RDDBG_WRITE_COUNTS", decode_rd_dbg_write_counts),

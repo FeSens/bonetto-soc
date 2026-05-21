@@ -92,10 +92,12 @@ module top_ddr3_ctrl_line_loopback #(
     localparam integer LINE_ADDR_W =
         `DDR3_BANK_BITS + `DDR3_ROW_BITS + (`DDR3_COL_BITS - 3);
     localparam integer PHY_LANES = CHANNELS * PHY_BYTE_LANES;
+    localparam [5:0] PHY_LANES_L = PHY_LANES;
     localparam integer LINE_BYTES = LANES * 8;
     localparam integer LINE_DATA_W = LINE_BYTES * 8;
     localparam integer PHY_LINE_BYTES = PHY_BYTE_LANES * 8;
     localparam integer PHY_LINE_DATA_W = PHY_LINE_BYTES * 8;
+    localparam [9:0] DQS_IDDR_CAPTURE_WINDOW_CYCLES = 10'd31;
     localparam [7:0] STATUS_DATA_LANES = LANES;
     localparam [7:0] STATUS_PHY_BYTE_LANES = PHY_BYTE_LANES;
     localparam integer USE_MAPPED_DQS_IDDR =
@@ -416,6 +418,8 @@ module top_ddr3_ctrl_line_loopback #(
     wire [CHANNELS-1:0] mpr_we_n_w;
     wire [CHANNELS*BANK_BITS-1:0] mpr_ba_w;
     wire [CHANNELS*ADDR_BITS-1:0] mpr_addr_w;
+    wire mpr_capture_arm_pulse_ctrl;
+    wire [4:0] mpr_capture_arm_lane_ctrl;
     wire mpr_capture_pulse_ctrl;
     wire [4:0] mpr_capture_lane_ctrl;
     wire mpr_busy;
@@ -424,6 +428,7 @@ module top_ddr3_ctrl_line_loopback #(
     wire [3:0] mpr_state;
     wire [4:0] mpr_selected_lane;
     wire [7:0] mpr_capture_delay;
+    wire mpr_capture_swap_edges;
     wire [7:0] mpr_cmd_count;
     wire [7:0] mpr_read_count;
     wire [7:0] mpr_capture_count;
@@ -562,6 +567,8 @@ module top_ddr3_ctrl_line_loopback #(
         .o_we_n(mpr_we_n_w),
         .o_ba(mpr_ba_w),
         .o_addr(mpr_addr_w),
+        .o_capture_arm_pulse(mpr_capture_arm_pulse_ctrl),
+        .o_capture_arm_lane(mpr_capture_arm_lane_ctrl),
         .o_capture_pulse(mpr_capture_pulse_ctrl),
         .o_capture_lane(mpr_capture_lane_ctrl),
         .o_busy(mpr_busy),
@@ -570,6 +577,7 @@ module top_ddr3_ctrl_line_loopback #(
         .o_state(mpr_state),
         .o_selected_lane(mpr_selected_lane),
         .o_capture_delay(mpr_capture_delay),
+        .o_capture_swap_edges(mpr_capture_swap_edges),
         .o_cmd_count(mpr_cmd_count),
         .o_read_count(mpr_read_count),
         .o_capture_count(mpr_capture_count),
@@ -725,9 +733,33 @@ module top_ddr3_ctrl_line_loopback #(
     reg [7:0]               mpr_capture_cfg_sys = 8'd0;
     reg [7:0]               mpr_capture_cfg_live_sys_meta = 8'd0;
     reg [7:0]               mpr_capture_cfg_live_sys = 8'd0;
+    reg                     mpr_capture_swap_live_sys_meta = 1'b0;
+    reg                     mpr_capture_swap_live_sys = 1'b0;
     reg                     mpr_capture_pending_sys = 1'b0;
     reg [3:0]               mpr_capture_wait_sys = 4'd0;
     reg [PHY_LANES-1:0]     mpr_capture_lane_onehot_sys_q = {PHY_LANES{1'b0}};
+    reg                     dqs_iddr_arm_toggle_ctrl = 1'b0;
+    reg [4:0]               dqs_iddr_arm_lane_hold_ctrl = 5'd0;
+    reg [7:0]               dqs_iddr_arm_cfg_hold_ctrl = 8'd0;
+    reg                     dqs_iddr_arm_swap_hold_ctrl = 1'b0;
+    reg [2:0]               dqs_iddr_arm_toggle_sys_sr = 3'b000;
+    reg [4:0]               dqs_iddr_arm_lane_sys_meta = 5'd0;
+    reg [4:0]               dqs_iddr_arm_lane_sys = 5'd0;
+    reg [7:0]               dqs_iddr_arm_cfg_sys_meta = 8'd0;
+    reg [7:0]               dqs_iddr_arm_cfg_sys = 8'd0;
+    reg                     dqs_iddr_arm_swap_sys_meta = 1'b0;
+    reg                     dqs_iddr_arm_swap_sys = 1'b0;
+    reg                     dqs_iddr_arm_pending_sys = 1'b0;
+    reg [1:0]               dqs_iddr_arm_settle_sys = 2'd0;
+    reg [15:0]              dqs_iddr_arm_count_sys = 16'd0;
+    reg [4:0]               dqs_iddr_arm_last_lane_sys = 5'd0;
+    reg [7:0]               dqs_iddr_arm_last_cfg_sys = 8'd0;
+    reg                     dqs_iddr_arm_last_swap_sys = 1'b0;
+    reg [PHY_LANES-1:0]     dqs_iddr_arm_last_onehot_sys =
+        {PHY_LANES{1'b0}};
+    reg [PHY_LANES-1:0]     dqs_iddr_capture_enable_sys =
+        {PHY_LANES{1'b0}};
+    reg [9:0]               dqs_iddr_capture_window_sys = 10'd0;
 
     always @(posedge ctrl_clk) begin
         if (ctrl_rst) begin
@@ -741,6 +773,20 @@ module top_ddr3_ctrl_line_loopback #(
         end
     end
 
+    always @(posedge ctrl_clk) begin
+        if (ctrl_rst) begin
+            dqs_iddr_arm_toggle_ctrl <= 1'b0;
+            dqs_iddr_arm_lane_hold_ctrl <= 5'd0;
+            dqs_iddr_arm_cfg_hold_ctrl <= 8'd0;
+            dqs_iddr_arm_swap_hold_ctrl <= 1'b0;
+        end else if (mpr_capture_arm_pulse_ctrl) begin
+            dqs_iddr_arm_toggle_ctrl <= !dqs_iddr_arm_toggle_ctrl;
+            dqs_iddr_arm_lane_hold_ctrl <= mpr_capture_arm_lane_ctrl;
+            dqs_iddr_arm_cfg_hold_ctrl <= mpr_capture_delay;
+            dqs_iddr_arm_swap_hold_ctrl <= mpr_capture_swap_edges;
+        end
+    end
+
     always @(posedge clk_sys) begin
         if (line_serdes_rst) begin
             mpr_capture_toggle_sys_sr <= 3'b000;
@@ -750,13 +796,35 @@ module top_ddr3_ctrl_line_loopback #(
             mpr_capture_cfg_sys <= 8'd0;
             mpr_capture_cfg_live_sys_meta <= 8'd0;
             mpr_capture_cfg_live_sys <= 8'd0;
+            mpr_capture_swap_live_sys_meta <= 1'b0;
+            mpr_capture_swap_live_sys <= 1'b0;
             mpr_capture_pending_sys <= 1'b0;
             mpr_capture_wait_sys <= 4'd0;
             mpr_capture_lane_onehot_sys_q <= {PHY_LANES{1'b0}};
+            dqs_iddr_arm_toggle_sys_sr <= 3'b000;
+            dqs_iddr_arm_lane_sys_meta <= 5'd0;
+            dqs_iddr_arm_lane_sys <= 5'd0;
+            dqs_iddr_arm_cfg_sys_meta <= 8'd0;
+            dqs_iddr_arm_cfg_sys <= 8'd0;
+            dqs_iddr_arm_swap_sys_meta <= 1'b0;
+            dqs_iddr_arm_swap_sys <= 1'b0;
+            dqs_iddr_arm_pending_sys <= 1'b0;
+            dqs_iddr_arm_settle_sys <= 2'd0;
+            dqs_iddr_arm_count_sys <= 16'd0;
+            dqs_iddr_arm_last_lane_sys <= 5'd0;
+            dqs_iddr_arm_last_cfg_sys <= 8'd0;
+            dqs_iddr_arm_last_swap_sys <= 1'b0;
+            dqs_iddr_arm_last_onehot_sys <= {PHY_LANES{1'b0}};
+            dqs_iddr_capture_enable_sys <= {PHY_LANES{1'b0}};
+            dqs_iddr_capture_window_sys <= 10'd0;
         end else begin
             mpr_capture_toggle_sys_sr <= {
                 mpr_capture_toggle_sys_sr[1:0],
                 mpr_capture_toggle_ctrl
+            };
+            dqs_iddr_arm_toggle_sys_sr <= {
+                dqs_iddr_arm_toggle_sys_sr[1:0],
+                dqs_iddr_arm_toggle_ctrl
             };
             mpr_capture_lane_sys_meta <= mpr_capture_lane_hold_ctrl;
             mpr_capture_lane_sys <= mpr_capture_lane_sys_meta;
@@ -764,7 +832,46 @@ module top_ddr3_ctrl_line_loopback #(
             mpr_capture_cfg_sys <= mpr_capture_cfg_sys_meta;
             mpr_capture_cfg_live_sys_meta <= mpr_capture_delay;
             mpr_capture_cfg_live_sys <= mpr_capture_cfg_live_sys_meta;
+            mpr_capture_swap_live_sys_meta <= mpr_capture_swap_edges;
+            mpr_capture_swap_live_sys <= mpr_capture_swap_live_sys_meta;
+            dqs_iddr_arm_lane_sys_meta <= dqs_iddr_arm_lane_hold_ctrl;
+            dqs_iddr_arm_lane_sys <= dqs_iddr_arm_lane_sys_meta;
+            dqs_iddr_arm_cfg_sys_meta <= dqs_iddr_arm_cfg_hold_ctrl;
+            dqs_iddr_arm_cfg_sys <= dqs_iddr_arm_cfg_sys_meta;
+            dqs_iddr_arm_swap_sys_meta <= dqs_iddr_arm_swap_hold_ctrl;
+            dqs_iddr_arm_swap_sys <= dqs_iddr_arm_swap_sys_meta;
             mpr_capture_lane_onehot_sys_q <= {PHY_LANES{1'b0}};
+
+            if (dqs_iddr_arm_event_sys) begin
+                dqs_iddr_arm_pending_sys <= 1'b1;
+                dqs_iddr_arm_settle_sys <= 2'd2;
+            end else if (dqs_iddr_arm_pending_sys &&
+                         (dqs_iddr_arm_settle_sys != 2'd0)) begin
+                dqs_iddr_arm_settle_sys <= dqs_iddr_arm_settle_sys - 2'd1;
+            end else if (dqs_iddr_arm_pending_sys) begin
+                dqs_iddr_arm_pending_sys <= 1'b0;
+                dqs_iddr_arm_last_lane_sys <= dqs_iddr_arm_lane_sys;
+                dqs_iddr_arm_last_cfg_sys <= dqs_iddr_arm_cfg_sys;
+                dqs_iddr_arm_last_swap_sys <= dqs_iddr_arm_swap_sys;
+                dqs_iddr_arm_last_onehot_sys <=
+                    phy_lane_onehot(dqs_iddr_arm_lane_sys);
+                dqs_iddr_arm_count_sys <= dqs_iddr_arm_count_sys + 16'd1;
+
+                if (dqs_iddr_arm_cfg_sys[7]) begin
+                    dqs_iddr_capture_enable_sys <=
+                        phy_lane_onehot(dqs_iddr_arm_lane_sys);
+                    dqs_iddr_capture_window_sys <=
+                        DQS_IDDR_CAPTURE_WINDOW_CYCLES;
+                end else begin
+                    dqs_iddr_capture_enable_sys <= {PHY_LANES{1'b0}};
+                    dqs_iddr_capture_window_sys <= 10'd0;
+                end
+            end else if (dqs_iddr_capture_window_sys != 10'd0) begin
+                dqs_iddr_capture_window_sys <=
+                    dqs_iddr_capture_window_sys - 10'd1;
+            end else begin
+                dqs_iddr_capture_enable_sys <= {PHY_LANES{1'b0}};
+            end
 
             if (mpr_capture_event_sys) begin
                 if (mpr_capture_cfg_sys[3:0] == 4'd0) begin
@@ -790,6 +897,8 @@ module top_ddr3_ctrl_line_loopback #(
 
     wire mpr_capture_event_sys =
         mpr_capture_toggle_sys_sr[2] ^ mpr_capture_toggle_sys_sr[1];
+    wire dqs_iddr_arm_event_sys =
+        dqs_iddr_arm_toggle_sys_sr[2] ^ dqs_iddr_arm_toggle_sys_sr[1];
     wire [PHY_LANES-1:0] serdes_capture_lane_req =
         line_serdes_idelay_load | mpr_capture_lane_onehot_sys_q;
     wire serdes_dqs_iddr_probe_enabled = (USE_DQS_IDDR_PROBE != 0);
@@ -797,6 +906,9 @@ module top_ddr3_ctrl_line_loopback #(
         serdes_dqs_iddr_probe_enabled && mpr_capture_cfg_live_sys[7];
     wire [3:0] serdes_edge_history_age =
         {1'b0, mpr_capture_cfg_live_sys[6:4]};
+    wire [2:0] serdes_dqs_iddr_skip_pairs =
+        mpr_capture_cfg_live_sys[6:4];
+    wire serdes_dqs_iddr_swap_edges = mpr_capture_swap_live_sys;
 
     genvar cap_src_lane;
     generate
@@ -1474,6 +1586,11 @@ module top_ddr3_ctrl_line_loopback #(
                         .i_idelay_tap(
                             line_serdes_idelay_tap[serdes_lane*5 +: 5]),
                         .i_history_age(serdes_edge_history_age),
+                        .i_dqs_iddr_swap_edges(serdes_dqs_iddr_swap_edges),
+                        .i_dqs_iddr_skip_pairs(
+                            serdes_dqs_iddr_skip_pairs),
+                        .i_dqs_iddr_capture_enable(
+                            dqs_iddr_capture_enable_sys[serdes_lane]),
                         .o_dq_bits(
                             line_serdes_dq_in_bits[serdes_lane*64 +: 64]),
                         .o_dqs_bits(
@@ -1539,6 +1656,11 @@ module top_ddr3_ctrl_line_loopback #(
                         .i_idelay_tap(
                             line_serdes_idelay_tap[serdes_lane*5 +: 5]),
                         .i_history_age(serdes_edge_history_age),
+                        .i_dqs_iddr_swap_edges(serdes_dqs_iddr_swap_edges),
+                        .i_dqs_iddr_skip_pairs(
+                            serdes_dqs_iddr_skip_pairs),
+                        .i_dqs_iddr_capture_enable(
+                            dqs_iddr_capture_enable_sys[serdes_lane]),
                         .o_dq_bits(
                             line_serdes_dq_in_bits[serdes_lane*64 +: 64]),
                         .o_dqs_bits(
@@ -1625,6 +1747,10 @@ module top_ddr3_ctrl_line_loopback #(
                     .i_rst(line_serdes_rst),
                     .i_dqs_clk(line_serdes_dqs_probe_clk[MAP_DQS_LANE]),
                     .i_dq(line_serdes_dq_probe_in[dqs_map_lane*8 +: 8]),
+                    .i_swap_edges(serdes_dqs_iddr_swap_edges),
+                    .i_capture_enable(
+                        dqs_iddr_capture_enable_sys[dqs_map_lane]),
+                    .i_skip_pairs(serdes_dqs_iddr_skip_pairs),
                     .o_dq_bits(line_serdes_dqs_iddr_dq_bits_map[
                         dqs_map_lane*64 +: 64]),
                     .o_edge_count(line_serdes_dqs_iddr_edge_count_map[
@@ -1845,8 +1971,10 @@ module top_ddr3_ctrl_line_loopback #(
         16'hCA52,
         serdes_dqs_iddr_probe_enabled,
         serdes_capture_use_dqs_iddr,
-        2'd0,
-        mpr_capture_cfg_live_sys[7:4],
+        1'b0,
+        serdes_dqs_iddr_swap_edges,
+        serdes_dqs_iddr_skip_pairs,
+        mpr_capture_cfg_live_sys[7],
         serdes_edge_history_age,
         mpr_capture_cfg_live_sys[3:0]
     };
@@ -1881,6 +2009,49 @@ module top_ddr3_ctrl_line_loopback #(
         5'd9,
         DQS_MAP_CH1_LANE0,
         line_serdes_dqs_iddr_edge_count[9*8 +: 5]
+    };
+    wire [31:0] serdes_dqs_iddr_arm_status = {
+        16'hCA57,
+        dqs_iddr_arm_pending_sys,
+        (dqs_iddr_arm_settle_sys != 2'd0),
+        |dqs_iddr_capture_enable_sys,
+        dqs_iddr_arm_last_cfg_sys[7],
+        dqs_iddr_capture_window_sys[4:0],
+        dqs_iddr_arm_last_lane_sys,
+        dqs_iddr_arm_settle_sys
+    };
+    wire [31:0] serdes_dqs_iddr_arm_count_status = {
+        16'hCA58,
+        dqs_iddr_arm_count_sys
+    };
+    wire [31:0] serdes_dqs_iddr_arm_payload_status = {
+        16'hCA59,
+        2'd0,
+        dqs_iddr_arm_last_swap_sys,
+        dqs_iddr_arm_last_lane_sys,
+        dqs_iddr_arm_last_cfg_sys
+    };
+    wire [31:0] dqs_iddr_arm_last_onehot_ext = {
+        {(32-PHY_LANES){1'b0}},
+        dqs_iddr_arm_last_onehot_sys
+    };
+    wire [31:0] serdes_dqs_iddr_arm_onehot_lo_status = {
+        16'hCA5A,
+        dqs_iddr_arm_last_onehot_ext[15:0]
+    };
+    wire [31:0] serdes_dqs_iddr_arm_onehot_hi_status = {
+        16'hCA5B,
+        dqs_iddr_arm_last_onehot_ext[31:16]
+    };
+    wire [31:0] serdes_dqs_iddr_src_status = {
+        16'hCA62,
+        (USE_MAPPED_DQS_IDDR != 0),
+        ({1'b0, dqs_iddr_arm_last_lane_sys} < PHY_LANES_L),
+        4'd0,
+        (USE_MAPPED_DQS_IDDR != 0) ?
+            DQS_IDDR_CAPTURE_MAP[dqs_iddr_arm_last_lane_sys*5 +: 5] :
+            dqs_iddr_arm_last_lane_sys,
+        dqs_iddr_arm_last_lane_sys
     };
     wire [31:0] status_flags = {
         16'hB07E,
@@ -2005,6 +2176,12 @@ module top_ddr3_ctrl_line_loopback #(
             8'h49: status_word = serdes_dqs_iddr_dq_idelay_hi_status;
             8'h4A: status_word = serdes_dqs_map_ch0_status;
             8'h4B: status_word = serdes_dqs_map_ch1_status;
+            8'h4C: status_word = serdes_dqs_iddr_arm_status;
+            8'h4D: status_word = serdes_dqs_iddr_arm_count_status;
+            8'h4E: status_word = serdes_dqs_iddr_arm_payload_status;
+            8'h4F: status_word = serdes_dqs_iddr_arm_onehot_lo_status;
+            8'h50: status_word = serdes_dqs_iddr_arm_onehot_hi_status;
+            8'h51: status_word = serdes_dqs_iddr_src_status;
             8'h30: status_word = {16'hF0C0, refresh_count[0*16 +: 16]};
             8'h31: status_word = {16'hF0C1, refresh_count[1*16 +: 16]};
             8'hFE: status_word = GATE_VERSION;

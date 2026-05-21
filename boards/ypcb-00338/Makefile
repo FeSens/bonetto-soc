@@ -192,6 +192,7 @@ DDR3_CTRL_LINE_SERDES_RTL := \
     rtl/ddr3_board_io.sv \
     rtl/ddr3_cmd_observer_cdc.sv \
     rtl/ddr3_serdes_io.sv \
+    ../../ip/ddr3/rtl/ddr3_dqs_burst_capture.sv \
     ../../ip/ddr3/rtl/ddr3_serdes_edge_window.sv \
     rtl/ddr3_pinpair_timing_probe.sv \
     rtl/ddr3_pinpair_loopback_phy.sv \
@@ -236,12 +237,14 @@ DDR3_DQ_DQS_SERDES_PROBE_RTL := \
     rtl/top_ddr3_dq_dqs_serdes_probe.sv \
     rtl/ddr3_board_io.sv \
     rtl/ddr3_serdes_io.sv \
+    ../../ip/ddr3/rtl/ddr3_dqs_burst_capture.sv \
     ../../ip/ddr3/rtl/ddr3_serdes_edge_window.sv
 
 DDR3_DQ_DQS_SERDES_LANE_PROBE_RTL := \
     rtl/top_ddr3_dq_dqs_serdes_lane_probe.sv \
     rtl/ddr3_board_io.sv \
     rtl/ddr3_serdes_io.sv \
+    ../../ip/ddr3/rtl/ddr3_dqs_burst_capture.sv \
     ../../ip/ddr3/rtl/ddr3_serdes_edge_window.sv
 
 BUILD  := build
@@ -1047,7 +1050,7 @@ validate-ddr3-ctrl-line-phyclkloop:
 	cd ../.. && python3 tools/ddr3_ctrl_phyclk_validate.py --tck-ns 2000 --expected-version 0xB07E0D88 --gate-name DDR3_CTRL_LINE_PHYCLKLOOP
 
 validate-ddr3-ctrl-line-serdes-init:
-	cd ../.. && python3 tools/ddr3_init_validate.py --tck-ns 2000 --expected-version 0xB07E0DA1 --gate-name DDR3_CTRL_LINE_SERDES_INIT --require-ddr-wb-blocked
+	cd ../.. && python3 tools/ddr3_init_validate.py --tck-ns 2000 --expected-version 0xB07E0DB4 --gate-name DDR3_CTRL_LINE_SERDES_INIT --require-ddr-wb-blocked
 
 bram-echo:
 	cd ../.. && python3 tools/jtag_bram_echo.py

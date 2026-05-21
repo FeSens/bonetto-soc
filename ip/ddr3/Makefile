@@ -1,4 +1,4 @@
-.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-line-to-bursts formal-x8-to-x9-line-adapter formal-x8-lane-phy formal-x8-burst-io-sequencer formal-x8-serdes-burst-lane formal-x8-burst-clock-bridge formal-line-burst-phy formal-line-serdes-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-idelay-cal-cdc formal-serdes-edge-window formal-serdes-capture-cdc formal-mpr-debug formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line sim sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-line-to-bursts sim-x8-to-x9-line-adapter sim-x8-lane-phy sim-x8-burst-io-sequencer sim-x8-serdes-burst-lane sim-x8-burst-clock-bridge sim-line-burst-phy sim-line-serdes-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-idelay-cal-cdc sim-serdes-edge-window sim-serdes-capture-cdc sim-mpr-debug sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel cocotb clean
+.PHONY: formal formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-line-to-bursts formal-x8-to-x9-line-adapter formal-x8-lane-phy formal-x8-burst-io-sequencer formal-x8-serdes-burst-lane formal-x8-burst-clock-bridge formal-line-burst-phy formal-line-serdes-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-idelay-cal-cdc formal-serdes-edge-window formal-dqs-burst-capture formal-serdes-capture-cdc formal-mpr-debug formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line sim sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-line-to-bursts sim-x8-to-x9-line-adapter sim-x8-lane-phy sim-x8-burst-io-sequencer sim-x8-serdes-burst-lane sim-x8-burst-clock-bridge sim-line-burst-phy sim-line-serdes-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-idelay-cal-cdc sim-serdes-edge-window sim-dqs-burst-capture sim-serdes-capture-cdc sim-mpr-debug sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel cocotb clean
 
 BUILD        := formal/build
 SIM_BUILD    := sim/build
@@ -23,6 +23,7 @@ LINE_LANE_PHY_READ_SMTBMC_DEPTH ?= 30
 LINE_LANE_PHY_SOLVER ?= yices
 LINE_PHY_CLOCK_BRIDGE_SMTBMC_DEPTH ?= 36
 IDELAY_CAL_CDC_SMTBMC_DEPTH ?= 64
+DQS_BURST_CAPTURE_SMTBMC_DEPTH ?= 20
 SERDES_CAPTURE_CDC_SMTBMC_DEPTH ?= 40
 MPR_DEBUG_SMTBMC_DEPTH ?= 48
 WB_CHANNEL_SMTBMC_DEPTH ?= 36
@@ -40,7 +41,7 @@ VVP          ?= vvp
 # keep verification infrastructure live while the clean-sheet controller is
 # designed.
 
-formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-line-to-bursts formal-x8-to-x9-line-adapter formal-x8-lane-phy formal-x8-burst-io-sequencer formal-x8-serdes-burst-lane formal-x8-burst-clock-bridge formal-line-burst-phy formal-line-serdes-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-idelay-cal-cdc formal-serdes-edge-window formal-serdes-capture-cdc formal-mpr-debug formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line
+formal: formal-addr-decode formal-timing formal-init formal-single-read formal-single-write-read formal-bank formal-scheduler formal-refresh formal-refresh-traffic formal-byte-lane formal-channel-line formal-line-to-lanes formal-line-to-bursts formal-x8-to-x9-line-adapter formal-x8-lane-phy formal-x8-burst-io-sequencer formal-x8-serdes-burst-lane formal-x8-burst-clock-bridge formal-line-burst-phy formal-line-serdes-phy formal-line-lane-phy formal-line-phy-clock-bridge formal-idelay-cal-cdc formal-serdes-edge-window formal-dqs-burst-capture formal-serdes-capture-cdc formal-mpr-debug formal-wb-frontend formal-wb-channel formal-wb-line-channel formal-wb-line-channel-rmw formal-wb-dual-channel formal-wb-dual-channel-line formal-channel-sched formal-ctrl formal-ctrl-line
 
 formal-addr-decode: $(BUILD)/addr_decode.proof
 
@@ -89,6 +90,8 @@ formal-line-phy-clock-bridge: $(BUILD)/line_phy_clock_bridge.proof
 formal-idelay-cal-cdc: $(BUILD)/idelay_cal_cdc.proof
 
 formal-serdes-edge-window: $(BUILD)/serdes_edge_window.proof
+
+formal-dqs-burst-capture: $(BUILD)/dqs_burst_capture.proof
 
 formal-serdes-capture-cdc: $(BUILD)/serdes_capture_cdc.proof
 
@@ -266,6 +269,13 @@ $(BUILD)/serdes_edge_window.smt2: rtl/ddr3_serdes_edge_window.sv formal/serdes_e
 	$(YOSYS) -q -p "\
 	  read_verilog -formal -sv -DFORMAL rtl/ddr3_serdes_edge_window.sv formal/serdes_edge_window_wrapper.sv; \
 	  prep -top ddr3_serdes_edge_window_wrapper; \
+	  write_smt2 -wires $@"
+
+$(BUILD)/dqs_burst_capture.smt2: rtl/ddr3_dqs_burst_capture.sv formal/dqs_burst_capture_wrapper.sv | $(BUILD)
+	$(YOSYS) -q -p "\
+	  read_verilog -formal -sv -DFORMAL rtl/ddr3_dqs_burst_capture.sv formal/dqs_burst_capture_wrapper.sv; \
+	  prep -top ddr3_dqs_burst_capture_wrapper; \
+	  async2sync; dffunmap; \
 	  write_smt2 -wires $@"
 
 $(BUILD)/serdes_capture_cdc.smt2: rtl/ddr3_serdes_capture_cdc.sv formal/serdes_capture_cdc_wrapper.sv | $(BUILD)
@@ -459,6 +469,11 @@ $(BUILD)/serdes_edge_window.proof: $(BUILD)/serdes_edge_window.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SERDES_CAPTURE_CDC_SMTBMC_DEPTH) $<
 	@touch $@
 
+$(BUILD)/dqs_burst_capture.proof: $(BUILD)/dqs_burst_capture.smt2
+	@echo "[ddr3] formal: DDR3 DQS-domain BL8 burst capture, depth=$(DQS_BURST_CAPTURE_SMTBMC_DEPTH), solver=$(SOLVER)"
+	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(DQS_BURST_CAPTURE_SMTBMC_DEPTH) $<
+	@touch $@
+
 $(BUILD)/serdes_capture_cdc.proof: $(BUILD)/serdes_capture_cdc.smt2
 	@echo "[ddr3] formal: DDR3 raw SERDES capture CDC, depth=$(SERDES_CAPTURE_CDC_SMTBMC_DEPTH), solver=$(SOLVER)"
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(SERDES_CAPTURE_CDC_SMTBMC_DEPTH) $<
@@ -514,7 +529,7 @@ $(BUILD)/ctrl_line.proof: $(BUILD)/ctrl_line.smt2
 	$(YOSYS_SMTBMC) --presat -s $(SOLVER) -t $(CTRL_SMTBMC_DEPTH) $<
 	@touch $@
 
-sim: sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-line-to-bursts sim-x8-to-x9-line-adapter sim-x8-lane-phy sim-x8-burst-io-sequencer sim-x8-serdes-burst-lane sim-x8-burst-clock-bridge sim-line-burst-phy sim-line-serdes-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-idelay-cal-cdc sim-serdes-edge-window sim-serdes-capture-cdc sim-mpr-debug sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel
+sim: sim-addr-decode sim-byte-lane sim-channel-line sim-line-to-lanes sim-line-to-bursts sim-x8-to-x9-line-adapter sim-x8-lane-phy sim-x8-burst-io-sequencer sim-x8-serdes-burst-lane sim-x8-burst-clock-bridge sim-line-burst-phy sim-line-serdes-phy sim-line-lane-phy sim-line-phy-clock-bridge sim-idelay-cal-cdc sim-serdes-edge-window sim-dqs-burst-capture sim-serdes-capture-cdc sim-mpr-debug sim-wb-frontend sim-wb-channel sim-wb-line-channel sim-wb-line-channel-rmw sim-wb-dual-channel sim-wb-dual-channel-line sim-channel-sched sim-ctrl sim-ctrl-line sim-micron-smoke sim-micron-init sim-micron-init-rtl sim-micron-single-read sim-micron-single-write-read sim-micron-x8-agent sim-micron-ctrl-dual-channel sim-micron-ctrl-line-dual-channel
 
 cocotb:
 	@echo "[ddr3] cocotb disabled until Wishbone/runtime controller RTL exists; run 'make sim' for Micron init coverage."
@@ -586,6 +601,10 @@ sim-idelay-cal-cdc: $(SIM_BUILD)/idelay_cal_cdc.vvp
 
 sim-serdes-edge-window: $(SIM_BUILD)/serdes_edge_window.vvp
 	@echo "[ddr3] sim: DDR3 DQS edge-window latch"
+	$(VVP) $<
+
+sim-dqs-burst-capture: $(SIM_BUILD)/dqs_burst_capture.vvp
+	@echo "[ddr3] sim: DDR3 DQS-domain BL8 burst capture"
 	$(VVP) $<
 
 sim-serdes-capture-cdc: $(SIM_BUILD)/serdes_capture_cdc.vvp
@@ -810,6 +829,11 @@ $(SIM_BUILD)/serdes_edge_window.vvp: rtl/ddr3_serdes_edge_window.sv sim/tb_serde
 	$(IVERILOG) -g2012 -I rtl \
 	  -s tb_serdes_edge_window \
 	  -o $@ rtl/ddr3_serdes_edge_window.sv sim/tb_serdes_edge_window.sv
+
+$(SIM_BUILD)/dqs_burst_capture.vvp: rtl/ddr3_dqs_burst_capture.sv sim/tb_dqs_burst_capture.sv | $(SIM_BUILD)
+	$(IVERILOG) -g2012 -I rtl \
+	  -s tb_dqs_burst_capture \
+	  -o $@ rtl/ddr3_dqs_burst_capture.sv sim/tb_dqs_burst_capture.sv
 
 $(SIM_BUILD)/serdes_capture_cdc.vvp: rtl/ddr3_serdes_capture_cdc.sv sim/tb_serdes_capture_cdc.sv | $(SIM_BUILD)
 	$(IVERILOG) -g2012 -I rtl \

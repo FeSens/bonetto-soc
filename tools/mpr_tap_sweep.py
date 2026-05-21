@@ -182,7 +182,11 @@ def main():
     ap.add_argument("--waits", default=None,
                     help="Comma/range list of post-read wait values to sweep; overrides --wait-cycles")
     ap.add_argument("--history-age", type=lambda s: int(s, 0), default=0,
-                    help="clk_sys frames before the DQS edge to export, encoded in capture config bits [6:4]; hardware keeps 0-3")
+                    help="clk_sys frames before the DQS edge to export in SERDES-edge mode; in experimental DQS burst-capture images this seeds the pair skip count")
+    ap.add_argument("--skips", default=None,
+                    help="Comma/range list of DQS pairs to skip before BL8 capture; only used by experimental --dqs-iddr burst-capture images")
+    ap.add_argument("--swaps", default=None,
+                    help="Comma/range list of runtime DQS edge-swap bits to sweep; only used with --dqs-iddr")
     ap.add_argument("--dqs-iddr", action="store_true",
                     help="Use the DQS-clocked IDDR probe instead of the global-clock SERDES edge-window capture")
     ap.add_argument("--wide-debug", action="store_true",
@@ -192,11 +196,25 @@ def main():
     lanes = parse_range(args.lanes)
     taps = parse_range(args.taps)
     waits = parse_range(args.waits) if args.waits is not None else [args.wait_cycles]
+    skips = parse_range(args.skips) if args.skips is not None else [args.history_age]
+    swaps = parse_range(args.swaps) if args.swaps is not None else [0]
     if args.delay is not None and args.waits is not None:
         raise SystemExit("--delay is a raw capture byte and cannot be combined with --waits")
+    if args.skips is not None and not args.dqs_iddr:
+        raise SystemExit("--skips only applies with --dqs-iddr")
+    if args.swaps is not None and not args.dqs_iddr:
+        raise SystemExit("--swaps only applies with --dqs-iddr")
+    if args.delay is not None and args.skips is not None:
+        raise SystemExit("--delay is a raw capture byte and cannot be combined with --skips")
     for wait in waits:
         if wait < 0 or wait > 15:
             raise SystemExit(f"capture wait must fit in 4 bits, got {wait}")
+    for skip in skips:
+        if skip < 0 or skip > 7:
+            raise SystemExit(f"DQS skip count must fit in 3 bits, got {skip}")
+    for swap in swaps:
+        if swap not in (0, 1):
+            raise SystemExit(f"DQS runtime swap must be 0 or 1, got {swap}")
 
     xvc = XVC(args.host, args.port)
     print(f"connected: {xvc.info}")
@@ -227,13 +245,18 @@ def main():
     if fixed_capture_cfg is None:
         print(
             f"capture_waits={','.join(str(w) for w in waits)} "
-            f"history={args.history_age & 0x7} source={source}"
+            f"history={args.history_age & 0x7} "
+            f"skips={','.join(str(s) for s in skips)} "
+            f"swaps={','.join(str(s) for s in swaps)} "
+            f"source={source}"
         )
     else:
         print(
             f"capture_cfg=0x{fixed_capture_cfg:02x} "
             f"wait={fixed_capture_cfg & 0xF} "
-            f"history={(fixed_capture_cfg >> 4) & 0x7} source={source}"
+            f"history={(fixed_capture_cfg >> 4) & 0x7} "
+            f"swaps={','.join(str(s) for s in swaps)} "
+            f"source={source}"
         )
 
     best = {}
@@ -247,60 +270,76 @@ def main():
             print(f"\n=== MPR sweep lane {lane} ===")
             best_tap = None
             best_wait = None
+            best_skip = None
+            best_swap = None
             best_score = -1
             best_phase_score = -1
             best_verdict = "FAIL"
             best_samples = None
             for tap in taps:
-                for wait in waits:
-                    if fixed_capture_cfg is None:
-                        capture_cfg = ((args.history_age & 0x7) << 4) | (wait & 0xF)
-                        if args.dqs_iddr:
-                            capture_cfg |= 0x80
-                    else:
-                        capture_cfg = fixed_capture_cfg
-                    jwb_select_rddbg(xvc, lane, args.channel, capture_cfg)
-                    jwb_set_idelay(xvc, lane, tap, args.channel)
-                    for _ in range(3):
-                        read_status_reg(xvc, 0x00)
-                    jwb_mpr_read(xvc, args.mpr_addr, args.channel)
-                    wait_mpr_idle(xvc)
-                    time.sleep(0.001)
-                    if args.wide_debug:
-                        words = capture_words(xvc, args.n_words)
-                        samples = decode_lane_samples(words, args.n_lanes)[lane]
-                    else:
-                        samples = capture_raw_serdes_lane(
-                            xvc,
-                            requested_lane=lane,
-                            requested_channel=args.channel,
-                        )
-                    verdict, tap_score, tap_phase_score = classify_samples(samples)
-                    tap_quality = max(tap_score, tap_phase_score)
-                    best_quality = max(best_score, best_phase_score)
-                    if ((verdict_rank(verdict), tap_quality) >
-                            (verdict_rank(best_verdict), best_quality)):
-                        best_tap = tap
-                        best_wait = wait if fixed_capture_cfg is None else (capture_cfg & 0xF)
-                        best_score = tap_score
-                        best_phase_score = tap_phase_score
-                        best_verdict = verdict
-                        best_samples = samples
-                    sample_text = " ".join(f"{x:02x}" for x in samples)
-                    print(
-                        f"  tap={tap:2d} wait={capture_cfg & 0xF:2d}: "
-                        f"{verdict:<10s} "
-                        f"score={tap_score}/8 phase={tap_phase_score}/8 "
-                        f"{sample_text}"
-                    )
+                for swap in swaps:
+                    for skip in skips:
+                        for wait in waits:
+                            if fixed_capture_cfg is None:
+                                cfg_high = skip if args.dqs_iddr else args.history_age
+                                capture_cfg = ((cfg_high & 0x7) << 4) | (wait & 0xF)
+                                if args.dqs_iddr:
+                                    capture_cfg |= 0x80
+                            else:
+                                capture_cfg = fixed_capture_cfg
+                                skip = (capture_cfg >> 4) & 0x7
+                            jwb_select_rddbg(
+                                xvc, lane, args.channel, capture_cfg,
+                                swap_edges=bool(swap),
+                            )
+                            jwb_set_idelay(xvc, lane, tap, args.channel)
+                            for _ in range(3):
+                                read_status_reg(xvc, 0x00)
+                            jwb_mpr_read(xvc, args.mpr_addr, args.channel)
+                            wait_mpr_idle(xvc)
+                            time.sleep(0.001)
+                            if args.wide_debug:
+                                words = capture_words(xvc, args.n_words)
+                                samples = decode_lane_samples(words, args.n_lanes)[lane]
+                            else:
+                                samples = capture_raw_serdes_lane(
+                                    xvc,
+                                    requested_lane=lane,
+                                    requested_channel=args.channel,
+                                )
+                            verdict, tap_score, tap_phase_score = classify_samples(samples)
+                            tap_quality = max(tap_score, tap_phase_score)
+                            best_quality = max(best_score, best_phase_score)
+                            if ((verdict_rank(verdict), tap_quality) >
+                                    (verdict_rank(best_verdict), best_quality)):
+                                best_tap = tap
+                                best_wait = wait if fixed_capture_cfg is None else (capture_cfg & 0xF)
+                                best_skip = skip
+                                best_swap = swap
+                                best_score = tap_score
+                                best_phase_score = tap_phase_score
+                                best_verdict = verdict
+                                best_samples = samples
+                            sample_text = " ".join(f"{x:02x}" for x in samples)
+                            skip_text = f" skip={skip:1d}" if args.dqs_iddr else ""
+                            swap_text = f" swap={swap}" if args.dqs_iddr else ""
+                            print(
+                                f"  tap={tap:2d} wait={capture_cfg & 0xF:2d}"
+                                f"{skip_text}{swap_text}: "
+                                f"{verdict:<10s} "
+                                f"score={tap_score}/8 phase={tap_phase_score}/8 "
+                                f"{sample_text}"
+                            )
 
-            best[lane] = (best_tap, best_wait, best_score, best_phase_score,
+            best[lane] = (best_tap, best_wait, best_skip, best_swap,
+                          best_score, best_phase_score,
                           best_verdict, best_samples)
             best_text = " ".join(f"{x:02x}" for x in best_samples)
             if best_verdict != "PASS":
                 had_fail = True
             print(
                 f"  -> lane {lane} best tap={best_tap} wait={best_wait} "
+                f"skip={best_skip} swap={best_swap} "
                 f"verdict={best_verdict} "
                 f"score={best_score}/8 phase={best_phase_score}/8 {best_text}"
             )
@@ -311,8 +350,9 @@ def main():
                                   0x35, 0x36, 0x37, 0x38, 0x39, 0x3A,
                                   0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40,
                                   0x41, 0x42, 0x43, 0x44, 0x45, 0x46,
-                                  0x47, 0x48, 0x49, 0x4A, 0x4B, 0x29,
-                                  0x2A, 0x2B, 0x2C])
+                                  0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C,
+                                  0x4D, 0x4E, 0x4F, 0x50, 0x51, 0x29, 0x2A,
+                                  0x2B, 0x2C])
 
     finally:
         try:
@@ -325,16 +365,17 @@ def main():
     print("\nMPR_TAP_SWEEP_SUMMARY", end=" ")
     ok_all = True
     for lane in lanes:
-        tap, wait, tap_score, tap_phase_score, verdict, _ = best[lane]
+        tap, wait, skip, swap, tap_score, tap_phase_score, verdict, _ = best[lane]
+        suffix = f",skip={skip},swap={swap}" if args.dqs_iddr else ""
         if tap_score == len(EXPECTED_MPR_BYTES):
-            print(f"L{lane}={tap}@{wait}", end=" ")
+            print(f"L{lane}={tap}@{wait}{suffix}", end=" ")
         elif tap_phase_score == len(PHASE_SWAPPED_MPR_BYTES):
             ok_all = False
-            print(f"L{lane}=PHASE_SWAP({tap}@{wait})", end=" ")
+            print(f"L{lane}=PHASE_SWAP({tap}@{wait}{suffix})", end=" ")
         else:
             ok_all = False
             print(
-                f"L{lane}={verdict}({tap}@{wait}:"
+                f"L{lane}={verdict}({tap}@{wait}{suffix}:"
                 f"{tap_score}/8,phase={tap_phase_score}/8)",
                 end=" "
             )

@@ -56,6 +56,10 @@ The active RTL slices are deliberately small and scheduler-facing:
 - `ddr3_x8_burst_clock_bridge.sv`: narrow dual-clock bridge for one preloaded
   x8 burst lane, crossing 64 data bits, 8 mask bits, write/read starts, and one
   returned read burst between slow fabric and the fast sequencer domain;
+- `ddr3_dqs_burst_capture.sv`: DQS-domain x8 BL8 read capture primitive that
+  accumulates four IDDR rise/fall byte pairs into one ordered 64-bit lane word;
+  this is sim/formal covered but remains experimental and is not selected by
+  the current board MPR probe image;
 - `ddr3_line_burst_phy.sv`: line-to-fast-burst PHY shell that composes
   `ddr3_line_to_bursts`, one `ddr3_x8_burst_clock_bridge` per physical byte
   lane, and one fast-domain `ddr3_x8_burst_io_sequencer` per lane, exposing an
@@ -103,8 +107,9 @@ data boundary has one x8 lane packetizer, one full 64-bit-channel line
 packetizer, a line-to-x8-lane adapter, a line-to-x8-burst adapter, an explicit
 x8-data to x9-physical spare-lane adapter, one x8 lane PHY timing core, one
 fast-domain x8 burst sequencer, one x8 SERDES-domain burst lane adapter, one
-x8 burst clock bridge, one line-to-fast-burst PHY shell, one line-to-SERDES PHY
-shell, one line-to-lane PHY timing bridge, a
+x8 burst clock bridge, one DQS-domain BL8 capture primitive, one
+line-to-fast-burst PHY shell, one line-to-SERDES PHY shell, one
+line-to-lane PHY timing bridge, a
 line-backed Wishbone-to-channel bridge, and a pre-PHY controller shell tying
 those pieces to the dual-channel command path. The full-capacity address map is
 explicit and formally checked. The board has route-proven DQ/DQS primitive,

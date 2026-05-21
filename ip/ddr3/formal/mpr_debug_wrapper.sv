@@ -23,6 +23,8 @@ module ddr3_mpr_debug_wrapper (
     wire [CHANNELS-1:0] we_n;
     wire [CHANNELS*BANK_BITS-1:0] ba;
     wire [CHANNELS*ADDR_BITS-1:0] addr;
+    wire capture_arm_pulse;
+    wire [4:0] capture_arm_lane;
     wire capture_pulse;
     wire [4:0] capture_lane;
     wire busy;
@@ -31,6 +33,7 @@ module ddr3_mpr_debug_wrapper (
     wire [3:0] state;
     wire [4:0] selected_lane;
     wire [7:0] capture_delay;
+    wire capture_swap_edges;
     wire [7:0] cmd_count;
     wire [7:0] read_count;
     wire [7:0] capture_count;
@@ -58,6 +61,8 @@ module ddr3_mpr_debug_wrapper (
         .o_we_n(we_n),
         .o_ba(ba),
         .o_addr(addr),
+        .o_capture_arm_pulse(capture_arm_pulse),
+        .o_capture_arm_lane(capture_arm_lane),
         .o_capture_pulse(capture_pulse),
         .o_capture_lane(capture_lane),
         .o_busy(busy),
@@ -66,6 +71,7 @@ module ddr3_mpr_debug_wrapper (
         .o_state(state),
         .o_selected_lane(selected_lane),
         .o_capture_delay(capture_delay),
+        .o_capture_swap_edges(capture_swap_edges),
         .o_cmd_count(cmd_count),
         .o_read_count(read_count),
         .o_capture_count(capture_count),
@@ -92,7 +98,7 @@ module ddr3_mpr_debug_wrapper (
             case (f_cycle)
                 7'd2: begin
                     cmd_valid <= 1'b1;
-                    cmd_word <= 32'hEE_01_0203; // ch1, delay 2, lane 3
+                    cmd_word <= 32'hEE_03_0203; // ch1, swap, delay 2, lane 3
                 end
                 7'd6: begin
                     cmd_valid <= 1'b1;
@@ -111,6 +117,14 @@ module ddr3_mpr_debug_wrapper (
             endcase
 
             assert(!error);
+            if (f_past_valid && !$past(rst))
+                assert(!(capture_arm_pulse && $past(capture_arm_pulse)));
+            if (capture_arm_pulse) begin
+                assert(capture_arm_lane == 5'd12);
+                assert(selected_lane == 5'd12);
+                assert(capture_swap_edges);
+            end
+
             if (cmd_valid_o[1]) begin
                 assert(!cs_n[1]);
                 if (!ras_n[1] && !cas_n[1] && !we_n[1]) begin
@@ -129,9 +143,13 @@ module ddr3_mpr_debug_wrapper (
                 assert(capture_count == 8'd0);
                 assert(selected_lane == 5'd12);
                 assert(read_addr == 13'h1018);
+                assert(capture_swap_edges);
+                assert(!capture_arm_pulse);
+                assert($past(capture_arm_pulse));
             end
 
             cover(capture_pulse && capture_lane == 5'd12);
+            cover(capture_arm_pulse && capture_arm_lane == 5'd12);
             cover(cmd_count == 8'd3 && read_count == 8'd1 &&
                   capture_count == 8'd1 && mpr_enabled == 2'b00);
         end

@@ -57,8 +57,8 @@ module top_ddr3_ctrl_line_serdes_init (
             5'd17, 5'd16, 5'd15, 5'd14, 5'd13, 5'd12, 5'd11, 5'd10, 5'd10,
             5'd8, 5'd7, 5'd6, 5'd5, 5'd4, 5'd3, 5'd3, 5'd1, 5'd0
         }),
-        .GATE_VERSION(32'hB07E_0DA1),
-        .DEFAULT_MAGIC(24'hD3ADA1)
+        .GATE_VERSION(32'hB07E_0DB4),
+        .DEFAULT_MAGIC(24'hD3ADB4)
     ) u_top (
         .SYS_CLK(SYS_CLK),
         .SYS_RSTN(SYS_RSTN),

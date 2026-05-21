@@ -234,6 +234,69 @@ IDELAY load requested lane=3 tap=7 channel=1
 [0x2C] SERDES_CAPTURE_DQS    = 0xca210000 magic=0xca21 dqs=0x00
 ```
 
+Latest DQS-IDDR mapped-MPR checkpoint:
+
+Validation date: 2026-05-21
+
+The `0xB07E0DB4` image keeps the proven mapped DQS-IDDR MPR capture path live
+and adds host-visible arm/source status registers for future read-leveling
+debug. The experimental full-BL8 DQS burst-capture block remains in RTL with
+simulation and formal coverage, but it is not selected by this board image
+because hardware sweeps showed it is not ready to replace the mapped MPR probe.
+
+DB4 also rejects two earlier same-day experiments:
+
+- `0xB07E0DB2` enabled DQ IDELAY on all 18 physical byte lanes. It improved a
+  few CH1 lanes, but regressed CH0 to all-zero MPR captures, so it was backed
+  out.
+- `0xB07E0DB3` tried an armed full-BL8 DQS capture window. CH0 recovered from
+  the all-zero DB2 regression, but only CH0 lanes 1,5,6,8 and CH1 lanes 3,5,6,7
+  passed. A targeted CH0 tap sweep over taps 0-31 on lanes 0,2,3,4,7 still
+  failed those lanes, so the board path returned to the known-good latest-pair
+  mapped DQS-IDDR capture behavior.
+
+DB4 route evidence:
+
+```text
+Router1 time 26.60s
+Checksum: 0xfb4c4f40
+u_top.SYS_CLK  117.05 MHz (PASS at 50.00 MHz)
+u_top.clk_sys   82.51 MHz (PASS at 50.00 MHz)
+u_top.clk_dq   256.94 MHz (PASS at 50.00 MHz)
+u_top.clk_ddr  517.87 MHz (PASS at 50.00 MHz)
+```
+
+DB4 program and init-validator evidence:
+
+```text
+Load SRAM: 100.00%
+ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+version=0xb07e0db4
+status=0xb07e8831 init_done=1 pll_locked=1 reset_active=0 refresh_late=0
+clk_sys=0xc151c02b alive=1
+clk_ddr=0xc152c011 alive=1
+clk_dq=0xc1538030 alive=1
+clk_ref=0xc150c015 alive=1
+blocked_ddr_write_status=0xab100007
+blocked_ddr_read_status=0xab100007 read_data=0xd15ab1ed
+post_block_bram_read_status=0xab100005 read_data=0x00000000
+DDR3_CTRL_LINE_SERDES_INIT_VALIDATE_SUMMARY ok=1
+```
+
+DB4 mapped-MPR sweeps:
+
+```sh
+python3 tools/mpr_tap_sweep.py --channel 0 --lanes 0-8 --taps 0 --waits 0-15 --dqs-iddr
+python3 tools/mpr_tap_sweep.py --channel 1 --lanes 0-8 --taps 0 --waits 0-15 --dqs-iddr
+```
+
+```text
+bitstream iter=0x0db4
+MPR_TAP_SWEEP_SUMMARY L0=0@0,skip=0,swap=0 L1=0@0,skip=0,swap=0 L2=0@0,skip=0,swap=0 L3=0@0,skip=0,swap=0 L4=0@0,skip=0,swap=0 L5=0@0,skip=0,swap=0 L6=0@0,skip=0,swap=0 L7=0@0,skip=0,swap=0 L8=0@0,skip=0,swap=0
+bitstream iter=0x0db4
+MPR_TAP_SWEEP_SUMMARY L0=0@1,skip=0,swap=0 L1=0@1,skip=0,swap=0 L2=0@1,skip=0,swap=0 L3=0@1,skip=0,swap=0 L4=0@1,skip=0,swap=0 L5=0@1,skip=0,swap=0 L6=0@1,skip=0,swap=0 L7=0@1,skip=0,swap=0 L8=0@0,skip=0,swap=0
+```
+
 This is still not DDR3-800 external-memory validation: DDR Wishbone is
 intentionally blocked, DQ/DQS read/write leveling is not live, and the
 validator does not read data back from the external DDR3 devices.
