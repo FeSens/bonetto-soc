@@ -441,6 +441,18 @@ def decode_cal_counts(w: int) -> str:
     )
 
 
+def decode_serdes_capture_status(w: int) -> str:
+    return (
+        f"magic=0x{w>>16:04x} valid={(w>>15)&1} "
+        f"lane={(w>>10)&0x1F} tap={(w>>5)&0x1F} "
+        f"count_lo={w&0x1F}"
+    )
+
+
+def decode_serdes_capture_dqs(w: int) -> str:
+    return f"magic=0x{w>>16:04x} dqs=0x{w&0xFF:02x}"
+
+
 def decode_refresh_count(w: int) -> str:
     return f"magic=0x{w>>16:04x} count={w & 0xFFFF}"
 
@@ -488,6 +500,10 @@ REG_DECODERS = {
     0x26: ("IDELAY_CAL_REQUEST", decode_cal_request),
     0x27: ("IDELAY_CAL_SEEN", decode_cal_seen),
     0x28: ("IDELAY_CAL_COUNTS", decode_cal_counts),
+    0x29: ("SERDES_CAPTURE_STATUS", decode_serdes_capture_status),
+    0x2A: ("SERDES_CAPTURE_DQ_LO", lambda w: f"{w:#010x}"),
+    0x2B: ("SERDES_CAPTURE_DQ_HI", lambda w: f"{w:#010x}"),
+    0x2C: ("SERDES_CAPTURE_DQS", decode_serdes_capture_dqs),
     0x30: ("DDR3_CH0_REFRESH", decode_refresh_count),
     0x31: ("DDR3_CH1_REFRESH", decode_refresh_count),
     0x1D: ("DDR3_CH0_RDDBG_FLAGS", decode_rd_dbg_flags),
@@ -586,12 +602,24 @@ def main():
             req = read_status_reg(xvc, 0x26)
             seen = read_status_reg(xvc, 0x27)
             counts = read_status_reg(xvc, 0x28)
+            cap = read_status_reg(xvc, 0x29)
+            cap_lo = read_status_reg(xvc, 0x2A)
+            cap_hi = read_status_reg(xvc, 0x2B)
+            cap_dqs = read_status_reg(xvc, 0x2C)
             print(f"  [0x26] {REG_DECODERS[0x26][0]:<26s} = "
                   f"{req:#010x}   {decode_cal_request(req)}")
             print(f"  [0x27] {REG_DECODERS[0x27][0]:<26s} = "
                   f"{seen:#010x}   {decode_cal_seen(seen)}")
             print(f"  [0x28] {REG_DECODERS[0x28][0]:<26s} = "
                   f"{counts:#010x}   {decode_cal_counts(counts)}")
+            print(f"  [0x29] {REG_DECODERS[0x29][0]:<26s} = "
+                  f"{cap:#010x}   {decode_serdes_capture_status(cap)}")
+            print(f"  [0x2A] {REG_DECODERS[0x2A][0]:<26s} = "
+                  f"{cap_lo:#010x}   dq_lo={cap_lo:#010x}")
+            print(f"  [0x2B] {REG_DECODERS[0x2B][0]:<26s} = "
+                  f"{cap_hi:#010x}   dq_hi={cap_hi:#010x}")
+            print(f"  [0x2C] {REG_DECODERS[0x2C][0]:<26s} = "
+                  f"{cap_dqs:#010x}   {decode_serdes_capture_dqs(cap_dqs)}")
             if ((req >> 15) & 1) == 0:
                 break
             time.sleep(0.05)

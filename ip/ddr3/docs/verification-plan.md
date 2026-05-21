@@ -80,7 +80,10 @@ Current coverage:
   the representative write/read payload or output-enable contract. The IDELAY
   calibration command CDC proof checks direct physical-lane and legacy CH1
   byte-lane tap-load mapping, tap integrity, one-cycle load pulses, and
-  request/observed-load accounting in the same-clock formal harness.
+  request/observed-load accounting in the same-clock formal harness. The raw
+  SERDES capture CDC proof checks the debug observation bridge that returns the
+  selected physical lane, tap, DQ[63:0], DQS[7:0], and capture count to the
+  control clock for future read-leveling/MPR software.
   The scheduler and line-controller checks now also preserve transfer type so
   the future PHY receives mutually exclusive write/read start pulses aligned to
   the issued WR/RD command.
@@ -131,7 +134,9 @@ Current coverage:
   reassemble into a complete line. The IDELAY calibration command CDC unit
   bench runs real dual-clock tap-load requests, including direct physical CH1
   lane addressing and the legacy CH1 byte-lane map, and checks that `LD` pulses
-  for one `clk_sys` cycle with the requested tap. The
+  for one `clk_sys` cycle with the requested tap. The raw SERDES capture CDC
+  unit bench runs a real dual-clock snapshot crossing for representative lanes
+  and checks that tap, DQ, DQS, and capture count return intact. The
   line-to-lane PHY bridge unit bench runs the
   full two-channel, sixteen-lane integration over abstract DQ/DQS/DM timing
   signals before any Xilinx primitive wrapper is connected. The
@@ -165,8 +170,9 @@ Current non-coverage:
 
 - no calibrated board-level 7-series DQ/DQS read/write PHY or hardware memory
   data path exists yet;
-- no PHY leveling, delay calibration, or hardware DDR3 storage path is validated by these
-  gates.
+- raw SERDES capture registers can observe idle ISERDES samples, but no PHY
+  leveling, delay calibration, or hardware DDR3 storage path is validated by
+  these gates.
 
 Hardware note: the DDR3-800 full-pin init probe was routed, programmed, and
 validated over XVC on 2026-05-20 at commit `a6fe0d6`. That proof covers PLL
@@ -303,6 +309,12 @@ OSERDES/ISERDES/IDELAY wrapper. The focused unit simulation uses
 boundary. It is still not a calibrated board PHY or an external memory data
 path.
 
+`rtl/ddr3_serdes_capture_cdc.sv` is the debug CDC used by the live SERDES
+init-only board gate. It snapshots one physical lane's raw ISERDES DQ/DQS bits
+on a host-driven IDELAY load event and returns the stable snapshot to the
+JTAG/control clock for status-register reads. It is an observation path for
+calibration bring-up, not a memory data path.
+
 `../../boards/ypcb-00338/rtl/top_ddr3_ctrl_line_serdes.sv` is the first
 board-level route target that connects the explicit x8-data to x9-physical
 adapter plus that line-to-SERDES boundary to all physical x9 DQ/DQS lanes on
@@ -320,18 +332,21 @@ SERDES/IDELAY shell while enabling DDR3 reset/CKE/ODT/CK/address/command pins
 and blocking DDR Wishbone access. Its DQ/DQS IDELAYE2 cells use `VAR_LOAD` and
 are driven by host `SET_CAL` commands through a per-physical-lane CDC toggle
 into `clk_sys`, so future read-leveling code can sweep taps without relying on
-a one-cycle cross-domain pulse. The 2026-05-20 seed-1 router1 run generated a
-bitstream with 162 OSERDESE2, 162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF,
-18 DQS IOBUFDS, and 6 IDELAYCTRL cells. Post-route max-frequency reporting
-showed `SYS_CLK` at 112.84 MHz, `clk_sys` at 133.87 MHz, `clk_idelay_ref` at
-834.72 MHz, `clk_dq` at 684.93 MHz, and `clk_ddr` at 1557.63 MHz. This is still
-not external DDR3 storage validation because DQ/DQS read/write leveling and the
-memory write/read validator are not live yet. After a DLC10 replug, live
-programming and XVC validation passed: the validator observed version
-`0xB07E0D89`, init done, all generated clocks alive, refresh counters at
-`0x30/0x31`, DDR Wishbone blocked with the `0xD15A_B1ED` sentinel, and
-JTAG-loadable IDELAY request/seen counters matching for direct physical-lane
-and legacy CH1 byte-lane requests.
+a one-cycle cross-domain pulse. It also includes a raw SERDES capture CDC that
+snapshots the selected physical lane's ISERDES DQ[63:0]/DQS[7:0] bits on the
+same host load event. The 2026-05-20 seed-1 router1 run generated a bitstream
+with 162 OSERDESE2, 162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF, 18 DQS IOBUFDS,
+and 6 IDELAYCTRL cells. Post-route max-frequency reporting showed `SYS_CLK` at
+113.53 MHz, `clk_sys` at 65.00 MHz, `clk_idelay_ref` at 734.21 MHz, `clk_dq`
+at 668.90 MHz, and `clk_ddr` at 1557.63 MHz. This is still not external DDR3
+storage validation because DQ/DQS read/write leveling and the memory write/read
+validator are not live yet. After a DLC10 replug, live programming and XVC
+validation passed: the validator observed version `0xB07E0D89`, init done, all
+generated clocks alive, refresh counters at `0x30/0x31`, and DDR Wishbone
+blocked with the `0xD15A_B1ED` sentinel. Direct physical-lane and legacy CH1
+byte-lane IDELAY requests both had matching request/seen counters and updated
+the raw SERDES capture status for physical lane 12; the idle DQ/DQS snapshots
+read back as zero.
 
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler

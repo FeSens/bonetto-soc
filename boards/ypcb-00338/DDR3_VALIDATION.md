@@ -6,7 +6,7 @@ This is the next live gate after the pre-PHY command plus line-to-lane loopback:
 the routed `0xB07E0D89` image enables DDR3 reset/CKE/ODT/CK/address/command
 pins, keeps the full x9 CH0 + CH1 SERDES/IDELAY DQ/DQS shell present, blocks
 DDR Wishbone storage access, and exposes JTAG-loadable IDELAY tap status
-registers.
+registers plus raw SERDES DQ/DQS capture status registers.
 
 Validation date: 2026-05-20
 
@@ -15,6 +15,29 @@ After a physical USB replug, the same bounded program target succeeded on
 attempt 4 and the XVC validator passed. This validates the live init/status
 gate and the host-loadable IDELAY status path; it still does not validate real
 external DDR3 storage.
+
+The latest reroute adds `ddr3_serdes_capture_cdc`, which snapshots the selected
+physical lane's raw ISERDES DQ[63:0] and DQS[7:0] bits when a host IDELAY load
+command reaches `clk_sys`. The snapshot is exposed through status registers
+`0x29`..`0x2c` for future read-leveling and MPR work. This is an observation
+gate only: the current init-only image still does not drive calibrated DDR3
+read or write traffic.
+
+Latest route command:
+
+```sh
+nix develop --command make -C boards/ypcb-00338 ddr3-ctrl-line-serdes-init-router1-ddr800-bitstream
+```
+
+Latest post-route timing summary:
+
+```text
+u_top.SYS_CLK             113.53 MHz (PASS at 50.00 MHz)
+u_top.clk_sys              65.00 MHz (PASS at 50.00 MHz)
+u_top.clk_idelay_ref      734.21 MHz (PASS at 50.00 MHz)
+u_top.clk_dq              668.90 MHz (PASS at 50.00 MHz)
+u_top.clk_ddr            1557.63 MHz (PASS at 50.00 MHz)
+```
 
 Program command:
 
@@ -53,6 +76,20 @@ Shift IR 7f
 ir: 3 isc_done 1 isc_ena 1 init 1 done 1
 ```
 
+Latest programming after the raw-capture reroute:
+
+```text
+>> program DDR3-800 SERDES init-only attempt 1
+Open file DONE
+Parse file Unknown key Generator
+DONE
+load program
+Load SRAM: 100.00%
+Done
+Shift IR 75
+ir: 1 isc_done 1 isc_ena 0 init 1 done 1
+```
+
 Validation command:
 
 ```sh
@@ -79,6 +116,26 @@ post_block_bram_read_status=0xab100005 read_data=0x00000000
 DDR3_CTRL_LINE_SERDES_INIT_VALIDATE_SUMMARY ok=1
 ```
 
+Latest raw-capture validation summary:
+
+```text
+connected to localhost:3721 - xvcServer_v1.0:1048576
+settck(2000 ns) -> 2000 ns
+version=0xb07e0d89
+status=0xb07e8831 init_done=1 pll_locked=1 reset_active=0 refresh_late=0
+state=0x023103f0 ch0_init_state=3 ch1_init_state=8
+clk_sys=0xc151c015 alive=1
+clk_ddr=0xc152802c alive=1
+clk_dq=0xc153800c alive=1
+clk_ref=0xc1508030 alive=1
+config=0xab040061
+refresh_base=0x30 refresh0=0xf0c0d9e6 refresh1=0xf0c1dafb
+blocked_ddr_write_status=0xab100007
+blocked_ddr_read_status=0xab100007 read_data=0xd15ab1ed
+post_block_bram_read_status=0xab100005 read_data=0x00000000
+DDR3_CTRL_LINE_SERDES_INIT_VALIDATE_SUMMARY ok=1
+```
+
 IDELAY direct physical-lane check:
 
 ```sh
@@ -90,6 +147,10 @@ IDELAY load requested lane=12 tap=21 channel=0
 [0x26] IDELAY_CAL_REQUEST = 0xca101951 magic=0xca10 pending=0 channel=0 lane=12 tap=21 count_lo=1
 [0x27] IDELAY_CAL_SEEN    = 0xca111951 magic=0xca11 lane=12 tap=21 count_lo=1
 [0x28] IDELAY_CAL_COUNTS  = 0xca120101 magic=0xca12 req_count=1 seen_count=1
+[0x29] SERDES_CAPTURE_STATUS = 0xca20b2a1 magic=0xca20 valid=1 lane=12 tap=21 count_lo=1
+[0x2A] SERDES_CAPTURE_DQ_LO  = 0x00000000 dq_lo=0x00000000
+[0x2B] SERDES_CAPTURE_DQ_HI  = 0x00000000 dq_hi=0x00000000
+[0x2C] SERDES_CAPTURE_DQS    = 0xca210000 magic=0xca21 dqs=0x00
 ```
 
 IDELAY legacy CH1 byte-lane map check:
@@ -103,6 +164,10 @@ IDELAY load requested lane=3 tap=7 channel=1
 [0x26] IDELAY_CAL_REQUEST = 0xca105872 magic=0xca10 pending=0 channel=1 lane=12 tap=7 count_lo=2
 [0x27] IDELAY_CAL_SEEN    = 0xca111872 magic=0xca11 lane=12 tap=7 count_lo=2
 [0x28] IDELAY_CAL_COUNTS  = 0xca120202 magic=0xca12 req_count=2 seen_count=2
+[0x29] SERDES_CAPTURE_STATUS = 0xca20b0e2 magic=0xca20 valid=1 lane=12 tap=7 count_lo=2
+[0x2A] SERDES_CAPTURE_DQ_LO  = 0x00000000 dq_lo=0x00000000
+[0x2B] SERDES_CAPTURE_DQ_HI  = 0x00000000 dq_hi=0x00000000
+[0x2C] SERDES_CAPTURE_DQS    = 0xca210000 magic=0xca21 dqs=0x00
 ```
 
 This is still not DDR3-800 external-memory validation: DDR Wishbone is

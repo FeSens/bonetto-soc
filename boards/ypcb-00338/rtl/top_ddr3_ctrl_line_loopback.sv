@@ -478,6 +478,33 @@ module top_ddr3_ctrl_line_loopback #(
     wire [PHY_LANES*4-1:0] line_serdes_dqs_oe;
     wire [PHY_LANES*64-1:0] line_serdes_dq_in_bits;
     wire [PHY_LANES*8-1:0] line_serdes_dqs_in_bits;
+    wire                    serdes_capture_valid;
+    wire [4:0]              serdes_capture_lane;
+    wire [4:0]              serdes_capture_tap;
+    wire [63:0]             serdes_capture_dq;
+    wire [7:0]              serdes_capture_dqs;
+    wire [7:0]              serdes_capture_count;
+
+    ddr3_serdes_capture_cdc #(
+        .PHY_LANES(PHY_LANES),
+        .TAP_W(5),
+        .COUNT_W(8)
+    ) u_serdes_capture_cdc (
+        .i_phy_clk(clk_sys),
+        .i_phy_rst(line_serdes_rst),
+        .i_ctrl_clk(ctrl_clk),
+        .i_ctrl_rst(ctrl_rst),
+        .i_phy_capture_lane(line_serdes_idelay_load),
+        .i_phy_tap(line_serdes_idelay_tap),
+        .i_phy_dq_bits(line_serdes_dq_in_bits),
+        .i_phy_dqs_bits(line_serdes_dqs_in_bits),
+        .o_ctrl_valid(serdes_capture_valid),
+        .o_ctrl_lane(serdes_capture_lane),
+        .o_ctrl_tap(serdes_capture_tap),
+        .o_ctrl_dq_bits(serdes_capture_dq),
+        .o_ctrl_dqs_bits(serdes_capture_dqs),
+        .o_ctrl_count(serdes_capture_count)
+    );
 
     genvar ch;
     generate
@@ -1069,6 +1096,9 @@ module top_ddr3_ctrl_line_loopback #(
                 end
             end
         end else begin : gen_hiz_pins
+            assign line_serdes_dq_in_bits = {(PHY_LANES*64){1'b0}};
+            assign line_serdes_dqs_in_bits = {(PHY_LANES*8){1'b0}};
+
             ddr3_hiz_lanes_7series u_ch0_hiz (
                 .io_dq(ddr3_dq),
                 .io_dqs_p(ddr3_dqs_p),
@@ -1241,6 +1271,12 @@ module top_ddr3_ctrl_line_loopback #(
                                    cal_seen_count[3:0]};
             8'h28: status_word = {16'hCA12, cal_req_count,
                                    cal_seen_count};
+            8'h29: status_word = {16'hCA20, serdes_capture_valid,
+                                   serdes_capture_lane, serdes_capture_tap,
+                                   serdes_capture_count[4:0]};
+            8'h2A: status_word = serdes_capture_dq[31:0];
+            8'h2B: status_word = serdes_capture_dq[63:32];
+            8'h2C: status_word = {16'hCA21, 8'd0, serdes_capture_dqs};
             8'h30: status_word = {16'hF0C0, refresh_count[0*16 +: 16]};
             8'h31: status_word = {16'hF0C1, refresh_count[1*16 +: 16]};
             8'hFE: status_word = GATE_VERSION;

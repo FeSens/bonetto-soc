@@ -73,13 +73,19 @@ access is intentionally blocked in this image so JTAG cannot issue
 uncalibrated external storage reads or writes before read/write leveling
 exists. Its DQ and DQS IDELAYE2 cells use `VAR_LOAD`; host `SET_CAL` commands
 now cross safely from the JTAG/Wishbone clock into `clk_sys` and issue a
-per-lane IDELAY load pulse with the requested tap.
+per-lane IDELAY load pulse with the requested tap. A debug-only raw SERDES
+capture bridge snapshots the selected physical lane's DQ[63:0] and DQS[7:0]
+ISERDES bits on that same load event and exposes them through registers
+`0x29`..`0x2c`.
 
 The current SERDES init-only bitstream routes and was programmed after a DLC10
 replug. `validate-ddr3-ctrl-line-serdes-init` passed with version
 `0xB07E0D89`, both generated clock probes alive, DDR Wishbone blocked with the
 `0xD15A_B1ED` sentinel, and JTAG-loadable IDELAY request/seen counters
 matching for both direct physical-lane and legacy CH1 byte-lane addressing.
+The raw capture registers also update on those load requests: direct physical
+lane 12/tap 21 and legacy CH1 lane 3/tap 7 both captured physical lane 12 with
+valid status and zero idle DQ/DQS snapshots.
 
 ## Historical DDR3 Configuration
 
@@ -312,6 +318,9 @@ Key DDR3 controller-loopback registers:
 | `0x26` | IDELAY calibration request status: pending flag, channel bit, physical lane, tap, request-count low nibble |
 | `0x27` | IDELAY calibration observed-load status: physical lane, tap, observed-count low nibble |
 | `0x28` | IDELAY calibration request and observed-load counters |
+| `0x29` | Raw SERDES capture status: valid flag, captured physical lane, tap, capture-count low bits |
+| `0x2A`..`0x2B` | Raw SERDES DQ[63:0] capture for the last captured physical lane |
+| `0x2C` | Raw SERDES DQS[7:0] capture for the last captured physical lane |
 | `0x30`..`0x31` | CH0/CH1 refresh counters for line-controller-derived DDR3 gates |
 | `0xFE` | DDR3 controller-loopback version, `0xB07E0D81`; command-probe version, `0xB07E0D84`; command plus line-to-lane version, `0xB07E0D86`; command plus PHY-timing version, `0xB07E0D87`; live SERDES init-only version, `0xB07E0D89` |
 

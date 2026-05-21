@@ -72,7 +72,8 @@ DDR3_CTRL_LINE_LOOPBACK_RTL := \
     ../../ip/ddr3/rtl/ddr3_channel_sched.sv \
     ../../ip/ddr3/rtl/ddr3_wb_line_channel.sv \
     ../../ip/ddr3/rtl/ddr3_wb_dual_channel_line.sv \
-    ../../ip/ddr3/rtl/ddr3_ctrl_line.sv
+    ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
 
 DDR3_CTRL_LINE_CMDPROBE_RTL := \
     rtl/top_ddr3_ctrl_line_cmdprobe.sv \
@@ -97,7 +98,8 @@ DDR3_CTRL_LINE_LANELOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_wb_line_channel.sv \
     ../../ip/ddr3/rtl/ddr3_wb_dual_channel_line.sv \
     ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
-    ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv
+    ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
 
 DDR3_CTRL_LINE_CMDLANELOOP_RTL := \
     rtl/top_ddr3_ctrl_line_cmdlaneloop.sv \
@@ -118,7 +120,8 @@ DDR3_CTRL_LINE_CMDLANELOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_wb_line_channel.sv \
     ../../ip/ddr3/rtl/ddr3_wb_dual_channel_line.sv \
     ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
-    ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv
+    ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
 
 DDR3_CTRL_LINE_PHYTIMINGLOOP_RTL := \
     rtl/top_ddr3_ctrl_line_phytimingloop.sv \
@@ -142,7 +145,8 @@ DDR3_CTRL_LINE_PHYTIMINGLOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_ctrl_line.sv \
     ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
     ../../ip/ddr3/rtl/ddr3_x8_lane_phy.sv \
-    ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv
+    ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
 
 DDR3_CTRL_LINE_PHYCLKLOOP_RTL := \
     rtl/top_ddr3_ctrl_line_phyclkloop.sv \
@@ -168,7 +172,8 @@ DDR3_CTRL_LINE_PHYCLKLOOP_RTL := \
     ../../ip/ddr3/rtl/ddr3_line_to_lanes.sv \
     ../../ip/ddr3/rtl/ddr3_x8_lane_phy.sv \
     ../../ip/ddr3/rtl/ddr3_line_lane_phy.sv \
-    ../../ip/ddr3/rtl/ddr3_line_phy_clock_bridge.sv
+    ../../ip/ddr3/rtl/ddr3_line_phy_clock_bridge.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
 
 DDR3_CTRL_LINE_SERDES_RTL := \
     rtl/top_ddr3_ctrl_line_serdes_init.sv \
@@ -202,7 +207,8 @@ DDR3_CTRL_LINE_SERDES_RTL := \
     ../../ip/ddr3/rtl/ddr3_x8_burst_clock_bridge.sv \
     ../../ip/ddr3/rtl/ddr3_x8_serdes_burst_lane.sv \
     ../../ip/ddr3/rtl/ddr3_line_serdes_phy.sv \
-    ../../ip/ddr3/rtl/ddr3_idelay_cal_cdc.sv
+    ../../ip/ddr3/rtl/ddr3_idelay_cal_cdc.sv \
+    ../../ip/ddr3/rtl/ddr3_serdes_capture_cdc.sv
 
 DDR3_DQ_DQS_IO_PROBE_RTL := \
     rtl/top_ddr3_dq_dqs_iobuf_probe.sv \
