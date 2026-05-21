@@ -28,6 +28,7 @@ from jtag_uart_read import (  # noqa: E402
 PROBE_VERSION = 0xB07E0D80
 DDR3_SELECT_ADDR = 0x4000
 DDR3_BLOCKED_READ_DATA = 0xD15AB1ED
+LINE_GATE_FIRST_VERSION = 0xB07E0D81
 
 
 def require(cond, msg):
@@ -91,8 +92,12 @@ def validate(args):
         clk_dq = read_status_reg(xvc, 0x17)
         clk_ref = read_status_reg(xvc, 0x18)
         config = read_status_reg(xvc, 0x04)
-        refresh0 = read_status_reg(xvc, 0x20)
-        refresh1 = read_status_reg(xvc, 0x21)
+        # The original init probe exposes refresh counters at 0x20/0x21.
+        # Line-controller-derived board gates use 0x20..0x25 for loopback
+        # counters/last-line debug and expose refresh counters at 0x30/0x31.
+        refresh_base = 0x30 if version >= LINE_GATE_FIRST_VERSION else 0x20
+        refresh0 = read_status_reg(xvc, refresh_base + 0)
+        refresh1 = read_status_reg(xvc, refresh_base + 1)
 
         init_done = bit(status, 11)
         pll_locked = bit(status, 5)
@@ -112,7 +117,8 @@ def validate(args):
         print(f"clk_dq=0x{clk_dq:08x} alive={bit(clk_dq, 15)}")
         print(f"clk_ref=0x{clk_ref:08x} alive={bit(clk_ref, 15)}")
         print(f"config=0x{config:08x}")
-        print(f"refresh0=0x{refresh0:08x} refresh1=0x{refresh1:08x}")
+        print(f"refresh_base=0x{refresh_base:02x} "
+              f"refresh0=0x{refresh0:08x} refresh1=0x{refresh1:08x}")
 
         require(version == args.expected_version,
                 f"expected {args.gate_name} version 0x{args.expected_version:08x}, "

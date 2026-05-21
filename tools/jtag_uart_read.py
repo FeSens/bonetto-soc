@@ -441,6 +441,10 @@ def decode_cal_counts(w: int) -> str:
     )
 
 
+def decode_refresh_count(w: int) -> str:
+    return f"magic=0x{w>>16:04x} count={w & 0xFFFF}"
+
+
 REG_DECODERS = {
     0x00: ("STATUS_FLAGS", decode_status_flags),
     0x01: ("STATE_BITS",   decode_state_bits),
@@ -484,6 +488,8 @@ REG_DECODERS = {
     0x26: ("IDELAY_CAL_REQUEST", decode_cal_request),
     0x27: ("IDELAY_CAL_SEEN", decode_cal_seen),
     0x28: ("IDELAY_CAL_COUNTS", decode_cal_counts),
+    0x30: ("DDR3_CH0_REFRESH", decode_refresh_count),
+    0x31: ("DDR3_CH1_REFRESH", decode_refresh_count),
     0x1D: ("DDR3_CH0_RDDBG_FLAGS", decode_rd_dbg_flags),
     0x1E: ("DDR3_CH0_RDDBG_READ_COUNTS", decode_rd_dbg_read_counts),
     0x1F: ("DDR3_CH0_RDDBG_WRITE_COUNTS", decode_rd_dbg_write_counts),

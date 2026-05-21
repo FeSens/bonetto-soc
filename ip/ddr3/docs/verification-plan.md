@@ -326,9 +326,12 @@ bitstream with 162 OSERDESE2, 162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF,
 showed `SYS_CLK` at 112.84 MHz, `clk_sys` at 133.87 MHz, `clk_idelay_ref` at
 834.72 MHz, `clk_dq` at 684.93 MHz, and `clk_ddr` at 1557.63 MHz. This is still
 not external DDR3 storage validation because DQ/DQS read/write leveling and the
-memory write/read validator are not live yet. Live programming/XVC validation
-is blocked on the DLC10 cable: the bounded 10-attempt program target failed at
-XPCU JTAG init with `LIBUSB_ERROR_TIMEOUT` / `Unable to read constant`.
+memory write/read validator are not live yet. After a DLC10 replug, live
+programming and XVC validation passed: the validator observed version
+`0xB07E0D89`, init done, all generated clocks alive, refresh counters at
+`0x30/0x31`, DDR Wishbone blocked with the `0xD15A_B1ED` sentinel, and
+JTAG-loadable IDELAY request/seen counters matching for direct physical-lane
+and legacy CH1 byte-lane requests.
 
 `rtl/ddr3_line_lane_phy.sv` is the next integration boundary: it drives all x8
 lane PHY timing cores from complete controller lines and explicit scheduler

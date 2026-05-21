@@ -57,8 +57,10 @@ IOBUF, 18 DQS IOBUFDS, and 6 IDELAYCTRL cells; post-route reports `SYS_CLK` at
 112.84 MHz, `clk_sys` at 133.87 MHz, `clk_idelay_ref` at 834.72 MHz, `clk_dq`
 at 684.93 MHz, and `clk_ddr` at 1557.63 MHz against the 50 MHz board-clock
 target. Hardware programming/validation is still pending a DLC10 replug because
-the latest bounded programming run failed all 10 attempts during XPCU JTAG
-init with `LIBUSB_ERROR_TIMEOUT` / `Unable to read constant`.
+the first bounded programming run failed all 10 attempts during XPCU JTAG init.
+After a physical replug, the same image programmed successfully and
+`validate-ddr3-ctrl-line-serdes-init` passed with DDR Wishbone blocked and both
+direct and legacy-mapped IDELAY load status checks passing.
 The same tight lane routes and generates bitstreams when split into TX-only
 OSERDESE2/IOBUF/IOBUFDS or RX-only IDELAYE2/ISERDESE2/IOBUF/IOBUFDS
 diagnostics, both at the 400 MHz route target. The tight no-IDELAY
@@ -83,7 +85,7 @@ bit-clock domain. External DDR3 storage is still not validated.
 | Formal | Live full-capacity address-map proof, command timing monitor self-check, init sequencer proof, single-read proof, single-write/read proof, bank-machine proof, scheduler timing/refresh proof, periodic idle-refresh proof, bounded active-traffic refresh proof, byte-lane packet proof, full-channel line packet proof, line-to-x8-lane adapter proof, line-to-x8-burst adapter proof, x8-data to x9-physical adapter proof, x8 lane PHY timing-core proof, fast-domain x8 burst I/O sequencer proof, x8 SERDES-domain BL8 lane-adapter proof, x8 burst clock-bridge proof, line-to-fast-burst PHY-shell proof, line-to-SERDES PHY-shell proof, line-to-lane PHY bridge proof, controller-to-PHY line clock bridge proof, IDELAY calibration command CDC proof, Wishbone frontend proof, line-level Wishbone proof including no-DM read-modify-write mode, Wishbone-to-channel bridge proof, dual-channel dispatch proof, BL8 line scheduler-adapter proof, and controller init-gate proof |
 | Simulation | Live full-capacity address-map unit test, Micron DDR3 model smoke, byte-lane unit test, full-channel line unit test, line-to-x8-lane adapter unit test, line-to-x8-burst adapter unit test, x8-data to x9-physical adapter unit test, x8 lane PHY timing-core unit test, fast-domain x8 burst I/O sequencer unit test, x8 SERDES-domain BL8 lane-adapter unit test, x8 burst clock-bridge dual-clock unit test, line-to-fast-burst PHY shell unit test, line-to-SERDES PHY shell unit test with two x9 channels, line-to-lane PHY bridge unit test, controller-to-PHY line clock bridge dual-clock unit test, IDELAY calibration command CDC dual-clock unit test, Wishbone frontend unit test, Wishbone-to-channel bridge unit test, line-level Wishbone unit tests for mask-preserving and no-DM read-modify-write modes, dual-channel dispatch unit test, BL8 line scheduler-adapter unit test, init-gated dual-channel controller unit test, reference init, RTL init, RTL single-read command, x8 write/read loopback using the byte-lane packetizer, reusable x8 DQS/DQ/DM timing-agent coverage, and dual-channel full-width controller loopback through sixteen Micron x8 models |
 | Reference notes | LiteDRAM/UberDDR3 lessons captured in `docs/learning-notes.md` |
-| Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, command-probe, command plus line-to-lane loopback, route-only full-pin DQ/DQS I/O-shell timing proof, route-only full-pin x8 burst/DQ/DQS timing proof, route-only full dual-channel SERDES/IDELAY timing proof through router1, route-only full x9 controller-to-SERDES board wiring proof through router1, and route-clean live SERDES init-only target pending programming/validation; D88 PHY-clock bridge is debug evidence only and its program target is refused by default because it misses the 400 MHz bit-clock target; not external DDR3 storage |
+| Active hardware gate | YPCB-00338 JTAG/Wishbone BRAM proof plus DDR3 line-controller loopback, line-to-lane loopback, command-probe, command plus line-to-lane loopback, route-only full-pin DQ/DQS I/O-shell timing proof, route-only full-pin x8 burst/DQ/DQS timing proof, route-only full dual-channel SERDES/IDELAY timing proof through router1, route-only full x9 controller-to-SERDES board wiring proof through router1, and hardware-validated live SERDES init-only status/blocked-DDR/IDELAY-load gate; D88 PHY-clock bridge is debug evidence only and its program target is refused by default because it misses the 400 MHz bit-clock target; not external DDR3 storage |
 
 ## Live Gates
 
@@ -406,9 +408,11 @@ What these mean today:
   162 ISERDESE2, 162 IDELAYE2, 144 DQ IOBUF, 18 DQS IOBUFDS, and
   6 IDELAYCTRL cells. Post-route max frequencies were `SYS_CLK` 112.84 MHz,
   `clk_sys` 133.87 MHz, `clk_idelay_ref` 834.72 MHz, `clk_dq` 684.93 MHz, and
-  `clk_ddr` 1557.63 MHz. Hardware programming and XVC validation are still
-  pending a DLC10 replug after the latest 10-attempt programming run failed at
-  XPCU JTAG init with `LIBUSB_ERROR_TIMEOUT` / `Unable to read constant`.
+  `clk_ddr` 1557.63 MHz. Hardware programming succeeded after a DLC10 replug,
+  and XVC validation passed with version `0xB07E0D89`, init done, all generated
+  clocks alive, DDR Wishbone blocked with the `0xD15A_B1ED` read sentinel, and
+  IDELAY request/seen counters matching for both direct physical-lane and
+  legacy CH1 byte-lane addressing.
 
 ## Directory Map
 

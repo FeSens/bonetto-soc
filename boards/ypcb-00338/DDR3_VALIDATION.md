@@ -1,6 +1,6 @@
 # YPCB-00338 DDR3 Validation
 
-## SERDES Init-Only Hardware Attempt Blocked By DLC10
+## SERDES Init-Only Hardware Evidence
 
 This is the next live gate after the pre-PHY command plus line-to-lane loopback:
 the routed `0xB07E0D89` image enables DDR3 reset/CKE/ODT/CK/address/command
@@ -8,17 +8,21 @@ pins, keeps the full x9 CH0 + CH1 SERDES/IDELAY DQ/DQS shell present, blocks
 DDR Wishbone storage access, and exposes JTAG-loadable IDELAY tap status
 registers.
 
-The image builds and routes, but the latest programming run did not reach FPGA
-DONE or XVC validation. The failure is at the DLC10/XPCU JTAG-init transport
-stage, before any DDR3 status can be sampled.
+Validation date: 2026-05-20
 
-Attempted command:
+The first programming run failed at the DLC10/XPCU JTAG-init transport stage.
+After a physical USB replug, the same bounded program target succeeded on
+attempt 4 and the XVC validator passed. This validates the live init/status
+gate and the host-loadable IDELAY status path; it still does not validate real
+external DDR3 storage.
+
+Program command:
 
 ```sh
 nix develop --command make -C boards/ypcb-00338 program-ddr3-ctrl-line-serdes-init-ddr800
 ```
 
-Observed failure pattern:
+Initial blocked failure pattern:
 
 ```text
 >> program DDR3-800 SERDES init-only attempt 1
@@ -35,17 +39,75 @@ showed 'Unable to read constant', the cable is wedged. Physical
 unplug+replug of the USB cable from the Mac is required.
 ```
 
-Next action after replug:
+Successful programming after replug:
+
+```text
+>> program DDR3-800 SERDES init-only attempt 4
+Open file DONE
+Parse file Unknown key Generator
+DONE
+load program
+Load SRAM: 100.00%
+Done
+Shift IR 7f
+ir: 3 isc_done 1 isc_ena 1 init 1 done 1
+```
+
+Validation command:
 
 ```sh
-nix develop --command make -C boards/ypcb-00338 program-ddr3-ctrl-line-serdes-init-ddr800
-nix develop --command make -C boards/ypcb-00338 xvc
 nix develop --command make -C boards/ypcb-00338 validate-ddr3-ctrl-line-serdes-init
+```
+
+Final summary:
+
+```text
+connected to localhost:3721 - xvcServer_v1.0:1048576
+settck(2000 ns) -> 2000 ns
+version=0xb07e0d89
+status=0xb07e8831 init_done=1 pll_locked=1 reset_active=0 refresh_late=0
+state=0x023101d8 ch0_init_state=1 ch1_init_state=8
+clk_sys=0xc151801a alive=1
+clk_ddr=0xc152c007 alive=1
+clk_dq=0xc153c009 alive=1
+clk_ref=0xc150c013 alive=1
+config=0xab040061
+refresh_base=0x30 refresh0=0xf0c0497d refresh1=0xf0c14a8f
+blocked_ddr_write_status=0xab100007
+blocked_ddr_read_status=0xab100007 read_data=0xd15ab1ed
+post_block_bram_read_status=0xab100005 read_data=0x00000000
+DDR3_CTRL_LINE_SERDES_INIT_VALIDATE_SUMMARY ok=1
+```
+
+IDELAY direct physical-lane check:
+
+```sh
 python3 tools/jtag_uart_read.py --set-idelay 12 21 --tck-ns 2000
 ```
 
-This section is failure evidence only. It must not be counted as DDR3-800
-external-memory validation or as validation of the SERDES init-only status path.
+```text
+IDELAY load requested lane=12 tap=21 channel=0
+[0x26] IDELAY_CAL_REQUEST = 0xca101951 magic=0xca10 pending=0 channel=0 lane=12 tap=21 count_lo=1
+[0x27] IDELAY_CAL_SEEN    = 0xca111951 magic=0xca11 lane=12 tap=21 count_lo=1
+[0x28] IDELAY_CAL_COUNTS  = 0xca120101 magic=0xca12 req_count=1 seen_count=1
+```
+
+IDELAY legacy CH1 byte-lane map check:
+
+```sh
+python3 tools/jtag_uart_read.py --set-idelay 3 7 --idelay-channel 1 --tck-ns 2000
+```
+
+```text
+IDELAY load requested lane=3 tap=7 channel=1
+[0x26] IDELAY_CAL_REQUEST = 0xca105872 magic=0xca10 pending=0 channel=1 lane=12 tap=7 count_lo=2
+[0x27] IDELAY_CAL_SEEN    = 0xca111872 magic=0xca11 lane=12 tap=7 count_lo=2
+[0x28] IDELAY_CAL_COUNTS  = 0xca120202 magic=0xca12 req_count=2 seen_count=2
+```
+
+This is still not DDR3-800 external-memory validation: DDR Wishbone is
+intentionally blocked, DQ/DQS read/write leveling is not live, and the
+validator does not read data back from the external DDR3 devices.
 
 ## Clean-Sheet DDR3 Command Plus Line-To-Lane Loopback Evidence
 

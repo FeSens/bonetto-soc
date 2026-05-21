@@ -75,11 +75,11 @@ exists. Its DQ and DQS IDELAYE2 cells use `VAR_LOAD`; host `SET_CAL` commands
 now cross safely from the JTAG/Wishbone clock into `clk_sys` and issue a
 per-lane IDELAY load pulse with the requested tap.
 
-The current SERDES init-only bitstream routes, but it has not reached XVC
-validation yet. The latest bounded `program-ddr3-ctrl-line-serdes-init-ddr800`
-run failed all 10 DLC10 attempts at XPCU JTAG init with
-`LIBUSB_ERROR_TIMEOUT` / `Unable to read constant`; a physical USB replug is
-needed before retrying the hardware gate.
+The current SERDES init-only bitstream routes and was programmed after a DLC10
+replug. `validate-ddr3-ctrl-line-serdes-init` passed with version
+`0xB07E0D89`, both generated clock probes alive, DDR Wishbone blocked with the
+`0xD15A_B1ED` sentinel, and JTAG-loadable IDELAY request/seen counters
+matching for both direct physical-lane and legacy CH1 byte-lane addressing.
 
 ## Historical DDR3 Configuration
 
@@ -312,6 +312,7 @@ Key DDR3 controller-loopback registers:
 | `0x26` | IDELAY calibration request status: pending flag, channel bit, physical lane, tap, request-count low nibble |
 | `0x27` | IDELAY calibration observed-load status: physical lane, tap, observed-count low nibble |
 | `0x28` | IDELAY calibration request and observed-load counters |
+| `0x30`..`0x31` | CH0/CH1 refresh counters for line-controller-derived DDR3 gates |
 | `0xFE` | DDR3 controller-loopback version, `0xB07E0D81`; command-probe version, `0xB07E0D84`; command plus line-to-lane version, `0xB07E0D86`; command plus PHY-timing version, `0xB07E0D87`; live SERDES init-only version, `0xB07E0D89` |
 
 ## LEDs
